@@ -1,0 +1,21 @@
+{
+  "name": "progbox-ui",
+  "private": true,
+  "packageManager": "pnpm@10.8.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev:api": "pnpm --filter @progbox/api dev",
+    "build": "pnpm --filter web build",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run build && pnpm run lint:api",
+    "check:fix": "pnpm --filter web lint:fix",
+    "typecheck": "pnpm --filter web typecheck",
+    "lint": "pnpm --filter web lint",
+    "lint:api": "pnpm --filter @progbox/api lint",
+    "doctor": "node scripts/doctor.mjs",
+    "test": "pnpm run test:web && pnpm run test:api",
+    "test:web": "pnpm --filter web test",
+    "test:api": "pnpm --filter @progbox/api test",
+    "verify": "pnpm run check && pnpm run test"
+  }
+}
