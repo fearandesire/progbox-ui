@@ -1,5 +1,32 @@
-# Vue 3 + TypeScript + Vite
+# progbox-ui Web
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+Vue 3 frontend for [progbox](https://github.com/akshayexists/progbox/tree/dev-v4.1) Monte Carlo simulations.
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+## Stack
+
+Vue 3 · TypeScript · Vite · Tailwind CSS v4 · Pinia · Vitest
+
+## Commands
+
+```bash
+pnpm dev        # Start dev server
+pnpm build      # Production build
+pnpm test       # Run tests
+pnpm lint       # Check code
+pnpm typecheck  # Check types
+```
+
+## Structure
+
+```
+src/
+  components/   # UI components
+  views/        # Pages
+  lib/          # API client, utilities
+  stores/       # Pinia stores
+  router/       # Routes
+```
+
+## API
+
+The web app proxies `/api` to the FastAPI backend. Set `VITE_API_BASE_URL` to override.
