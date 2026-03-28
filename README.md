@@ -1,61 +1,65 @@
 # progbox-ui
 
-Vue 3 + FastAPI UI for the [progbox](https://github.com/akshayexists/progbox) Monte Carlo simulation engine.
+Vue 3 + FastAPI UI for [progbox](https://github.com/akshayexists/progbox/tree/dev-v4.1) — a Monte Carlo simulation engine.
 
-This repo contains the **frontend and API wrapper**. The simulation engine itself lives in the [progbox](https://github.com/akshayexists/progbox) repository.
+> **Note:** This repo contains the UI and API wrapper only. The simulation engine lives in the [progbox repo (dev-v4.1 branch)](https://github.com/akshayexists/progbox/tree/dev-v4.1).
+
+---
 
 ## Quick Start
 
-**Prerequisites:** Node.js 22+, pnpm 10+, Python 3.11+
-
 ```bash
-# Install JS dependencies
+# 1. Install dependencies
 pnpm install
-
-# Install Python dependencies
-python -m venv .venv
-# Windows: .venv\Scripts\activate
-# Unix: source .venv/bin/activate
+python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r api/requirements.txt
 
-# Start both web and API
+# 2. Start the app
 pnpm dev
 ```
 
-- **Web:** http://localhost:5173
-- **API:** http://127.0.0.1:8000/docs
+| Service | URL |
+|---------|-----|
+| Web UI | http://localhost:5173 |
+| API Docs | http://127.0.0.1:8000/docs |
 
-## Common Commands
+---
 
-| Command | Description |
-|---------|-------------|
-| `pnpm dev` | Run web + API in parallel |
-| `pnpm verify` | Lint, typecheck, build, and test |
+## Commands
+
+| Command | What it does |
+|---------|--------------|
+| `pnpm dev` | Run web + API together |
+| `pnpm verify` | Lint, typecheck, build, test |
 | `pnpm test` | Run all tests |
-| `pnpm doctor` | Check environment health |
 
-## Project Structure
+---
+
+## Structure
 
 ```
-web/        # Vue 3 SPA (Vite, Tailwind v4)
-api/        # FastAPI application
-outputs/    # Simulation run storage (gitignored)
-docs/       # Product plan and implementation notes
+web/      # Vue 3 frontend (Vite, Tailwind v4)
+api/      # FastAPI backend
+outputs/  # Simulation storage (runtime only)
+docs/     # Product specs and plans
 ```
+
+---
 
 ## Configuration
 
 | Variable | Purpose |
 |----------|---------|
-| `PROGBOX_OUTPUTS_DIR` | Custom path for simulation outputs |
+| `PROGBOX_OUTPUTS_DIR` | Custom simulation output path |
 | `VITE_API_BASE_URL` | Override API base URL |
+
+---
 
 ## Documentation
 
-- [AGENTS.md](AGENTS.md) — Developer and automation guide
+- [AGENTS.md](AGENTS.md) — Developer guide
 - [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) — Full product spec
-- [docs/PHASE2.md](docs/PHASE2.md) — Future enhancements
 
-## Note on Simulations
+## Current Status
 
-The simulation runner is not yet implemented. The UI currently works with manually created `outputs/<build>/metadata.json` fixtures. See [AGENTS.md](AGENTS.md) for integration details.
+The simulation runner is not yet implemented. The UI works with manually created output fixtures for now. See [AGENTS.md](AGENTS.md) for details.
