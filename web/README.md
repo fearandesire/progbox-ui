@@ -1,5 +1,39 @@
-# Vue 3 + TypeScript + Vite
+# progbox-ui Web
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+Vue 3 SPA for the progbox Monte Carlo simulation engine.
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+## Stack
+
+- Vue 3 + TypeScript
+- Vite
+- Vue Router + Pinia
+- Tailwind CSS v4
+- Vitest
+
+## Commands
+
+```bash
+pnpm dev          # Start dev server
+pnpm build        # Production build
+pnpm preview      # Preview production build
+pnpm test         # Run Vitest
+pnpm lint         # ESLint check
+pnpm typecheck    # TypeScript check
+```
+
+## Project Structure
+
+```
+src/
+  components/     # Vue components
+  views/          # Page-level views
+  lib/            # Utilities and API client
+  stores/         # Pinia stores
+  router/         # Vue Router config
+```
+
+## API Client
+
+The web app uses `ofetch` via `src/lib/api.ts`. By default, it proxies `/api` to the FastAPI backend at `http://127.0.0.1:8000`.
+
+To override the API base URL, set `VITE_API_BASE_URL` in a `.env` file or environment.
