@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from pathlib import PurePosixPath
+from pathlib import PureWindowsPath
 from typing import Any
 
 import pandas as pd
 
 from services.storage import outputs_root
+
+
+class InvalidChartNameError(ValueError):
+    """Raised when a chart name is not a flat filename."""
 
 
 def _raw_dir(build: str) -> Path:
@@ -36,11 +42,20 @@ def list_chart_filenames(build: str) -> list[str]:
 def chart_path(build: str, name: str) -> Path:
     """Resolve chart path; raises if traversal or missing."""
     base = (outputs_root() / build / "charts").resolve()
+    if (
+        not name
+        or name in {".", ".."}
+        or PurePosixPath(name).name != name
+        or PureWindowsPath(name).name != name
+    ):
+        raise InvalidChartNameError("Invalid chart name")
     target = (base / name).resolve()
     try:
         target.relative_to(base)
     except ValueError as exc:
-        raise FileNotFoundError("Invalid chart name") from exc
+        raise InvalidChartNameError("Invalid chart name") from exc
+    if not target.is_file():
+        raise FileNotFoundError(str(target))
     return target
 
 

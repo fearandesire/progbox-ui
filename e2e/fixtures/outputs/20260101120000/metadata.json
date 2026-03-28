@@ -1,0 +1,18 @@
+{
+  "build": "20260101120000",
+  "script_version": "v4.1",
+  "status": "complete",
+  "teams": ["BOS", "NYK"],
+  "seed": 69,
+  "runs": 10,
+  "n_workers": 1,
+  "export_file": "outputs/20260101120000/export.json",
+  "teaminfo_file": "outputs/20260101120000/teaminfo.json",
+  "started_at": "2026-01-01T12:00:00Z",
+  "completed_at": "2026-01-01T12:05:00Z",
+  "player_count": 2,
+  "config_snapshot": {
+    "ovr_hard_cap": 80
+  },
+  "error": null
+}

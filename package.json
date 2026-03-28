@@ -16,6 +16,13 @@
     "test": "pnpm run test:web && pnpm run test:api",
     "test:web": "pnpm --filter web test",
     "test:api": "pnpm --filter @progbox/api test",
-    "verify": "pnpm run check && pnpm run test"
+    "test:api:engine": "pnpm --filter @progbox/api test:engine",
+    "test:e2e": "playwright test --grep @smoke",
+    "test:e2e:full": "playwright test",
+    "verify": "pnpm run check && pnpm run test && pnpm run test:api:engine && pnpm run test:e2e",
+    "verify:full": "pnpm run check && pnpm run test && pnpm run test:api:engine && pnpm run test:e2e:full"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
   }
 }

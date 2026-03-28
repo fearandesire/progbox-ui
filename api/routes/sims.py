@@ -16,6 +16,7 @@ from services.runner import PROGRESS, run_simulation_job
 from services.sim_artifacts import (
     analysis_xlsx_path,
     chart_path,
+    InvalidChartNameError,
     godprogs_records,
     list_chart_filenames,
     player_all_runs,
@@ -170,16 +171,16 @@ async def list_charts(build: BuildId) -> list[str]:
     return list_chart_filenames(build)
 
 
-@router.get("/{build}/charts/{name}")
+@router.get("/{build}/charts/{name:path}")
 async def get_chart_png(build: BuildId, name: str) -> FileResponse:
     if get_run(build) is None:
         raise HTTPException(status_code=404, detail="Run not found")
     try:
         path = chart_path(build, name)
-    except FileNotFoundError as exc:
+    except InvalidChartNameError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if not path.is_file():
-        raise HTTPException(status_code=404, detail="Chart not found")
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Chart not found") from exc
     return FileResponse(path, media_type="image/png", filename=name)
 
 

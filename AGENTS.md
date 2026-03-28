@@ -19,14 +19,19 @@ This repository is the **UI + API** for Progbox Monte Carlo simulations. The **v
 - **API:** `POST /api/sims`, `GET /api/sims/{build}/progress` (SSE), `GET /api/sims/{build}/charts`, `GET /api/sims/{build}/charts/{name}`, `GET /api/sims/{build}/players`, `GET /api/sims/{build}/players/{pid}`, `GET /api/sims/{build}/godprogs`, `GET /api/sims/{build}/download?artifact=analysis|csv`, plus list/get/delete sims. See [`api/routes/sims.py`](api/routes/sims.py).
 - **Config:** `GET /api/config` returns `script_version` + `config` snapshot from vendored `progutils.Config` via [`api/routes/config.py`](api/routes/config.py).
 - **Artifacts:** [`api/services/sim_artifacts.py`](api/services/sim_artifacts.py) reads CSV, charts, godprogs from disk.
+- **Testing:** The suite is intentionally split into `pytest` backend tests, `Vitest` frontend unit tests, and `Playwright` browser tests. Use `pnpm test` for the fast unit path, `pnpm test:api:engine` for the vendored-engine smoke run, and `pnpm test:e2e` / `pnpm test:e2e:full` for browser coverage. The living conventions are documented in [`TESTING.md`](TESTING.md).
 
 ## Commands (repo root)
 
 - `pnpm install` — install JS workspace dependencies.
 - `pnpm dev` — run **web + api** in parallel (`pnpm -r --parallel run dev`).
 - `pnpm check` — ESLint, `vue-tsc`, web production build, Python `compileall` on `api/`.
-- `pnpm test` — Vitest (web) + pytest (api).
-- `pnpm verify` — `check` then `test`.
+- `pnpm test` — Vitest (web) + pytest (api), excluding the slow vendored-engine smoke test.
+- `pnpm test:api:engine` — isolated vendored-engine smoke test.
+- `pnpm test:e2e` — Playwright smoke suite.
+- `pnpm test:e2e:full` — fuller seeded browser suite.
+- `pnpm verify` — `check`, `test`, `test:api:engine`, then `test:e2e`.
+- `pnpm verify:full` — `check`, `test`, `test:api:engine`, then `test:e2e:full`.
 - `pnpm doctor` — quick Node/pnpm/`web/node_modules` sanity check (does not validate Python venv).
 - Python API deps: `pip install -r api/requirements.txt` (use a venv).
 
@@ -36,10 +41,11 @@ This repository is the **UI + API** for Progbox Monte Carlo simulations. The **v
 - **Build IDs:** Canonical run id is **14 digits** `YYYYMMDDHHmmss` (CalVer). API validates this on `/api/sims/{build}` routes.
 - **Outputs root:** Resolved by `api/services/storage.py`: env `PROGBOX_OUTPUTS_DIR`, else `<repo>/outputs/`.
 - **Engine changes:** Prefer keeping vendored upstream files aligned with snapshots; minimal patches live in `runsim.py` (REPO_ROOT + worker `sys.path`) and `workspace.py`. Orchestration belongs in `api/services/runner.py`, not in routes.
+- **Docs:** Keep [`README.md`](README.md) aligned with the command contract and keep [`TESTING.md`](TESTING.md) aligned with test-layer conventions.
 
 ## CI
 
-- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — Node (lint, typecheck, build, Vitest) and Python (install, `compileall`, pytest).
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — Node (lint, typecheck, build, Vitest coverage), Python (`compileall`, pytest coverage, engine smoke), and Playwright smoke/full jobs.
 
 ## Security / scope
 
