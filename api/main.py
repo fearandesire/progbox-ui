@@ -1,5 +1,13 @@
 import os
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+# Vendored engine imports (multiprocessing workers + analysis/runner)
+_vend = Path(__file__).resolve().parent / "vendor" / "progbox_v41"
+_vp = str(_vend)
+if _vp not in sys.path:
+    sys.path.insert(0, _vp)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

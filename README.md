@@ -1,45 +1,73 @@
 # progbox-ui
 
-Vue 3 + FastAPI UI for the [progbox](https://github.com/akshayexists/progbox) Monte Carlo engine (`dev-v4.1`).
+Vue 3 + FastAPI UI for **Progbox** — a Monte Carlo simulation engine. The **v4.1** engine from [akshayexists/progbox@dev-v4.1](https://github.com/akshayexists/progbox/tree/dev-v4.1) is **vendored** under [`api/vendor/progbox_v41/`](api/vendor/progbox_v41/) and run by the API (no separate checkout required for local dev).
 
-## Quick start
+---
 
-1. **Node:** 22+ and **pnpm** 10+ (`corepack enable` optional).
-2. **Python:** 3.12+ with a venv; `pip install -r api/requirements.txt`.
-3. From the repo root:
+## Quick Start
 
 ```bash
+# 1. Install dependencies
 pnpm install
+python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r api/requirements.txt
+
+# 2. Start the app
 pnpm dev
 ```
 
-- Web: [http://localhost:5173](http://localhost:5173) (proxies `/api` to the API).
-- API: [http://127.0.0.1:8000](http://127.0.0.1:8000) — OpenAPI docs at `/docs`.
+| Service | URL |
+|---------|-----|
+| Web UI | http://localhost:5173 |
+| API Docs | http://127.0.0.1:8000/docs |
 
-## Scripts
+---
 
-| Command        | Description                                      |
-| -------------- | ------------------------------------------------ |
-| `pnpm dev`     | Vite + uvicorn in parallel                       |
-| `pnpm check`   | ESLint, `vue-tsc`, production build, `compileall` |
-| `pnpm test`    | Vitest (web) + pytest (api)                      |
-| `pnpm verify`  | `pnpm check` then `pnpm test`                    |
-| `pnpm doctor`  | Basic environment checks                         |
+## Commands
 
-## Environment (optional)
+| Command | What it does |
+|---------|--------------|
+| `pnpm dev` | Run web + API together |
+| `pnpm verify` | Lint, typecheck, build, test |
+| `pnpm test` | Run all tests |
+
+---
+
+## Structure
+
+```
+web/                         # Vue 3 frontend (Vite, Tailwind v4)
+api/                         # FastAPI backend
+api/vendor/progbox_v41/      # Vendored progbox v4.1 engine (progutils, runsim, analysis, exportcleaner)
+data/                        # Default export.json / teaminfo.json (optional; uploads override)
+outputs/                     # Simulation storage (runtime; gitignored)
+docs/                        # Product specs and plans
+```
+
+---
+
+## Configuration
 
 | Variable | Purpose |
-| -------- | ------- |
-| `VITE_API_BASE_URL` | Absolute API base for non-proxy contexts (default: `/api`). |
-| `PROGBOX_OUTPUTS_DIR` | Override path to the `outputs/` directory (default: repo `outputs/`). |
-| `CORS_ALLOW_ORIGINS` | Comma-separated origins (default: `http://localhost:5173,http://127.0.0.1:5173`). |
-| `CORS_ALLOW_CREDENTIALS` | `true` / `false` (default: `true`). Cannot combine `true` with origin `*`. |
+|----------|---------|
+| `PROGBOX_OUTPUTS_DIR` | Custom simulation output path |
+| `VITE_API_BASE_URL` | Override API base URL |
 
-## Docs
+---
 
-- Product plan: [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)
-- Optional follow-ups: [docs/PHASE2.md](docs/PHASE2.md)
+## Documentation
 
-## Odysseus platform (optional)
+- [AGENTS.md](AGENTS.md) — Developer guide
+- [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) — Full product spec
 
-This repo can adopt more from `odysseustech` later (`platform-templates`, `ci-platform`, `platform-config`). See `docs/PHASE2.md`.
+## Simulation API
+
+- `POST /api/sims` — multipart: `export` (JSON file), `config` (JSON string: `teams`, `seed`, `runs`, `n_workers`), optional `teaminfo` file. Defaults `teaminfo` to `data/teaminfo.json` if omitted.
+- Pipeline: `exportcleaner` → `runsim.PROGEMUP` → `analysis.generate_analysis`, writing `outputs/{build}/` (CalVer `YYYYMMDDHHmmss`).
+- `GET /api/sims/{build}/progress` — SSE JSON events `{ phase, pct, message, done }`.
+
+---
+
+## Upgrading the engine
+
+Replace contents of `api/vendor/progbox_v41/` with a new upstream snapshot, keep `workspace.py`, `VERSION`, and `runsim.py` patches (REPO_ROOT output path + `sys.path` bootstrap for multiprocessing) or re-apply equivalent wiring in [`api/services/engine_adapter.py`](api/services/engine_adapter.py).

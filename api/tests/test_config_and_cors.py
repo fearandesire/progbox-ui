@@ -19,4 +19,7 @@ def test_config_route_ok() -> None:
     c = TestClient(app)
     r = c.get("/api/config")
     assert r.status_code == 200
-    assert "message" in r.json()
+    body = r.json()
+    assert "script_version" in body
+    assert "config" in body
+    assert body["config"]["ovr_hard_cap"] == 80

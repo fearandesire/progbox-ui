@@ -65,7 +65,8 @@ def test_nested_routes_before_generic_build(client: TestClient, tmp_path: Path, 
     (run_dir / "metadata.json").write_text(json.dumps(payload), encoding="utf-8")
 
     r = client.get(f"/api/sims/{build}/progress")
-    assert r.status_code == 501
+    assert r.status_code == 200
+    assert r.headers.get("content-type", "").startswith("text/event-stream")
 
 
 def test_charts_list_not_found(client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

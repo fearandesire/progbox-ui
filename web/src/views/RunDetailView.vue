@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
+import SimProgressPanel from "../components/SimProgressPanel.vue";
 import { fetchSim } from "../lib/api";
 import type { RunMetadata } from "../lib/types";
 
@@ -100,8 +101,12 @@ watch(
         <span class="text-neutral-500">Script:</span>
         {{ run.script_version }}
       </p>
+      <SimProgressPanel
+        v-if="run.status === 'running'"
+        :build="build"
+      />
       <p class="text-neutral-600 dark:text-neutral-400">
-        Run detail tabs (Block 3).
+        Charts, players, and exports: use the API or extend this view.
       </p>
     </div>
   </div>
