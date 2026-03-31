@@ -79,3 +79,4 @@ outputs/*
 
 # Optional: local exports / uploads (uncomment if you never commit fixtures)
 # data/*.json
+.codex
