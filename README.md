@@ -85,9 +85,3 @@ docs/                        # Product specs and plans
 - Pipeline: `exportcleaner` → `runsim.PROGEMUP` → `analysis.generate_analysis`, writing `outputs/{build}/` (CalVer `YYYYMMDDHHmmss`).
 - `GET /api/sims/{build}/progress` — SSE JSON events `{ phase, pct, message, done }`.
 - `GET /api/sims/{build}/charts`, `/players`, `/godprogs`, and `/download` expose generated artifacts once a run completes.
-
----
-
-## Upgrading the engine
-
-Replace contents of `api/vendor/progbox_v41/` with a new upstream snapshot, keep `workspace.py`, `VERSION`, and `runsim.py` patches (REPO_ROOT output path + `sys.path` bootstrap for multiprocessing) or re-apply equivalent wiring in [`api/services/engine_adapter.py`](api/services/engine_adapter.py).
