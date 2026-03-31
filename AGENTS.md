@@ -50,3 +50,34 @@ This repository is the **UI + API** for Progbox Monte Carlo simulations. The **v
 ## Security / scope
 
 - Intended for **local/trusted** use. CORS is env-driven; `allow_credentials` + wildcard origin `*` is rejected at startup.
+
+## Cursor Cloud specific instructions
+
+### Environment
+
+- **Node 22**, **Python 3.12**, **pnpm 10.8.0** — all pre-installed via the update script.
+- Python venv lives at `.venv` in the repo root. Activate it (`source .venv/bin/activate`) before running any `pnpm` command that touches the API (e.g. `pnpm dev`, `pnpm test`, `pnpm check`).
+- No external services (database, cache, message broker) are required — all storage is file-backed under `outputs/`.
+
+### Running dev servers
+
+- `source .venv/bin/activate && pnpm dev` starts both Vite (`:5173`) and Uvicorn (`:8000`) in parallel.
+- The Vite dev server binds to **IPv6 `localhost`** by default. The Playwright config checks `127.0.0.1:5173` (IPv4), which won't match a running `pnpm dev` Vite instance. Therefore, **stop `pnpm dev` before running `pnpm test:e2e`** — Playwright will start its own servers with `--host 127.0.0.1` and manage their lifecycle.
+
+### Running tests
+
+- `pnpm test` (Vitest + pytest) and `pnpm test:api:engine` (engine smoke) can run with or without dev servers.
+- `pnpm test:e2e` / `pnpm test:e2e:full`: **ports 5173 and 8000 must be free**. Playwright starts its own servers via the `webServer` config. If ports are occupied, the Vite webServer picks a different port and Playwright times out waiting on 5173.
+- `pnpm check` runs ESLint, `vue-tsc`, production build, and `compileall` — needs venv active for the Python step.
+
+### Hello-world smoke test
+
+To validate the full pipeline via the API:
+```bash
+source .venv/bin/activate && pnpm dev &   # start servers
+curl -s -X POST http://127.0.0.1:8000/api/sims \
+  -F "export=@data/export.json" \
+  -F 'config={"teams":[],"seed":42,"runs":10,"n_workers":1}'
+# Wait ~15s, then:
+curl -s http://127.0.0.1:8000/api/sims | jq '.[0].status'  # → "complete"
+```
