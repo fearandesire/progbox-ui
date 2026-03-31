@@ -10,7 +10,7 @@ vi.mock("../lib/api", () => ({
   downloadUrl: vi.fn(() => "/api/mock-download"),
 }));
 
-import { fetchSim } from "../lib/api";
+import { deleteSim, fetchSim } from "../lib/api";
 
 vi.mock("../components/SimProgressPanel.vue", () => ({
   default: {
@@ -61,6 +61,7 @@ function createRouterForBuild() {
 describe("RunDetailView", () => {
   beforeEach(() => {
     vi.mocked(fetchSim).mockReset();
+    vi.mocked(deleteSim).mockReset();
   });
 
   it("shows a loading state while the run is fetching", async () => {
@@ -179,5 +180,92 @@ describe("RunDetailView", () => {
     await flushPromises();
 
     expect(wrapper.find('[data-test="progress-panel"]').exists()).toBe(true);
+  });
+
+  it("switches tabs to render charts, players, and god progs", async () => {
+    vi.mocked(fetchSim).mockResolvedValueOnce({
+      build: "20260101120000",
+      status: "complete",
+      teams: ["BOS"],
+      script_version: "v4.1.0",
+    });
+
+    const router = createRouterForBuild();
+    await router.push("/runs/20260101120000");
+    await router.isReady();
+
+    const wrapper = mount(RunDetailView, {
+      global: {
+        plugins: [router],
+        stubs: {
+          RouterLink: RouterLinkStub,
+        },
+      },
+    });
+    await flushPromises();
+
+    const chartsTab = wrapper.findAll("button").find((button) => button.text() === "Charts");
+    expect(chartsTab).toBeDefined();
+    if (!chartsTab) {
+      return;
+    }
+    await chartsTab.trigger("click");
+    await flushPromises();
+    expect(wrapper.find('[data-test="chart-gallery"]').exists()).toBe(true);
+
+    const playersTab = wrapper.findAll("button").find((button) => button.text() === "Players");
+    expect(playersTab).toBeDefined();
+    if (!playersTab) {
+      return;
+    }
+    await playersTab.trigger("click");
+    await flushPromises();
+    expect(wrapper.find('[data-test="player-table"]').exists()).toBe(true);
+
+    const godprogsTab = wrapper.findAll("button").find((button) => button.text() === "God Progs");
+    expect(godprogsTab).toBeDefined();
+    if (!godprogsTab) {
+      return;
+    }
+    await godprogsTab.trigger("click");
+    await flushPromises();
+    expect(wrapper.find('[data-test="godprog-list"]').exists()).toBe(true);
+  });
+
+  it("deletes a run after confirmation and returns to the dashboard", async () => {
+    vi.mocked(fetchSim).mockResolvedValueOnce({
+      build: "20260101120000",
+      status: "complete",
+      teams: [],
+      script_version: "v4.1.0",
+    });
+    vi.mocked(deleteSim).mockResolvedValueOnce({ ok: true });
+    vi.stubGlobal("confirm", vi.fn(() => true));
+
+    const router = createRouterForBuild();
+    await router.push("/runs/20260101120000");
+    await router.isReady();
+
+    const wrapper = mount(RunDetailView, {
+      global: {
+        plugins: [router],
+        stubs: {
+          RouterLink: RouterLinkStub,
+        },
+      },
+    });
+    await flushPromises();
+
+    const deleteButton = wrapper.findAll("button").find((button) => button.text() === "Delete Run");
+    expect(deleteButton).toBeDefined();
+    if (!deleteButton) {
+      return;
+    }
+
+    await deleteButton.trigger("click");
+    await flushPromises();
+
+    expect(deleteSim).toHaveBeenCalledWith("20260101120000");
+    expect(router.currentRoute.value.fullPath).toBe("/");
   });
 });

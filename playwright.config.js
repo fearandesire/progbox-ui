@@ -2,6 +2,7 @@ const { defineConfig, devices } = require("@playwright/test");
 const path = require("node:path");
 
 const outputsDir = path.join(__dirname, "e2e", "fixtures", "outputs");
+const webDir = path.join(__dirname, "web");
 
 module.exports = defineConfig({
   testDir: "./e2e",
@@ -32,9 +33,11 @@ module.exports = defineConfig({
       },
     },
     {
-      command: "pnpm --filter web dev -- --host 127.0.0.1 --port 5173",
+      command: "node ./node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173",
+      cwd: webDir,
       url: "http://127.0.0.1:5173",
       reuseExistingServer: !process.env.CI,
+      timeout: 120 * 1000,
     },
   ],
 });

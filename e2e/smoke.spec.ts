@@ -13,8 +13,8 @@ test("dashboard links to completed run detail @smoke", async ({ page }) => {
   await page.getByRole("link", { name: /20260101120000/i }).click();
 
   await expect(page).toHaveURL(/\/runs\/20260101120000$/);
-  await expect(page.getByText("Status:")).toBeVisible();
-  await expect(page.getByText("complete")).toBeVisible();
+  await expect(page.getByText("Run Metadata")).toBeVisible();
+  await expect(page.getByText("complete", { exact: true })).toBeVisible();
   await expect(page.getByText("v4.1")).toBeVisible();
 });
 
