@@ -14,3 +14,34 @@ export interface RunMetadata {
   config_snapshot?: Record<string, unknown> | null;
   error?: string | null;
 }
+
+export interface PlayerSummary {
+  PlayerID: string | number;
+  Name: string;
+  Team: string;
+  Age: number;
+  Baseline: number;
+  MeanDelta: number;
+  StdDelta: number;
+  P05: number;
+  P25: number;
+  P50: number;
+  P75: number;
+  P95: number;
+}
+
+export interface GodProg {
+  name: string;
+  run_seed: number;
+  age: number;
+  ovr: number;
+  bonus: number;
+  chance: number;
+}
+
+export interface SimProgress {
+  phase: string;
+  pct: number;
+  message: string;
+  done: boolean;
+}

@@ -1,16 +1,11 @@
-import { onUnmounted, ref } from "vue";
+import { computed, onUnmounted, ref, toValue, watch } from "vue";
+import type { MaybeRefOrGetter } from "vue";
 
 import { getApiBaseUrl } from "../lib/api";
-
-export interface SimProgressPayload {
-  phase: string;
-  pct: number;
-  message: string;
-  done: boolean;
-}
+import type { SimProgress } from "../lib/types";
 
 /** SSE client for `GET /api/sims/:build/progress`. */
-export function useSimProgress(build: string) {
+export function useSimProgress(build: MaybeRefOrGetter<string | null | undefined>) {
   const phase = ref<string | null>(null);
   const pct = ref(0);
   const message = ref<string | null>(null);
@@ -18,22 +13,27 @@ export function useSimProgress(build: string) {
 
   let es: EventSource | null = null;
 
-  function connect() {
-    if (!build) return;
-    const path = `${getApiBaseUrl()}/sims/${encodeURIComponent(build)}/progress`;
+  function closeStream() {
+    es?.close();
+    es = null;
+  }
+
+  function connect(buildId: string) {
+    if (!buildId) return;
+    closeStream();
+    const path = `${getApiBaseUrl()}/sims/${encodeURIComponent(buildId)}/progress`;
     const url = path.startsWith("http") ? path : `${window.location.origin}${path}`;
     es = new EventSource(url);
 
     es.onmessage = (ev: MessageEvent<string>) => {
       try {
-        const data = JSON.parse(ev.data) as SimProgressPayload;
+        const data = JSON.parse(ev.data) as SimProgress;
         phase.value = data.phase;
         pct.value = data.pct;
         message.value = data.message;
         done.value = Boolean(data.done);
         if (data.done) {
-          es?.close();
-          es = null;
+          closeStream();
         }
       } catch {
         /* ignore malformed chunks */
@@ -41,16 +41,30 @@ export function useSimProgress(build: string) {
     };
 
     es.onerror = () => {
-      es?.close();
-      es = null;
+      closeStream();
     };
   }
 
-  connect();
+  const buildId = computed(() => toValue(build) ?? "");
+
+  watch(
+    buildId,
+    (nextBuild) => {
+      phase.value = null;
+      pct.value = 0;
+      message.value = null;
+      done.value = false;
+      if (!nextBuild) {
+        closeStream();
+        return;
+      }
+      connect(nextBuild);
+    },
+    { immediate: true },
+  );
 
   onUnmounted(() => {
-    es?.close();
-    es = null;
+    closeStream();
   });
 
   return { phase, pct, message, done };

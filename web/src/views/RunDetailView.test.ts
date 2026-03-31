@@ -6,6 +6,8 @@ import type { RunMetadata } from "../lib/types";
 
 vi.mock("../lib/api", () => ({
   fetchSim: vi.fn(),
+  deleteSim: vi.fn(),
+  downloadUrl: vi.fn(() => "/api/mock-download"),
 }));
 
 import { fetchSim } from "../lib/api";
@@ -14,6 +16,35 @@ vi.mock("../components/SimProgressPanel.vue", () => ({
   default: {
     name: "SimProgressPanel",
     template: `<div data-test="progress-panel"></div>`,
+  },
+}));
+
+vi.mock("../components/ChartGallery.vue", () => ({
+  default: {
+    name: "ChartGallery",
+    template: `<div data-test="chart-gallery"></div>`,
+  },
+}));
+
+vi.mock("../components/PlayerTable.vue", () => ({
+  default: {
+    name: "PlayerTable",
+    template: `<div data-test="player-table"></div>`,
+  },
+}));
+
+vi.mock("../components/GodProgList.vue", () => ({
+  default: {
+    name: "GodProgList",
+    template: `<div data-test="godprog-list"></div>`,
+  },
+}));
+
+vi.mock("../components/StatusBadge.vue", () => ({
+  default: {
+    name: "StatusBadge",
+    props: ["status"],
+    template: `<span data-test="status-badge">{{ status }}</span>`,
   },
 }));
 
@@ -79,7 +110,7 @@ describe("RunDetailView", () => {
     });
     await flushPromises();
 
-    expect(wrapper.text()).toContain("Status:");
+    expect(wrapper.text()).toContain("Run Metadata");
     expect(wrapper.text()).toContain("complete");
     expect(wrapper.text()).toContain("v4.1.0");
     expect(wrapper.find('[data-test="progress-panel"]').exists()).toBe(false);
