@@ -40,7 +40,7 @@ This UI uses the original **Progbox v4.1** Monte Carlo simulation engine from [a
 
 ### How It Works
 
-The API (`api/main.py`) orchestrates the vendored engine by:
+The API runner (`api/services/runner.py`) orchestrates the vendored engine by:
 1. Running `exportcleaner.py` to validate and clean the uploaded export file
 2. Calling `runsim.PROGEMUP()` to execute the Monte Carlo simulation
 3. Using `analysis.generate_analysis()` to produce charts and Excel reports
@@ -53,15 +53,15 @@ You can update to a newer version of the Progbox engine **as long as the APIs re
 
 1. **Replace the vendored code**: Copy the updated engine files into `api/vendor/progbox_v41/`
 2. **Verify the interface**: The engine must still expose:
-   - `exportcleaner.clean_export()` - validates export files
-   - `runsim.PROGEMUP(...)` - runs simulations with the same parameters
-   - `analysis.generate_analysis(...)` - generates charts and analysis files
+   - `exportcleaner.exportcleaner(export_file, teams, teaminfo_file)` - validates and cleans export files
+   - `runsim_cls(seed=seed).PROGEMUP(data, runs, output_dir, n_workers)` - runs simulations (PROGEMUP is an instance method)
+   - `analysis.generate_analysis(output_dir)` - generates charts and analysis files
    - `progutils.Config` - configuration object
 3. **Ensure output compatibility**: The engine must write outputs to the same paths:
    - `raw/*.csv` - raw simulation data
    - `charts/*.png` - visualization charts
    - `analysis.xlsx` - final analysis spreadsheet
-   - `godprogs.json` - god progression data
+   - `raw/godprogs.json` - god progression data (written by the engine into the `raw/` subdirectory)
 
 If the engine maintains these APIs and output paths, you can drop in the updated version and the UI will continue to work. Run `pnpm verify` to validate the integration after updating.
 
@@ -109,7 +109,7 @@ This application is **fully functional** and ready for use. All core features wo
 ✅ **Real-time Progress** - Server-sent events (SSE) provide live progress updates during simulation execution
 ✅ **Results Visualization** - View generated charts, player stats, and god progression data
 ✅ **Artifact Downloads** - Download analysis Excel files and raw CSV data
-✅ **Comprehensive Testing** - Full test coverage with Vitest (frontend), pytest (API), and Playwright (e2e)
+✅ **Comprehensive Testing** - Coverage thresholds enforced: Vitest (frontend), pytest (API), and Playwright (e2e)
 
 ### Current Scope
 
@@ -124,7 +124,7 @@ This application is designed for **local/trusted environments**. CORS is configu
 - Chart generation and visualization
 - Player statistics and god progression analysis
 - Excel and CSV exports
-- Full test suite coverage (unit, integration, e2e)
+- Full test suite with enforced coverage thresholds (unit, integration, e2e)
 
 ### Known Limitations
 

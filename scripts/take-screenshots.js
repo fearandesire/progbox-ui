@@ -1,4 +1,5 @@
 const { chromium } = require('@playwright/test');
+const fs = require('fs');
 const path = require('path');
 
 (async () => {
@@ -17,6 +18,7 @@ const path = require('path');
 
   // Take screenshot of home page
   const screenshotsDir = path.join(__dirname, '..', 'docs', 'screenshots');
+  fs.mkdirSync(screenshotsDir, { recursive: true });
   await page.screenshot({
     path: path.join(screenshotsDir, 'home-page.png'),
     fullPage: true
