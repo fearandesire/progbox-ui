@@ -2,6 +2,10 @@
 
 Vue 3 + FastAPI UI for **Progbox** — a Monte Carlo simulation engine. The **v4.1** engine from [akshayexists/progbox@dev-v4.1](https://github.com/akshayexists/progbox/tree/dev-v4.1) is **vendored** under [`api/vendor/progbox_v41/`](api/vendor/progbox_v41/) and run by the API (no separate checkout required for local dev).
 
+![Home Page](docs/screenshots/home-page.png)
+
+*The Progbox UI home page where you upload export files and configure simulation runs*
+
 ## What Lives Here
 
 - `web/` is the Vue 3 + Vite frontend.
@@ -27,6 +31,39 @@ pnpm dev
 |---------|-----|
 | Web UI | http://localhost:5173 |
 | API Docs | http://127.0.0.1:8000/docs |
+
+---
+
+## Progbox Engine Integration
+
+This UI uses the original **Progbox v4.1** Monte Carlo simulation engine from [akshayexists/progbox](https://github.com/akshayexists/progbox). The engine code is **vendored** (copied into this repository) at `api/vendor/progbox_v41/` so you can run simulations without needing a separate clone.
+
+### How It Works
+
+The API (`api/main.py`) orchestrates the vendored engine by:
+1. Running `exportcleaner.py` to validate and clean the uploaded export file
+2. Calling `runsim.PROGEMUP()` to execute the Monte Carlo simulation
+3. Using `analysis.generate_analysis()` to produce charts and Excel reports
+
+All engine functions are imported through `api/services/engine_adapter.py` for clean separation.
+
+### Updating the Engine
+
+You can update to a newer version of the Progbox engine **as long as the APIs remain compatible**:
+
+1. **Replace the vendored code**: Copy the updated engine files into `api/vendor/progbox_v41/`
+2. **Verify the interface**: The engine must still expose:
+   - `exportcleaner.clean_export()` - validates export files
+   - `runsim.PROGEMUP(...)` - runs simulations with the same parameters
+   - `analysis.generate_analysis(...)` - generates charts and analysis files
+   - `progutils.Config` - configuration object
+3. **Ensure output compatibility**: The engine must write outputs to the same paths:
+   - `raw/*.csv` - raw simulation data
+   - `charts/*.png` - visualization charts
+   - `analysis.xlsx` - final analysis spreadsheet
+   - `godprogs.json` - god progression data
+
+If the engine maintains these APIs and output paths, you can drop in the updated version and the UI will continue to work. Run `pnpm verify` to validate the integration after updating.
 
 ---
 
@@ -61,6 +98,42 @@ outputs/                     # Simulation storage (runtime; gitignored)
 e2e/                         # Playwright smoke/full tests and seeded fixtures
 docs/                        # Product specs and plans
 ```
+
+---
+
+## Production Readiness
+
+This application is **fully functional** and ready for use. All core features work as intended:
+
+✅ **Upload & Configure** - Upload export files and customize simulation parameters (teams, seed, runs, workers)
+✅ **Real-time Progress** - Server-sent events (SSE) provide live progress updates during simulation execution
+✅ **Results Visualization** - View generated charts, player stats, and god progression data
+✅ **Artifact Downloads** - Download analysis Excel files and raw CSV data
+✅ **Comprehensive Testing** - Full test coverage with Vitest (frontend), pytest (API), and Playwright (e2e)
+
+### Current Scope
+
+This application is designed for **local/trusted environments**. CORS is configurable via environment variables but does not include advanced security features expected in public-facing production deployments (authentication, rate limiting, etc.).
+
+### What Works
+
+- All simulation features from the original Progbox engine (v4.1)
+- File uploads with validation and cleaning
+- Multi-worker parallel simulation execution
+- Progress tracking with phase-based updates
+- Chart generation and visualization
+- Player statistics and god progression analysis
+- Excel and CSV exports
+- Full test suite coverage (unit, integration, e2e)
+
+### Known Limitations
+
+- No user authentication or authorization
+- No rate limiting on API endpoints
+- File-based storage only (no database)
+- Designed for local/internal use, not public internet deployment
+
+The application is production-ready for its intended use case: running Progbox simulations in a local or trusted network environment.
 
 ---
 
