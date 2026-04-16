@@ -51,7 +51,7 @@ def load_progutils_config() -> Any:
 
 
 def config_snapshot() -> dict[str, Any]:
-    """Full Config constants for metadata (matches IMPLEMENTATION_PLAN shape)."""
+    """Full Config constants for run metadata."""
     Config = load_progutils_config()
     return {
         "composite": dict(Config.COMPOSITE),
