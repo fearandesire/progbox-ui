@@ -1,0 +1,11 @@
+{
+  "name": "@progbox/api",
+  "private": true,
+  "scripts": {
+    "dev": "python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000",
+    "lint": "python -m compileall -q .",
+    "test": "pytest -m \"not engine\"",
+    "test:coverage": "pytest --cov=main --cov=routes --cov=services --cov-report=term-missing --cov-fail-under=70 -m \"not engine\"",
+    "test:engine": "pytest -m engine"
+  }
+}

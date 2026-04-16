@@ -1,0 +1,9 @@
+name: progbox-ui
+cast_type: monorepo
+runtime: mixed
+package_manager: pnpm
+quality_profile: oxc
+ci_family: github
+notes: |
+  Vue 3 SPA in web/; FastAPI in api/. Run `pnpm dev` from root for both.
+  Python deps: `pip install -r api/requirements.txt`.

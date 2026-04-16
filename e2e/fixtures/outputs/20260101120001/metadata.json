@@ -1,0 +1,18 @@
+{
+  "build": "20260101120001",
+  "script_version": "v4.1",
+  "status": "running",
+  "teams": ["GSW"],
+  "seed": 42,
+  "runs": 25,
+  "n_workers": 1,
+  "export_file": "outputs/20260101120001/export.json",
+  "teaminfo_file": "outputs/20260101120001/teaminfo.json",
+  "started_at": "2026-01-01T12:10:00Z",
+  "completed_at": null,
+  "player_count": null,
+  "config_snapshot": {
+    "ovr_hard_cap": 80
+  },
+  "error": null
+}

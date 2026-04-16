@@ -1,0 +1,18 @@
+{
+  "build": "20260101120002",
+  "script_version": "v4.1",
+  "status": "failed",
+  "teams": ["LAL"],
+  "seed": 7,
+  "runs": 15,
+  "n_workers": 1,
+  "export_file": "outputs/20260101120002/export.json",
+  "teaminfo_file": "outputs/20260101120002/teaminfo.json",
+  "started_at": "2026-01-01T12:20:00Z",
+  "completed_at": "2026-01-01T12:21:00Z",
+  "player_count": null,
+  "config_snapshot": {
+    "ovr_hard_cap": 80
+  },
+  "error": "RuntimeError: seeded failure"
+}
