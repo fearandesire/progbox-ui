@@ -1,6 +1,8 @@
 # progbox-ui
 
-Vue 3 + FastAPI UI for **Progbox** — a Monte Carlo simulation engine. The **v4.1** engine from [akshayexists/progbox@dev-v4.1](https://github.com/akshayexists/progbox/tree/dev-v4.1) is **vendored** under [`api/vendor/progbox_v41/`](api/vendor/progbox_v41/) and run by the API (no separate checkout required for local dev).
+Simple UI + API for running Progbox simulations.
+
+*Progbox* — the Monte Carlo simulation engine — is already implemented and vendored in this repo, so this project makes running it much easier.
 
 ![Home Page](docs/screenshots/home-page.png)
 
@@ -98,42 +100,6 @@ outputs/                     # Simulation storage (runtime; gitignored)
 e2e/                         # Playwright smoke/full tests and seeded fixtures
 docs/                        # Product specs and plans
 ```
-
----
-
-## Production Readiness
-
-This application is **fully functional** and ready for use. All core features work as intended:
-
-✅ **Upload & Configure** - Upload export files and customize simulation parameters (teams, seed, runs, workers)
-✅ **Real-time Progress** - Server-sent events (SSE) provide live progress updates during simulation execution
-✅ **Results Visualization** - View generated charts, player stats, and god progression data
-✅ **Artifact Downloads** - Download analysis Excel files and raw CSV data
-✅ **Comprehensive Testing** - Coverage thresholds enforced: Vitest (frontend), pytest (API), and Playwright (e2e)
-
-### Current Scope
-
-This application is designed for **local/trusted environments**. CORS is configurable via environment variables but does not include advanced security features expected in public-facing production deployments (authentication, rate limiting, etc.).
-
-### What Works
-
-- All simulation features from the original Progbox engine (v4.1)
-- File uploads with validation and cleaning
-- Multi-worker parallel simulation execution
-- Progress tracking with phase-based updates
-- Chart generation and visualization
-- Player statistics and god progression analysis
-- Excel and CSV exports
-- Full test suite with enforced coverage thresholds (unit, integration, e2e)
-
-### Known Limitations
-
-- No user authentication or authorization
-- No rate limiting on API endpoints
-- File-based storage only (no database)
-- Designed for local/internal use, not public internet deployment
-
-The application is production-ready for its intended use case: running Progbox simulations in a local or trusted network environment.
 
 ---
 
