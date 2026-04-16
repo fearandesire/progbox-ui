@@ -78,7 +78,7 @@ Run `pnpm verify` after updating to validate the integration.
 | GET    | `/api/sims/{build}`             | Run metadata                        |
 | GET    | `/api/sims/{build}/progress`    | SSE progress stream                 |
 | GET    | `/api/sims/{build}/charts`      | List chart filenames                |
-| GET    | `/api/sims/{build}/charts/:name`| Serve chart PNG                     |
+| GET    | `/api/sims/{build}/charts/{name}`| Serve chart PNG                    |
 | GET    | `/api/sims/{build}/players`     | Player table                        |
 | GET    | `/api/sims/{build}/godprogs`    | God-prog events                     |
 | GET    | `/api/sims/{build}/download`    | Download analysis or CSV            |
