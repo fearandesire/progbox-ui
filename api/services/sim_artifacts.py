@@ -29,7 +29,11 @@ def load_outputs_df(build: str) -> pd.DataFrame:
     path = _outputs_csv(build)
     if not path.is_file():
         raise FileNotFoundError(str(path))
-    return pd.read_csv(path, index_col=0)
+    df = pd.read_csv(path)
+    # Drop legacy pandas index column written by old Python engine (to_csv default).
+    if "Unnamed: 0" in df.columns:
+        df = df.drop(columns=["Unnamed: 0"])
+    return df
 
 
 def list_chart_filenames(build: str) -> list[str]:

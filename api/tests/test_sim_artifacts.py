@@ -59,12 +59,47 @@ def _rows() -> list[dict[str, object]]:
 
 
 def test_load_outputs_df_reads_indexed_csv(make_run_dir) -> None:
+    """Legacy Python engine CSV: pandas wrote a leading unnamed index column."""
     build = "20260101120000"
     make_run_dir(build, raw_rows=_rows())
 
     df = sim_artifacts.load_outputs_df(build)
     assert list(df.columns[:3]) == ["PlayerID", "Name", "Team"]
+    assert "Unnamed: 0" not in df.columns
     assert len(df) == 4
+
+
+def test_load_outputs_df_reads_unindexed_cpp_csv(make_run_dir, isolated_outputs_dir) -> None:
+    """C++ engine CSV: Run is the first column, no leading index column."""
+    import io
+    import pandas as pd
+
+    build = "20260201120000"
+    run_dir = isolated_outputs_dir / build
+    raw_dir = run_dir / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write exactly as C++ analytics.hpp export_raw_csv produces
+    cpp_csv = (
+        "Run,RunSeed,Name,Team,Age,PlayerID,Baseline,Ovr,Delta,PctChange,"
+        "AboveBaseline,PER,DWS,EWA,dIQ,Dnk,Drb,End,2Pt,FT,Ins,Jmp,"
+        "oIQ,Pss,Reb,Spd,Str,3Pt,Hgt\n"
+        "0,12345,Alpha One,BOS,29,0,55.0,56.0,1.0,0.018182,True,"
+        "18.5,2.4,1.2,54,50,51,52,53,54,55,56,57,58,59,60,61,62,63\n"
+        "0,12345,Beta Two,NYK,31,1,53.0,52.0,-1.0,-0.018868,False,"
+        "20.1,1.9,1.5,54,50,51,52,53,54,55,56,57,58,59,60,61,62,63\n"
+    )
+    (raw_dir / "outputs.csv").write_text(cpp_csv, encoding="utf-8")
+    (run_dir / "metadata.json").write_text(
+        '{"build": "20260201120000", "status": "complete"}', encoding="utf-8"
+    )
+
+    df = sim_artifacts.load_outputs_df(build)
+    assert "Unnamed: 0" not in df.columns
+    assert "Run" in df.columns
+    assert df.columns[0] == "Run"
+    assert len(df) == 2
+    assert df["PlayerID"].tolist() == [0, 1]
 
 
 def test_list_chart_filenames_returns_sorted_pngs_only(make_run_dir) -> None:
