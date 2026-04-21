@@ -32,7 +32,6 @@ def test_cpp_engine_smoke_run(
     repo_root.mkdir(parents=True, exist_ok=True)
     (repo_root / "data").mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("PROGBOX_OUTPUTS_DIR", str(repo_root / "outputs"))
-    monkeypatch.setattr(runner, "repo_root", lambda: repo_root)
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
@@ -100,7 +99,6 @@ def test_cpp_engine_team_filter_smoke(
     repo_root.mkdir(parents=True, exist_ok=True)
     (repo_root / "data").mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("PROGBOX_OUTPUTS_DIR", str(repo_root / "outputs"))
-    monkeypatch.setattr(runner, "repo_root", lambda: repo_root)
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 

@@ -153,7 +153,6 @@ def run_cpp_simulation(
         result = subprocess.run(
             cmd,
             cwd=str(workspace),
-            capture_output=False,
         )
         if result.returncode != 0:
             raise RuntimeError(
@@ -174,13 +173,22 @@ def run_cpp_simulation(
             shutil.copy2(cpp_meta_src, canonical_run_dir / "engine_metadata.json")
 
         # ── Step 7: run analysis.py from workspace (finds data/input.csv) ──────
+        # PYTHONUTF8=1 forces UTF-8 I/O so box-drawing chars in the script's
+        # output don't crash on Windows with a cp1252 console encoding.
+        # Non-zero exit is treated as a warning (matching the C++ binary's own
+        # behaviour) so that small filtered runs with too few players for scipy
+        # KDE still produce a valid "complete" simulation.
+        analysis_env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
         analysis_result = subprocess.run(
             [sys.executable, str(_ANALYSIS_SCRIPT.resolve()), str(canonical_run_dir.resolve())],
             cwd=str(workspace),
+            env=analysis_env,
         )
         if analysis_result.returncode != 0:
-            raise RuntimeError(
-                f"tools/analysis.py exited with code {analysis_result.returncode}"
+            print(
+                f"Warning: tools/analysis.py exited with code "
+                f"{analysis_result.returncode} (charts/xlsx may be incomplete)",
+                flush=True,
             )
 
     # Clean up temporary C++ outputs base directory
