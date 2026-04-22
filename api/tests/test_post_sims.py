@@ -73,26 +73,88 @@ def test_post_sim_validation_errors(client, monkeypatch: pytest.MonkeyPatch) -> 
     assert invalid_workers.status_code == 422
 
 
-def test_post_sim_missing_default_teaminfo_returns_500(
+def test_post_sim_without_teaminfo_auto_generates_from_export(
     client,
-    tmp_path,
+    isolated_outputs_dir,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import routes.sims as sims_routes
 
-    repo_root = tmp_path / "repo"
-    repo_root.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(sims_routes, "repo_root", lambda: repo_root)
+    monkeypatch.setattr(sims_routes, "run_simulation_job", MagicMock())
+
+    export_payload = {
+        "players": [{"tid": 0, "stats": []}, {"tid": 1, "stats": []}],
+        "teams": [
+            {"tid": 0, "abbrev": "bos", "active": True},
+            {"tid": 1, "abbrev": "NYK", "active": True},
+            {"tid": 2, "abbrev": "OLD", "active": False},
+        ],
+    }
+    r = client.post(
+        "/api/sims",
+        files={
+            "export": ("export.json", json.dumps(export_payload).encode(), "application/json"),
+        },
+        data={"config": '{"teams":[],"seed":1,"runs":10,"n_workers":1}'},
+    )
+    assert r.status_code == 200
+    build = r.json()["build"]
+
+    generated = json.loads((isolated_outputs_dir / build / "teaminfo.json").read_text(encoding="utf-8"))
+    assert generated == {
+        "0": "BOS",
+        "1": "NYK",
+        "-1": "FA",
+        "-2": "UDFA",
+        "-3": "Retired",
+    }
+    meta = json.loads((isolated_outputs_dir / build / "metadata.json").read_text(encoding="utf-8"))
+    assert meta["teaminfo_source"] == "generated"
+
+
+def test_post_sim_with_uploaded_teaminfo_records_user_source(
+    client,
+    isolated_outputs_dir,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import routes.sims as sims_routes
+
     monkeypatch.setattr(sims_routes, "run_simulation_job", MagicMock())
 
     r = client.post(
         "/api/sims",
-        files={
-            "export": ("export.json", json.dumps({"players": []}).encode(), "application/json"),
-        },
+        files=[
+            ("export", ("export.json", json.dumps({"players": [], "teams": []}).encode(), "application/json")),
+            ("teaminfo", ("teaminfo.json", json.dumps({"0": "CUSTOM"}).encode(), "application/json")),
+        ],
         data={"config": '{"teams":[],"seed":1,"runs":10,"n_workers":1}'},
     )
-    assert r.status_code == 500
+    assert r.status_code == 200
+    build = r.json()["build"]
+
+    meta = json.loads((isolated_outputs_dir / build / "metadata.json").read_text(encoding="utf-8"))
+    assert meta["teaminfo_source"] == "user"
+
+
+def test_post_sim_rejects_malformed_teaminfo_override(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import routes.sims as sims_routes
+
+    monkeypatch.setattr(sims_routes, "run_simulation_job", MagicMock())
+
+    # Wrong shape: JSON array instead of object
+    r = client.post(
+        "/api/sims",
+        files=[
+            ("export", ("export.json", json.dumps({"players": [], "teams": []}).encode(), "application/json")),
+            ("teaminfo", ("teaminfo.json", json.dumps(["BOS", "NYK"]).encode(), "application/json")),
+        ],
+        data={"config": '{"teams":[],"seed":1,"runs":10,"n_workers":1}'},
+    )
+    assert r.status_code == 400
+    assert "teaminfo" in r.json()["detail"].lower()
 
 
 def test_post_sim_uses_default_worker_count_when_missing(

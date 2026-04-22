@@ -21,6 +21,14 @@ const state = ref<CreateState>("idle");
 const error = ref<string | null>(null);
 const activeBuild = ref<string | null>(null);
 
+const teaminfoExample = `{
+  "0": "BOS",
+  "1": "NYK",
+  "-1": "FA",
+  "-2": "UDFA",
+  "-3": "Retired"
+}`;
+
 const canSubmit = computed(() => exportFile.value && state.value !== "uploading");
 const simProgress = useSimProgress(activeBuild);
 
@@ -53,6 +61,14 @@ function onTeaminfoChange(event: Event) {
 }
 
 function httpErrorMessage(err: unknown): string {
+  // ofetch surfaces the API body as `err.data`; prefer FastAPI's `detail` string.
+  if (err && typeof err === "object" && "data" in err) {
+    const data = (err as { data?: unknown }).data;
+    if (data && typeof data === "object" && "detail" in data) {
+      const detail = (data as { detail?: unknown }).detail;
+      if (typeof detail === "string" && detail.length > 0) return detail;
+    }
+  }
   if (err instanceof Error) return err.message;
   if (typeof err === "string") return err;
   return "Failed to create simulation";
@@ -117,16 +133,34 @@ async function submit() {
       </div>
 
       <div>
-        <label class="mb-1 block text-sm font-medium">Teaminfo JSON (optional)</label>
+        <label class="mb-1 block text-sm font-medium">
+          Teaminfo JSON <span class="font-normal text-neutral-500">(advanced — optional override)</span>
+        </label>
         <input
           type="file"
           accept=".json,application/json"
           class="block w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
           @change="onTeaminfoChange"
         >
-        <p class="mt-1 text-xs text-neutral-500">
-          If omitted, API falls back to <span class="font-mono">data/teaminfo.json</span>.
-        </p>
+        <div class="mt-1 space-y-1 text-xs text-neutral-500 dark:text-neutral-400">
+          <p>
+            By default, <span class="font-mono">teaminfo.json</span> is <strong>auto-generated</strong>
+            from the active teams in your export (team ID → abbreviation, plus the
+            <span class="font-mono">-1 FA</span> / <span class="font-mono">-2 UDFA</span> /
+            <span class="font-mono">-3 Retired</span> game-rule slots).
+          </p>
+          <p>
+            Only upload a file here to override team abbreviations — for example a custom
+            league or a different era with renamed teams. Expected format:
+          </p>
+          <pre class="overflow-x-auto rounded bg-neutral-100 px-2 py-1 font-mono text-[11px] leading-snug dark:bg-neutral-800">{{ teaminfoExample }}</pre>
+          <p
+            v-if="teaminfoFile"
+            class="text-neutral-600 dark:text-neutral-300"
+          >
+            Override selected: <span class="font-mono">{{ teaminfoFile.name }}</span>
+          </p>
+        </div>
       </div>
 
       <div>

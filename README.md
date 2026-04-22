@@ -24,7 +24,7 @@ pnpm dev
 web/                        Vue 3 + Vite + Tailwind v4 frontend
 api/                        FastAPI backend (routes, services, models)
 api/vendor/progbox_v41/     Vendored Progbox v4.1 engine
-data/                       Default export.json & teaminfo.json
+data/                       Default export.json for local runs
 outputs/                    Simulation run storage (gitignored)
 e2e/                        Playwright browser tests & fixtures
 ```
@@ -53,6 +53,10 @@ The **Progbox v4.1** engine is vendored at `api/vendor/progbox_v41/`. The API ru
 3. **Analyze** — `analysis.generate_analysis()` produces charts and reports
 
 All engine imports go through `api/services/engine_adapter.py`.
+
+### `teaminfo.json` is auto-generated
+
+`exportcleaner` needs a `{tid → abbrev}` map to resolve player team membership. Rather than require users to hand-maintain a `teaminfo.json`, the API derives it from each upload's `teams` array ([`api/services/teaminfo.py`](api/services/teaminfo.py)): active teams are mapped `tid → ABBREV` (uppercased), and the three BBGM game-rule slots (`-1 FA`, `-2 UDFA`, `-3 Retired`) are always appended. Users may still upload a custom `teaminfo.json` to override abbreviations for custom or historical leagues — when they do, the run's `metadata.json` records `teaminfo_source: "user"` instead of `"generated"`.
 
 <details>
 <summary><strong>Updating the engine</strong></summary>
