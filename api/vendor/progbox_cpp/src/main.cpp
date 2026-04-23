@@ -212,16 +212,7 @@ std::string make_calver_id() {
     return oss.str();
 }
 
-/// @brief Executes the Python post-processing analysis script.
-/// @param out_dir Directory containing simulation output files.
-/// @return The exit code from the Python script (0 = success).
-int run_python_analysis(const std::filesystem::path& out_dir) {
-    std::string cmd =
-        "python3 tools/analysis.py \"" + out_dir.string() + "\"";
 
-    printf("Running analysis: %s\n", cmd.c_str());
-    return std::system(cmd.c_str());
-}
 
 /// @brief Writes run metadata to a JSON file for reproducibility tracking.
 /// @param out_dir Directory where metadata.json will be saved.
@@ -321,9 +312,9 @@ void load_players(
         auto& last_stat = p["stats"].back();
         bool is_playoffs = safe_json_get<bool>(last_stat, "playoffs", false);
 
-        /// @note Assumes at least 2 stat entries if last is playoff data.
-        ///       This could crash if the stats array has exactly 1 playoff entry.
-        auto& stat = is_playoffs ? p["stats"][p["stats"].size() - 2] : last_stat;
+        auto& stat = (is_playoffs && p["stats"].size() >= 2)
+            ? p["stats"][p["stats"].size() - 2]
+            : last_stat;
 
         double per = safe_json_get<double>(stat, "per", 0.0);
         if (per == 0.0) continue;
@@ -483,12 +474,6 @@ int main(int argc, char** argv) {
   Output   : %s
 ═══════════════════════════════════════════════════════════════
 )", player_meta.size(), args->runs, seed, god_count, args->output_dir.string().c_str());
-
-    // ── Phase 8: Python post-processing ─────────────────────────────────
-    int rc = run_python_analysis(args->output_dir);
-    if (rc != 0) {
-        printf("Warning: postprocess script failed (%d)\n", rc);
-    }
 
     return 0;
 }
