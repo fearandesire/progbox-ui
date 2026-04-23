@@ -29,6 +29,9 @@ const teaminfoExample = `{
   "-3": "Retired"
 }`;
 
+const showTeaminfoDetails = ref(false);
+const showAdvanced = ref(false);
+
 const canSubmit = computed(() => exportFile.value && state.value !== "uploading");
 const simProgress = useSimProgress(activeBuild);
 
@@ -117,7 +120,9 @@ async function submit() {
       @submit.prevent="submit"
     >
       <div>
-        <label class="mb-1 block text-sm font-medium">Export JSON (required)</label>
+        <label class="mb-1 block text-sm font-medium">
+          Export JSON <span class="ml-0.5 text-red-500">*</span>
+        </label>
         <input
           type="file"
           accept=".json,application/json"
@@ -134,7 +139,7 @@ async function submit() {
 
       <div>
         <label class="mb-1 block text-sm font-medium">
-          Teaminfo JSON <span class="font-normal text-neutral-500">(advanced — optional override)</span>
+          Teaminfo JSON <span class="font-normal text-neutral-500">(optional override)</span>
         </label>
         <input
           type="file"
@@ -142,35 +147,94 @@ async function submit() {
           class="block w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
           @change="onTeaminfoChange"
         >
-        <div class="mt-1 space-y-1 text-xs text-neutral-500 dark:text-neutral-400">
-          <p>
-            By default, <span class="font-mono">teaminfo.json</span> is <strong>auto-generated</strong>
-            from the active teams in your export (team ID → abbreviation, plus the
-            <span class="font-mono">-1 FA</span> / <span class="font-mono">-2 UDFA</span> /
-            <span class="font-mono">-3 Retired</span> game-rule slots).
-          </p>
-          <p>
-            Only upload a file here to override team abbreviations — for example a custom
-            league or a different era with renamed teams. Expected format:
-          </p>
-          <pre class="overflow-x-auto rounded bg-neutral-100 px-2 py-1 font-mono text-[11px] leading-snug dark:bg-neutral-800">{{ teaminfoExample }}</pre>
-          <p
-            v-if="teaminfoFile"
-            class="text-neutral-600 dark:text-neutral-300"
+        <p
+          v-if="teaminfoFile && !showTeaminfoDetails"
+          class="mt-1 text-xs text-neutral-600 dark:text-neutral-300"
+        >
+          Override selected: <span class="font-mono">{{ teaminfoFile.name }}</span>
+        </p>
+        <div class="mt-1.5">
+          <button
+            type="button"
+            class="flex items-center gap-1 text-xs text-neutral-400 transition-colors hover:text-neutral-600 dark:hover:text-neutral-300"
+            @click="showTeaminfoDetails = !showTeaminfoDetails"
           >
-            Override selected: <span class="font-mono">{{ teaminfoFile.name }}</span>
-          </p>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              class="h-3 w-3 transition-transform duration-150"
+              :class="showTeaminfoDetails ? 'rotate-90' : ''"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 0 1 0-1.06Z"
+                clip-rule="evenodd"
+              />
+            </svg>
+            {{ showTeaminfoDetails ? 'Hide format details' : 'Show format details' }}
+          </button>
+          <div
+            v-show="showTeaminfoDetails"
+            class="mt-2 space-y-1 text-xs text-neutral-500 dark:text-neutral-400"
+          >
+            <p>
+              By default, <span class="font-mono">teaminfo.json</span> is <strong>auto-generated</strong>
+              from the active teams in your export (team ID → abbreviation, plus the
+              <span class="font-mono">-1 FA</span> / <span class="font-mono">-2 UDFA</span> /
+              <span class="font-mono">-3 Retired</span> game-rule slots).
+            </p>
+            <p>
+              Only upload a file here to override team abbreviations — for example a custom
+              league or a different era with renamed teams. Expected format:
+            </p>
+            <pre class="overflow-x-auto rounded bg-neutral-100 px-2 py-1 font-mono text-[11px] leading-snug dark:bg-neutral-800">{{ teaminfoExample }}</pre>
+            <p
+              v-if="teaminfoFile"
+              class="text-neutral-600 dark:text-neutral-300"
+            >
+              Override selected: <span class="font-mono">{{ teaminfoFile.name }}</span>
+            </p>
+          </div>
         </div>
       </div>
 
-      <div>
-        <label class="mb-1 block text-sm font-medium">Teams (comma-separated, optional)</label>
-        <input
-          v-model="teamsCsv"
-          type="text"
-          placeholder="GSW, BOS"
-          class="block w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+      <div class="border-t border-neutral-200 pt-3 dark:border-neutral-700">
+        <button
+          type="button"
+          class="flex items-center gap-1.5 text-sm text-neutral-400 transition-colors hover:text-neutral-600 dark:hover:text-neutral-300"
+          @click="showAdvanced = !showAdvanced"
         >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            class="h-3.5 w-3.5 transition-transform duration-150"
+            :class="showAdvanced ? 'rotate-90' : ''"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 0 1 0-1.06Z"
+              clip-rule="evenodd"
+            />
+          </svg>
+          Advanced options
+        </button>
+        <div
+          v-show="showAdvanced"
+          class="mt-3"
+        >
+          <label class="mb-1 block text-sm font-medium">Teams (comma-separated)</label>
+          <input
+            v-model="teamsCsv"
+            type="text"
+            placeholder="GSW, BOS"
+            class="block w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+          >
+          <p class="mt-1 text-xs text-neutral-400">
+            Filter the simulation to specific team abbreviations only.
+          </p>
+        </div>
       </div>
 
       <div class="grid gap-3 sm:grid-cols-3">

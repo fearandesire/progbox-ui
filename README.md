@@ -3,6 +3,7 @@
 A clean UI + API for running [Progbox](https://github.com/akshayexists/progbox) Monte Carlo simulations. Upload exports, configure runs, and browse results — all from one interface.
 
 ![Home Page](docs/screenshots/home-page.png)
+![New Simulation](docs/screenshots/new-sim.png)
 
 ## Quick Start
 
