@@ -21,15 +21,7 @@ from services import cpp_adapter, engine_adapter
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _make_fake_export(path: Path, players: list[dict]) -> None:
-    path.write_text(
-        json.dumps(
-            {
-                "players": players,
-                "teaminfo": {"0": "BOS", "1": "NYK"},
-            }
-        ),
-        encoding="utf-8",
-    )
+    path.write_text(json.dumps({"players": players}), encoding="utf-8")
 
 
 def _make_fake_teaminfo(path: Path) -> None:
@@ -96,23 +88,29 @@ def test_resolve_binary_no_candidates_raises(tmp_path: Path, monkeypatch: pytest
 
 def test_filter_export_no_teams_returns_all(tmp_path: Path) -> None:
     export = tmp_path / "export.json"
+    teaminfo = tmp_path / "teaminfo.json"
     _make_fake_export(export, [{"pid": 0, "tid": 0}, {"pid": 1, "tid": 1}])
-    data = cpp_adapter._filter_export(export, [])
+    _make_fake_teaminfo(teaminfo)
+    data = cpp_adapter._filter_export(export, teaminfo, [])
     assert len(data["players"]) == 2
 
 
 def test_filter_export_filters_by_team(tmp_path: Path) -> None:
     export = tmp_path / "export.json"
+    teaminfo = tmp_path / "teaminfo.json"
     _make_fake_export(export, [{"pid": 0, "tid": 0}, {"pid": 1, "tid": 1}])
-    data = cpp_adapter._filter_export(export, ["BOS"])
+    _make_fake_teaminfo(teaminfo)
+    data = cpp_adapter._filter_export(export, teaminfo, ["BOS"])
     assert len(data["players"]) == 1
     assert data["players"][0]["tid"] == 0
 
 
 def test_filter_export_unknown_team_yields_empty(tmp_path: Path) -> None:
     export = tmp_path / "export.json"
+    teaminfo = tmp_path / "teaminfo.json"
     _make_fake_export(export, [{"pid": 0, "tid": 0}])
-    data = cpp_adapter._filter_export(export, ["LAL"])
+    _make_fake_teaminfo(teaminfo)
+    data = cpp_adapter._filter_export(export, teaminfo, ["LAL"])
     assert data["players"] == []
 
 

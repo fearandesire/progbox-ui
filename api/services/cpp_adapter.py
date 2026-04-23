@@ -44,12 +44,12 @@ def _resolve_binary() -> Path:
     )
 
 
-def _filter_export(export_path: Path, teams: list[str]) -> dict[str, Any]:
+def _filter_export(export_path: Path, teaminfo_path: Path, teams: list[str]) -> dict[str, Any]:
     """Return export JSON with players filtered to the requested teams."""
     data: dict[str, Any] = json.loads(export_path.read_text(encoding="utf-8"))
     if not teams:
         return data
-    teaminfo: dict[str, str] = data.get("teaminfo", {})
+    teaminfo: dict[str, str] = json.loads(teaminfo_path.read_text(encoding="utf-8"))
     allowed_tids = {
         int(tid) for tid, abbr in teaminfo.items() if abbr in teams
     }
@@ -132,7 +132,7 @@ def run_cpp_simulation(
 
         # ── Step 3b: write filtered export.json if teams specified ─────────────
         if teams:
-            filtered = _filter_export(export_path, teams)
+            filtered = _filter_export(export_path, teaminfo_path, teams)
             effective_export = workspace / "export_filtered.json"
             effective_export.write_text(json.dumps(filtered), encoding="utf-8")
         else:
