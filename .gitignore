@@ -80,3 +80,11 @@ outputs/*
 # Optional: local exports / uploads (uncomment if you never commit fixtures)
 # data/*.json
 .codex
+
+# Claude Code — keep shared config/commands; exclude local/ephemeral artifacts
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/
+.claude/memory/
+.claude/plans/
+.claude/todos/

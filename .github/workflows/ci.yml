@@ -73,6 +73,9 @@ jobs:
       - name: Test (pytest coverage)
         run: pnpm --filter @progbox/api test:coverage
 
+      - name: Build C++ engine
+        run: bash api/vendor/progbox_cpp/buildprogbox.sh
+
       - name: Engine smoke test
         run: pnpm run test:api:engine
 

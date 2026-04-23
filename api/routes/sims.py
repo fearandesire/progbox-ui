@@ -23,7 +23,12 @@ from services.sim_artifacts import (
     player_summaries,
     raw_outputs_csv_path,
 )
-from services.storage import delete_run, get_run, list_runs, outputs_root, repo_root
+from services.storage import delete_run, get_run, list_runs, outputs_root
+from services.teaminfo import (
+    InvalidTeaminfoError,
+    generate_teaminfo,
+    validate_teaminfo,
+)
 
 router = APIRouter()
 
@@ -79,21 +84,31 @@ async def create_sim(
     export_path = out / "export.json"
     export_path.write_bytes(export_bytes)
 
+    try:
+        export_data = json.loads(export_bytes)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=422, detail=f"export is not valid JSON: {exc.msg}") from exc
+
+    # teaminfo resolution: auto-generate from the export's teams by default;
+    # accept a user-uploaded override for custom/historical leagues.
     if teaminfo is not None:
         teaminfo_bytes = await teaminfo.read()
         if not teaminfo_bytes:
             raise HTTPException(status_code=422, detail="teaminfo file is empty")
+        try:
+            raw_teaminfo = json.loads(teaminfo_bytes)
+            teaminfo_map = validate_teaminfo(raw_teaminfo)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail=f"teaminfo.json is not valid JSON: {exc.msg}") from exc
+        except InvalidTeaminfoError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        teaminfo_source = "user"
     else:
-        default_teaminfo = repo_root() / "data" / "teaminfo.json"
-        if not default_teaminfo.is_file():
-            raise HTTPException(
-                status_code=500,
-                detail="No teaminfo upload and data/teaminfo.json is missing",
-            )
-        teaminfo_bytes = default_teaminfo.read_bytes()
+        teaminfo_map = generate_teaminfo(export_data)
+        teaminfo_source = "generated"
 
     teaminfo_path = out / "teaminfo.json"
-    teaminfo_path.write_bytes(teaminfo_bytes)
+    teaminfo_path.write_text(json.dumps(teaminfo_map, indent=2), encoding="utf-8")
 
     meta = {
         "build": build,
@@ -104,6 +119,7 @@ async def create_sim(
         "n_workers": n_workers,
         "export_file": f"outputs/{build}/export.json",
         "teaminfo_file": f"outputs/{build}/teaminfo.json",
+        "teaminfo_source": teaminfo_source,
         "status": "running",
         "started_at": _utc_now_iso(),
         "completed_at": None,

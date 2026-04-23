@@ -12,6 +12,7 @@
     "typecheck": "pnpm --filter web typecheck",
     "lint": "pnpm --filter web lint",
     "lint:api": "pnpm --filter @progbox/api lint",
+    "build:engine": "pnpm --filter @progbox/api build:engine",
     "doctor": "node scripts/doctor.mjs",
     "test": "pnpm run test:web && pnpm run test:api",
     "test:web": "pnpm --filter web test",

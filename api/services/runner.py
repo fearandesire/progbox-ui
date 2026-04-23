@@ -1,16 +1,15 @@
-"""Run exportcleaner → runsim.PROGEMUP → analysis.generate_analysis in a worker thread."""
+"""Run the C++ simulation pipeline in a worker thread."""
 
 from __future__ import annotations
 
 import json
-import os
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from services import engine_adapter
-from services.storage import outputs_root, repo_root
+from services import cpp_adapter
+from services.storage import outputs_root
 
 PROGRESS: dict[str, dict[str, Any]] = {}
 
@@ -56,52 +55,32 @@ def run_simulation_job(
     runs: int,
     n_workers: int,
 ) -> None:
-    """
-    Execute the full pipeline. Assumes metadata.json already exists with status running.
-    Uses repo root as cwd so exportcleaner/analysis relative paths match upstream.
-    """
-    REPO_ROOT = repo_root()
-    raw_dir = REPO_ROOT / "outputs" / build / "raw"
-    raw_dir.mkdir(parents=True, exist_ok=True)
+    """Execute the full pipeline via the C++ engine adapter.
 
-    runsim_cls = engine_adapter.load_runsim_class()
-    exportcleaner = engine_adapter.load_exportcleaner_module().exportcleaner
-    generate_analysis = engine_adapter.load_analysis_module().generate_analysis
+    Assumes metadata.json already exists with status running.
+    """
+    canonical_run_dir = outputs_root() / build
+    canonical_run_dir.mkdir(parents=True, exist_ok=True)
 
-    prev_cwd = os.getcwd()
     try:
-        os.chdir(REPO_ROOT)
-
         set_progress(build, "parsing", 2.0, "Loading export…")
         _merge_metadata(build, {"status": "running"})
 
         # Phase weights: parsing 0–5, simulating 5–85, analyzing 85–100
-        set_progress(build, "parsing", 5.0, "Cleaning export…")
-        data, _league_meta = exportcleaner(
-            export_file=str(export_path.resolve()),
-            teams=teams,
-            teaminfo_file=str(teaminfo_path.resolve()),
-        )
-        player_count = int(len(data))
-
         set_progress(build, "simulating", 5.0, f"Simulating ({runs} runs)…")
-        sim = runsim_cls(seed=seed)
-        output_dir = raw_dir.resolve()
-        df = sim.PROGEMUP(
-            data,
+
+        player_count = cpp_adapter.run_cpp_simulation(
+            export_path=export_path,
+            teaminfo_path=teaminfo_path,
+            teams=teams,
+            seed=seed,
             runs=runs,
-            output_dir=str(output_dir),
             n_workers=n_workers,
+            canonical_run_dir=canonical_run_dir,
         )
-        csv_path = output_dir / "outputs.csv"
-        df.to_csv(csv_path)
-        if sim.analytics:
-            sim.analytics.print_report()
 
         set_progress(build, "simulating", 85.0, "Simulation complete.")
-        set_progress(build, "analyzing", 85.0, "Generating analysis…")
-        generate_analysis(str(REPO_ROOT / "outputs" / build))
-        set_progress(build, "analyzing", 100.0, "Analysis complete.")
+        set_progress(build, "analyzing", 85.0, "Analysis complete.")
 
         _merge_metadata(
             build,
@@ -125,10 +104,4 @@ def run_simulation_job(
             },
         )
         set_progress(build, "failed", 0.0, err, done=True)
-        # Preserve traceback for operators
         _merge_metadata(build, {"error_detail": tb[:8000]})
-    finally:
-        try:
-            os.chdir(prev_cwd)
-        except OSError:
-            pass

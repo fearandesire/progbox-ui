@@ -9,7 +9,7 @@ This repository is the **UI + API** for Progbox Monte Carlo simulations. The **v
 | `web/` | Vue 3 + Vite + Tailwind v4 SPA. Dev server proxies `/api` → `http://127.0.0.1:8000`. |
 | `api/` | FastAPI app (`main.py`), routes (`routes/`), Pydantic models (`models.py`), services (`services/`). |
 | `api/vendor/progbox_v41/` | Vendored engine: `progutils.py`, `runsim.py`, `analysis.py`, `exportcleaner.py`, `workspace.py`, `VERSION`. |
-| `data/` | Default `export.json` / `teaminfo.json` for local runs when uploads omit teaminfo. |
+| `data/` | Default `export.json` for local runs. `teaminfo.json` is auto-generated from each upload by [`api/services/teaminfo.py`](api/services/teaminfo.py); users may upload an override for custom leagues. |
 | `outputs/` | File-backed run storage (gitignored except `outputs/.gitkeep`). Each run is **CalVer** `YYYYMMDDHHmmss` with `metadata.json`, `raw/`, `charts/`, `analysis.xlsx`. |
 | `docs/` | Product plan and optional DX notes. |
 

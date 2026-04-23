@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -13,6 +13,9 @@ class RunMetadata(BaseModel):
     n_workers: int | None = None
     export_file: str | None = None
     teaminfo_file: str | None = None
+    # "generated" = derived from the uploaded export at POST /api/sims;
+    # "user" = the caller uploaded their own teaminfo.json to override.
+    teaminfo_source: Literal["generated", "user"] = "generated"
     started_at: str | None = None
     completed_at: str | None = None
     player_count: int | None = None
