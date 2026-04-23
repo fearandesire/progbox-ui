@@ -148,7 +148,7 @@ async function submit() {
           @change="onTeaminfoChange"
         >
         <p
-          v-if="teaminfoFile && !showTeaminfoDetails"
+          v-if="teaminfoFile"
           class="mt-1 text-xs text-neutral-600 dark:text-neutral-300"
         >
           Override selected: <span class="font-mono">{{ teaminfoFile.name }}</span>
@@ -189,12 +189,6 @@ async function submit() {
               league or a different era with renamed teams. Expected format:
             </p>
             <pre class="overflow-x-auto rounded bg-neutral-100 px-2 py-1 font-mono text-[11px] leading-snug dark:bg-neutral-800">{{ teaminfoExample }}</pre>
-            <p
-              v-if="teaminfoFile"
-              class="text-neutral-600 dark:text-neutral-300"
-            >
-              Override selected: <span class="font-mono">{{ teaminfoFile.name }}</span>
-            </p>
           </div>
         </div>
       </div>

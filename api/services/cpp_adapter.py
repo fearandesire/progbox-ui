@@ -50,9 +50,7 @@ def _filter_export(export_path: Path, teaminfo_path: Path, teams: list[str]) -> 
     if not teams:
         return data
     teaminfo: dict[str, str] = json.loads(teaminfo_path.read_text(encoding="utf-8"))
-    allowed_tids = {
-        int(tid) for tid, abbr in teaminfo.items() if abbr in teams
-    }
+    allowed_tids = {int(tid) for tid, abbr in teaminfo.items() if abbr in teams}
     data["players"] = [
         p for p in data.get("players", [])
         if p.get("tid") in allowed_tids
@@ -68,18 +66,18 @@ def _write_input_csv(workspace: Path, export_path: Path, teaminfo_path: Path, te
     ec_mod = engine_adapter.load_exportcleaner_module()
     (workspace / "data").mkdir(parents=True, exist_ok=True)
 
-    # exportcleaner writes data/input.csv relative to cwd
-    import os as _os
-    prev = _os.getcwd()
+    # exportcleaner writes data/input.csv relative to cwd; the chdir is scoped
+    # and restored in finally. Not thread-safe, but runner.py serialises jobs.
+    prev = os.getcwd()
     try:
-        _os.chdir(workspace)
+        os.chdir(workspace)
         df, _ = ec_mod.exportcleaner(
             export_file=str(export_path.resolve()),
             teams=teams,
             teaminfo_file=str(teaminfo_path.resolve()),
         )
     finally:
-        _os.chdir(prev)
+        os.chdir(prev)
 
     df.to_csv(workspace / "data" / "input.csv")
     return int(len(df))
@@ -97,7 +95,6 @@ def _find_cpp_output_dir(base: Path) -> Path:
 
 
 def run_cpp_simulation(
-    build: str,
     export_path: Path,
     teaminfo_path: Path,
     teams: list[str],
@@ -106,93 +103,66 @@ def run_cpp_simulation(
     n_workers: int,
     canonical_run_dir: Path,
 ) -> int:
-    """Run the full C++ simulation pipeline.
-
-    Steps:
-      1. Resolve binary.
-      2. Create isolated temp workspace.
-      3. Filter export (if teams specified) and write data/input.csv.
-      4. Invoke C++ binary → it creates a timestamped subdir with raw/.
-      5. Copy raw/ into canonical_run_dir/raw/.
-      6. Preserve C++ metadata as engine_metadata.json.
-      7. Run tools/analysis.py under sys.executable from temp workspace.
-
-    Returns:
-      player_count — number of players loaded by exportcleaner.
-    """
+    """Run the full C++ simulation pipeline and return the player count."""
     binary = _resolve_binary()
     cpp_outputs_base = canonical_run_dir / "_cpp_tmp_outputs"
     cpp_outputs_base.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory(prefix="progbox_cpp_") as _ws:
-        workspace = Path(_ws)
+    try:
+        with tempfile.TemporaryDirectory(prefix="progbox_cpp_") as _ws:
+            workspace = Path(_ws)
 
-        # ── Step 3: write data/input.csv (also does team-filtering for analysis) ──
-        player_count = _write_input_csv(workspace, export_path, teaminfo_path, teams)
+            player_count = _write_input_csv(workspace, export_path, teaminfo_path, teams)
 
-        # ── Step 3b: write filtered export.json if teams specified ─────────────
-        if teams:
-            filtered = _filter_export(export_path, teaminfo_path, teams)
-            effective_export = workspace / "export_filtered.json"
-            effective_export.write_text(json.dumps(filtered), encoding="utf-8")
-        else:
-            effective_export = export_path
+            if teams:
+                filtered = _filter_export(export_path, teaminfo_path, teams)
+                effective_export = workspace / "export_filtered.json"
+                effective_export.write_text(json.dumps(filtered), encoding="utf-8")
+            else:
+                effective_export = export_path
 
-        # ── Step 4: invoke C++ binary ──────────────────────────────────────────
-        cmd = [
-            str(binary),
-            str(effective_export.resolve()),
-            str(teaminfo_path.resolve()),
-            str(cpp_outputs_base.resolve()),
-            "-v", "v41",
-            "-r", str(runs),
-            "-w", str(n_workers),
-            "-s", str(seed),
-            "-y", "2021",
-        ]
-        result = subprocess.run(
-            cmd,
-            cwd=str(workspace),
-        )
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"C++ binary exited with code {result.returncode}"
+            cmd = [
+                str(binary),
+                str(effective_export.resolve()),
+                str(teaminfo_path.resolve()),
+                str(cpp_outputs_base.resolve()),
+                "-v", "v41",
+                "-r", str(runs),
+                "-w", str(n_workers),
+                "-s", str(seed),
+                "-y", "2021",
+            ]
+            result = subprocess.run(cmd, cwd=str(workspace))
+            if result.returncode != 0:
+                raise RuntimeError(f"C++ binary exited with code {result.returncode}")
+
+            cpp_run_dir = _find_cpp_output_dir(cpp_outputs_base)
+            raw_dst = canonical_run_dir / "raw"
+            if raw_dst.exists():
+                shutil.rmtree(raw_dst)
+            shutil.copytree(cpp_run_dir / "raw", raw_dst)
+
+            cpp_meta_src = cpp_run_dir / "metadata.json"
+            if cpp_meta_src.is_file():
+                shutil.copy2(cpp_meta_src, canonical_run_dir / "engine_metadata.json")
+
+            # PYTHONUTF8=1 avoids cp1252 crashes on Windows when analysis.py
+            # prints box-drawing chars. Non-zero exit is a warning (matches the
+            # C++ binary) so tiny filtered runs without enough players for
+            # scipy KDE still produce a valid "complete" simulation.
+            analysis_env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
+            analysis_result = subprocess.run(
+                [sys.executable, str(_ANALYSIS_SCRIPT.resolve()), str(canonical_run_dir.resolve())],
+                cwd=str(workspace),
+                env=analysis_env,
             )
-
-        # ── Step 5: locate timestamped subdir and copy raw/ ────────────────────
-        cpp_run_dir = _find_cpp_output_dir(cpp_outputs_base)
-        raw_src = cpp_run_dir / "raw"
-        raw_dst = canonical_run_dir / "raw"
-        if raw_dst.exists():
-            shutil.rmtree(raw_dst)
-        shutil.copytree(raw_src, raw_dst)
-
-        # ── Step 6: preserve C++ metadata ─────────────────────────────────────
-        cpp_meta_src = cpp_run_dir / "metadata.json"
-        if cpp_meta_src.is_file():
-            shutil.copy2(cpp_meta_src, canonical_run_dir / "engine_metadata.json")
-
-        # ── Step 7: run analysis.py from workspace (finds data/input.csv) ──────
-        # PYTHONUTF8=1 forces UTF-8 I/O so box-drawing chars in the script's
-        # output don't crash on Windows with a cp1252 console encoding.
-        # Non-zero exit is treated as a warning (matching the C++ binary's own
-        # behaviour) so that small filtered runs with too few players for scipy
-        # KDE still produce a valid "complete" simulation.
-        analysis_env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
-        analysis_result = subprocess.run(
-            [sys.executable, str(_ANALYSIS_SCRIPT.resolve()), str(canonical_run_dir.resolve())],
-            cwd=str(workspace),
-            env=analysis_env,
-        )
-        if analysis_result.returncode != 0:
-            print(
-                f"Warning: tools/analysis.py exited with code "
-                f"{analysis_result.returncode} (charts/xlsx may be incomplete)",
-                flush=True,
-            )
-
-    # Clean up temporary C++ outputs base directory
-    if cpp_outputs_base.exists():
+            if analysis_result.returncode != 0:
+                print(
+                    f"Warning: tools/analysis.py exited with code "
+                    f"{analysis_result.returncode} (charts/xlsx may be incomplete)",
+                    flush=True,
+                )
+    finally:
         shutil.rmtree(cpp_outputs_base, ignore_errors=True)
 
     return player_count

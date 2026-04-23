@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from services import cpp_adapter, engine_adapter
+from services import cpp_adapter
 from services.storage import outputs_root
 
 PROGRESS: dict[str, dict[str, Any]] = {}
@@ -66,13 +66,10 @@ def run_simulation_job(
         set_progress(build, "parsing", 2.0, "Loading export…")
         _merge_metadata(build, {"status": "running"})
 
-        set_progress(build, "parsing", 5.0, "Preparing inputs…")
-
         # Phase weights: parsing 0–5, simulating 5–85, analyzing 85–100
         set_progress(build, "simulating", 5.0, f"Simulating ({runs} runs)…")
 
         player_count = cpp_adapter.run_cpp_simulation(
-            build=build,
             export_path=export_path,
             teaminfo_path=teaminfo_path,
             teams=teams,

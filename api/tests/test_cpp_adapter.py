@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,19 +18,22 @@ from services import cpp_adapter, engine_adapter
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Helpers
+# Helpers / fixtures
 # ─────────────────────────────────────────────────────────────────────────────
+
+_TEAMINFO = {"0": "BOS", "1": "NYK"}
+
 
 def _make_fake_export(path: Path, players: list[dict]) -> None:
     path.write_text(json.dumps({"players": players}), encoding="utf-8")
 
 
 def _make_fake_teaminfo(path: Path) -> None:
-    path.write_text(json.dumps({"0": "BOS", "1": "NYK"}), encoding="utf-8")
+    path.write_text(json.dumps(_TEAMINFO), encoding="utf-8")
 
 
 def _make_fake_cpp_outputs(base: Path, run_id: str = "20260101120001") -> Path:
-    """Simulate what the C++ binary writes: base/<timestamp>/raw/*.csv + metadata.json."""
+    """Simulate the C++ binary's output: base/<timestamp>/raw/* + metadata.json."""
     cpp_dir = base / run_id
     raw_dir = cpp_dir / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
@@ -50,107 +54,13 @@ def _make_fake_cpp_outputs(base: Path, run_id: str = "20260101120001") -> Path:
     return cpp_dir
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# _resolve_binary
-# ─────────────────────────────────────────────────────────────────────────────
-
-def test_resolve_binary_uses_env_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_binary = tmp_path / "fake_progbox"
-    fake_binary.write_bytes(b"")
-    monkeypatch.setenv("PROGBOX_CPP_BINARY", str(fake_binary))
-    assert cpp_adapter._resolve_binary() == fake_binary
-
-
-def test_resolve_binary_env_override_missing_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PROGBOX_CPP_BINARY", str(tmp_path / "nonexistent"))
-    with pytest.raises(FileNotFoundError, match="PROGBOX_CPP_BINARY"):
-        cpp_adapter._resolve_binary()
-
-
-def test_resolve_binary_finds_candidate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("PROGBOX_CPP_BINARY", raising=False)
-    fake_bin = tmp_path / "progbox"
-    fake_bin.write_bytes(b"")
-    monkeypatch.setattr(cpp_adapter, "_BINARY_CANDIDATES", [tmp_path / "nope", fake_bin])
-    assert cpp_adapter._resolve_binary() == fake_bin
-
-
-def test_resolve_binary_no_candidates_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("PROGBOX_CPP_BINARY", raising=False)
-    monkeypatch.setattr(cpp_adapter, "_BINARY_CANDIDATES", [tmp_path / "nope"])
-    with pytest.raises(FileNotFoundError, match="pnpm build:engine"):
-        cpp_adapter._resolve_binary()
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# _filter_export
-# ─────────────────────────────────────────────────────────────────────────────
-
-def test_filter_export_no_teams_returns_all(tmp_path: Path) -> None:
-    export = tmp_path / "export.json"
-    teaminfo = tmp_path / "teaminfo.json"
-    _make_fake_export(export, [{"pid": 0, "tid": 0}, {"pid": 1, "tid": 1}])
-    _make_fake_teaminfo(teaminfo)
-    data = cpp_adapter._filter_export(export, teaminfo, [])
-    assert len(data["players"]) == 2
-
-
-def test_filter_export_filters_by_team(tmp_path: Path) -> None:
-    export = tmp_path / "export.json"
-    teaminfo = tmp_path / "teaminfo.json"
-    _make_fake_export(export, [{"pid": 0, "tid": 0}, {"pid": 1, "tid": 1}])
-    _make_fake_teaminfo(teaminfo)
-    data = cpp_adapter._filter_export(export, teaminfo, ["BOS"])
-    assert len(data["players"]) == 1
-    assert data["players"][0]["tid"] == 0
-
-
-def test_filter_export_unknown_team_yields_empty(tmp_path: Path) -> None:
-    export = tmp_path / "export.json"
-    teaminfo = tmp_path / "teaminfo.json"
-    _make_fake_export(export, [{"pid": 0, "tid": 0}])
-    _make_fake_teaminfo(teaminfo)
-    data = cpp_adapter._filter_export(export, teaminfo, ["LAL"])
-    assert data["players"] == []
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# _find_cpp_output_dir
-# ─────────────────────────────────────────────────────────────────────────────
-
-def test_find_cpp_output_dir_single_subdir(tmp_path: Path) -> None:
-    (tmp_path / "20260101120001").mkdir()
-    result = cpp_adapter._find_cpp_output_dir(tmp_path)
-    assert result.name == "20260101120001"
-
-
-def test_find_cpp_output_dir_multiple_raises(tmp_path: Path) -> None:
-    (tmp_path / "20260101120001").mkdir()
-    (tmp_path / "20260101120002").mkdir()
-    with pytest.raises(RuntimeError, match="Expected exactly 1"):
-        cpp_adapter._find_cpp_output_dir(tmp_path)
-
-
-def test_find_cpp_output_dir_none_raises(tmp_path: Path) -> None:
-    with pytest.raises(RuntimeError, match="Expected exactly 1"):
-        cpp_adapter._find_cpp_output_dir(tmp_path)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# run_cpp_simulation — command construction and artifact copying
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _make_fake_exportcleaner(player_count: int) -> object:
+def _fake_exportcleaner_module(player_count: int) -> object:
     rows = [
         {
-            "Name": f"Player {i}",
-            "Team": "BOS",
-            "Age": 29,
-            "PER": 18.0,
-            "DWS": 2.0,
-            "EWA": 1.0,
+            "Name": f"Player {i}", "Team": "BOS", "Age": 29,
+            "PER": 18.0, "DWS": 2.0, "EWA": 1.0,
             **{a: 50 for a in ["dIQ", "Dnk", "Drb", "End", "2Pt", "FT", "Ins",
-                                "Jmp", "oIQ", "Pss", "Reb", "Spd", "Str", "3Pt", "Hgt"]},
+                               "Jmp", "oIQ", "Pss", "Reb", "Spd", "Str", "3Pt", "Hgt"]},
         }
         for i in range(player_count)
     ]
@@ -162,232 +72,180 @@ def _make_fake_exportcleaner(player_count: int) -> object:
     return SimpleNamespace(exportcleaner=fake_exportcleaner)
 
 
-def _patch_run_cpp(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fake_binary: Path) -> list[list[str]]:
-    """Patch subprocess.run so it creates the C++ output structure without running C++."""
-    captured_cmds: list[list[str]] = []
+@pytest.fixture
+def cpp_sim_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """Patched environment for `run_cpp_simulation` tests.
 
-    def fake_subprocess_run(cmd, **kwargs):
-        captured_cmds.append(list(cmd))
-        # Simulate C++ binary creating a timestamped output dir
-        cpp_outputs_base = None
+    Returns a namespace with `binary`, `export`, `teaminfo`, `run_dir`,
+    `captured_cmds`, and a `run(**overrides)` callable that invokes
+    `run_cpp_simulation` with sane defaults.
+    """
+    binary = tmp_path / "progbox"
+    binary.write_bytes(b"")
+    export_path = tmp_path / "export.json"
+    teaminfo_path = tmp_path / "teaminfo.json"
+    _make_fake_export(export_path, [{"pid": 0, "tid": 0}, {"pid": 1, "tid": 1}])
+    _make_fake_teaminfo(teaminfo_path)
+    run_dir = tmp_path / "outputs" / "20260101120000"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    captured: list[list[str]] = []
+
+    def fake_subprocess_run(cmd, **_kwargs):
+        captured.append(list(cmd))
         for arg in cmd:
-            if "_cpp_tmp_outputs" in str(arg):
-                cpp_outputs_base = Path(arg)
+            if "_cpp_tmp_outputs" in str(arg) and Path(arg).exists():
+                _make_fake_cpp_outputs(Path(arg))
                 break
-        if cpp_outputs_base and cpp_outputs_base.exists():
-            _make_fake_cpp_outputs(cpp_outputs_base)
         return subprocess.CompletedProcess(cmd, 0)
 
     monkeypatch.setattr(subprocess, "run", fake_subprocess_run)
     monkeypatch.setattr(
         engine_adapter, "load_exportcleaner_module",
-        lambda: _make_fake_exportcleaner(2),
+        lambda: _fake_exportcleaner_module(2),
     )
-    monkeypatch.setattr(cpp_adapter, "_resolve_binary", lambda: fake_binary)
-    monkeypatch.setattr(cpp_adapter, "_ANALYSIS_SCRIPT", fake_binary)  # also skip real analysis
-    return captured_cmds
+    monkeypatch.setattr(cpp_adapter, "_resolve_binary", lambda: binary)
+    monkeypatch.setattr(cpp_adapter, "_ANALYSIS_SCRIPT", binary)  # skip real analysis
 
-
-def test_run_cpp_simulation_command_flags(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_binary = tmp_path / "progbox"
-    fake_binary.write_bytes(b"")
-    export_path = tmp_path / "export.json"
-    teaminfo_path = tmp_path / "teaminfo.json"
-    _make_fake_export(export_path, [{"pid": 0, "tid": 0}])
-    _make_fake_teaminfo(teaminfo_path)
-    canonical_run_dir = tmp_path / "outputs" / "20260101120000"
-    canonical_run_dir.mkdir(parents=True, exist_ok=True)
-
-    captured = _patch_run_cpp(monkeypatch, tmp_path, fake_binary)
-
-    cpp_adapter.run_cpp_simulation(
-        build="20260101120000",
-        export_path=export_path,
-        teaminfo_path=teaminfo_path,
-        teams=[],
-        seed=42,
-        runs=5,
-        n_workers=2,
-        canonical_run_dir=canonical_run_dir,
-    )
-
-    cpp_cmd = captured[0]
-    assert "-v" in cpp_cmd and "v41" in cpp_cmd
-    assert "-r" in cpp_cmd and "5" in cpp_cmd
-    assert "-w" in cpp_cmd and "2" in cpp_cmd
-    assert "-s" in cpp_cmd and "42" in cpp_cmd
-    assert "-y" in cpp_cmd and "2021" in cpp_cmd
-
-
-def test_run_cpp_simulation_copies_raw_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_binary = tmp_path / "progbox"
-    fake_binary.write_bytes(b"")
-    export_path = tmp_path / "export.json"
-    teaminfo_path = tmp_path / "teaminfo.json"
-    _make_fake_export(export_path, [{"pid": 0, "tid": 0}])
-    _make_fake_teaminfo(teaminfo_path)
-    canonical_run_dir = tmp_path / "outputs" / "20260101120000"
-    canonical_run_dir.mkdir(parents=True, exist_ok=True)
-
-    _patch_run_cpp(monkeypatch, tmp_path, fake_binary)
-
-    cpp_adapter.run_cpp_simulation(
-        build="20260101120000",
-        export_path=export_path,
-        teaminfo_path=teaminfo_path,
-        teams=[],
-        seed=1,
-        runs=2,
-        n_workers=1,
-        canonical_run_dir=canonical_run_dir,
-    )
-
-    assert (canonical_run_dir / "raw" / "outputs.csv").is_file()
-    assert (canonical_run_dir / "raw" / "godprogs.json").is_file()
-
-
-def test_run_cpp_simulation_preserves_engine_metadata(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_binary = tmp_path / "progbox"
-    fake_binary.write_bytes(b"")
-    export_path = tmp_path / "export.json"
-    teaminfo_path = tmp_path / "teaminfo.json"
-    _make_fake_export(export_path, [{"pid": 0, "tid": 0}])
-    _make_fake_teaminfo(teaminfo_path)
-    canonical_run_dir = tmp_path / "outputs" / "20260101120000"
-    canonical_run_dir.mkdir(parents=True, exist_ok=True)
-
-    _patch_run_cpp(monkeypatch, tmp_path, fake_binary)
-
-    cpp_adapter.run_cpp_simulation(
-        build="20260101120000",
-        export_path=export_path,
-        teaminfo_path=teaminfo_path,
-        teams=[],
-        seed=1,
-        runs=2,
-        n_workers=1,
-        canonical_run_dir=canonical_run_dir,
-    )
-
-    meta_path = canonical_run_dir / "engine_metadata.json"
-    assert meta_path.is_file()
-    meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    assert "simulation" in meta
-
-
-def test_run_cpp_simulation_team_filter_writes_filtered_export(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_binary = tmp_path / "progbox"
-    fake_binary.write_bytes(b"")
-    export_path = tmp_path / "export.json"
-    teaminfo_path = tmp_path / "teaminfo.json"
-    _make_fake_export(
-        export_path,
-        [{"pid": 0, "tid": 0}, {"pid": 1, "tid": 1}],
-    )
-    _make_fake_teaminfo(teaminfo_path)
-    canonical_run_dir = tmp_path / "outputs" / "20260101120000"
-    canonical_run_dir.mkdir(parents=True, exist_ok=True)
-
-    captured = _patch_run_cpp(monkeypatch, tmp_path, fake_binary)
-
-    cpp_adapter.run_cpp_simulation(
-        build="20260101120000",
-        export_path=export_path,
-        teaminfo_path=teaminfo_path,
-        teams=["BOS"],
-        seed=1,
-        runs=2,
-        n_workers=1,
-        canonical_run_dir=canonical_run_dir,
-    )
-
-    # The filtered export path (not the original) should be passed to C++
-    cpp_cmd = captured[0]
-    assert "export_filtered.json" in cpp_cmd[1]
-
-
-def test_run_cpp_simulation_returns_player_count(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_binary = tmp_path / "progbox"
-    fake_binary.write_bytes(b"")
-    export_path = tmp_path / "export.json"
-    teaminfo_path = tmp_path / "teaminfo.json"
-    _make_fake_export(export_path, [{"pid": 0, "tid": 0}])
-    _make_fake_teaminfo(teaminfo_path)
-    canonical_run_dir = tmp_path / "outputs" / "20260101120000"
-    canonical_run_dir.mkdir(parents=True, exist_ok=True)
-
-    _patch_run_cpp(monkeypatch, tmp_path, fake_binary)
-
-    count = cpp_adapter.run_cpp_simulation(
-        build="20260101120000",
-        export_path=export_path,
-        teaminfo_path=teaminfo_path,
-        teams=[],
-        seed=1,
-        runs=2,
-        n_workers=1,
-        canonical_run_dir=canonical_run_dir,
-    )
-
-    assert count == 2  # _make_fake_exportcleaner always returns 2 rows
-
-
-def test_run_cpp_simulation_nonzero_exit_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_binary = tmp_path / "progbox"
-    fake_binary.write_bytes(b"")
-    export_path = tmp_path / "export.json"
-    teaminfo_path = tmp_path / "teaminfo.json"
-    _make_fake_export(export_path, [{"pid": 0, "tid": 0}])
-    _make_fake_teaminfo(teaminfo_path)
-    canonical_run_dir = tmp_path / "outputs" / "20260101120000"
-    canonical_run_dir.mkdir(parents=True, exist_ok=True)
-
-    monkeypatch.setattr(
-        engine_adapter, "load_exportcleaner_module",
-        lambda: _make_fake_exportcleaner(1),
-    )
-    monkeypatch.setattr(cpp_adapter, "_resolve_binary", lambda: fake_binary)
-    monkeypatch.setattr(cpp_adapter, "_ANALYSIS_SCRIPT", fake_binary)
-
-    def failing_subprocess(cmd, **kwargs):
-        return subprocess.CompletedProcess(cmd, 1)
-
-    monkeypatch.setattr(subprocess, "run", failing_subprocess)
-
-    with pytest.raises(RuntimeError, match="exited with code 1"):
-        cpp_adapter.run_cpp_simulation(
-            build="20260101120000",
-            export_path=export_path,
-            teaminfo_path=teaminfo_path,
-            teams=[],
-            seed=1,
-            runs=2,
-            n_workers=1,
-            canonical_run_dir=canonical_run_dir,
+    def run(**overrides):
+        kwargs = dict(
+            export_path=export_path, teaminfo_path=teaminfo_path,
+            teams=[], seed=1, runs=2, n_workers=1,
+            canonical_run_dir=run_dir,
         )
+        kwargs.update(overrides)
+        return cpp_adapter.run_cpp_simulation(**kwargs)
 
-
-def test_run_cpp_simulation_cleans_up_tmp_outputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_binary = tmp_path / "progbox"
-    fake_binary.write_bytes(b"")
-    export_path = tmp_path / "export.json"
-    teaminfo_path = tmp_path / "teaminfo.json"
-    _make_fake_export(export_path, [{"pid": 0, "tid": 0}])
-    _make_fake_teaminfo(teaminfo_path)
-    canonical_run_dir = tmp_path / "outputs" / "20260101120000"
-    canonical_run_dir.mkdir(parents=True, exist_ok=True)
-
-    _patch_run_cpp(monkeypatch, tmp_path, fake_binary)
-
-    cpp_adapter.run_cpp_simulation(
-        build="20260101120000",
-        export_path=export_path,
-        teaminfo_path=teaminfo_path,
-        teams=[],
-        seed=1,
-        runs=2,
-        n_workers=1,
-        canonical_run_dir=canonical_run_dir,
+    return SimpleNamespace(
+        binary=binary, export=export_path, teaminfo=teaminfo_path,
+        run_dir=run_dir, captured=captured, run=run,
     )
 
-    assert not (canonical_run_dir / "_cpp_tmp_outputs").exists()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _resolve_binary
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_resolve_binary_uses_env_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_binary = tmp_path / "fake_progbox"
+    fake_binary.write_bytes(b"")
+    monkeypatch.setenv("PROGBOX_CPP_BINARY", str(fake_binary))
+    assert cpp_adapter._resolve_binary() == fake_binary
+
+
+def test_resolve_binary_finds_candidate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("PROGBOX_CPP_BINARY", raising=False)
+    fake_bin = tmp_path / "progbox"
+    fake_bin.write_bytes(b"")
+    monkeypatch.setattr(cpp_adapter, "_BINARY_CANDIDATES", [tmp_path / "nope", fake_bin])
+    assert cpp_adapter._resolve_binary() == fake_bin
+
+
+@pytest.mark.parametrize(
+    ("setup", "match"),
+    [
+        (
+            lambda tmp, mp: mp.setenv("PROGBOX_CPP_BINARY", str(tmp / "nonexistent")),
+            "PROGBOX_CPP_BINARY",
+        ),
+        (
+            lambda tmp, mp: (
+                mp.delenv("PROGBOX_CPP_BINARY", raising=False),
+                mp.setattr(cpp_adapter, "_BINARY_CANDIDATES", [tmp / "nope"]),
+            ),
+            "pnpm build:engine",
+        ),
+    ],
+    ids=["env-override-missing", "no-candidates"],
+)
+def test_resolve_binary_missing_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    setup: Callable[[Path, pytest.MonkeyPatch], object],
+    match: str,
+) -> None:
+    setup(tmp_path, monkeypatch)
+    with pytest.raises(FileNotFoundError, match=match):
+        cpp_adapter._resolve_binary()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _filter_export
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize(
+    ("teams", "expected_tids"),
+    [([], [0, 1]), (["BOS"], [0]), (["LAL"], [])],
+    ids=["no-filter", "known-team", "unknown-team"],
+)
+def test_filter_export(tmp_path: Path, teams: list[str], expected_tids: list[int]) -> None:
+    export = tmp_path / "export.json"
+    teaminfo = tmp_path / "teaminfo.json"
+    _make_fake_export(export, [{"pid": 0, "tid": 0}, {"pid": 1, "tid": 1}])
+    _make_fake_teaminfo(teaminfo)
+    data = cpp_adapter._filter_export(export, teaminfo, teams)
+    assert [p["tid"] for p in data["players"]] == expected_tids
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _find_cpp_output_dir
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_find_cpp_output_dir_single_subdir(tmp_path: Path) -> None:
+    (tmp_path / "20260101120001").mkdir()
+    assert cpp_adapter._find_cpp_output_dir(tmp_path).name == "20260101120001"
+
+
+@pytest.mark.parametrize("n_subdirs", [0, 2], ids=["none", "multiple"])
+def test_find_cpp_output_dir_wrong_count_raises(tmp_path: Path, n_subdirs: int) -> None:
+    for i in range(n_subdirs):
+        (tmp_path / f"2026010112000{i}").mkdir()
+    with pytest.raises(RuntimeError, match="Expected exactly 1"):
+        cpp_adapter._find_cpp_output_dir(tmp_path)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# run_cpp_simulation
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_run_cpp_simulation_passes_flags(cpp_sim_env: SimpleNamespace) -> None:
+    cpp_sim_env.run(seed=42, runs=5, n_workers=2)
+    cmd = cpp_sim_env.captured[0]
+    # Flags arrive as ordered (-flag, value) pairs after the three positional args.
+    flag_pairs = list(zip(cmd[4::2], cmd[5::2]))
+    assert ("-v", "v41") in flag_pairs
+    assert ("-r", "5") in flag_pairs
+    assert ("-w", "2") in flag_pairs
+    assert ("-s", "42") in flag_pairs
+    assert ("-y", "2021") in flag_pairs
+
+
+def test_run_cpp_simulation_happy_path_postconditions(cpp_sim_env: SimpleNamespace) -> None:
+    """A successful run is one indivisible behavior: all post-conditions hold together."""
+    count = cpp_sim_env.run()
+
+    raw = cpp_sim_env.run_dir / "raw"
+    meta = json.loads((cpp_sim_env.run_dir / "engine_metadata.json").read_text(encoding="utf-8"))
+
+    assert count == 2  # _fake_exportcleaner_module returns 2 rows
+    assert (raw / "outputs.csv").is_file()
+    assert (raw / "godprogs.json").is_file()
+    assert "simulation" in meta
+    assert not (cpp_sim_env.run_dir / "_cpp_tmp_outputs").exists()
+
+
+def test_run_cpp_simulation_team_filter_writes_filtered_export(cpp_sim_env: SimpleNamespace) -> None:
+    cpp_sim_env.run(teams=["BOS"])
+    # The filtered (not original) export path is passed as the binary's first arg.
+    assert "export_filtered.json" in cpp_sim_env.captured[0][1]
+
+
+def test_run_cpp_simulation_nonzero_exit_raises(
+    cpp_sim_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda cmd, **_: subprocess.CompletedProcess(cmd, 1),
+    )
+    with pytest.raises(RuntimeError, match="exited with code 1"):
+        cpp_sim_env.run()
