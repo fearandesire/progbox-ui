@@ -1,7 +1,6 @@
 import json
 import pandas as pd
 
-YEAR = 2021
 ATTRS = ["dIQ", "Dnk", "Drb", "End", "2Pt", "FT",
          "Ins", "Jmp", "oIQ", "Pss", "Reb", "Spd", "Str", "3Pt", "Hgt", "Ovr"]
 FAILSAFE = {'end': 'endu', '2pt': 'fg', '3pt': 'tp', 'str': 'stre'}
@@ -31,13 +30,14 @@ def exportcleaner(export_file, teams:list, teaminfo_file) -> tuple[pd.DataFrame,
         players = data.get("players", [])
     
     metadata = extract_metadata(data)
-    
-    with open(teaminfo_file, "rb") as f: 
+    season = data.get("gameAttributes", {}).get("season", 2021)
+
+    with open(teaminfo_file, "rb") as f:
         team_lookup = json.load(f)
 
     records = []
     for p in players:
-        if not p["stats"] or p["tid"] < -1: 
+        if not p["stats"] or p["tid"] < -1:
             continue
 
         stats = p["stats"][-2] if p["stats"][-1].get("playoffs") else p["stats"][-1]
@@ -50,10 +50,10 @@ def exportcleaner(export_file, teams:list, teaminfo_file) -> tuple[pd.DataFrame,
         ewa = stats.get("ewa", 0)
 
         team = team_lookup.get(str(p["tid"]))
-        if teams and team not in teams: 
+        if teams and team not in teams:
             continue
 
-        age = YEAR - p["born"]["year"]
+        age = season - p["born"]["year"]
         if age < 25: 
             continue
 

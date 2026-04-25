@@ -44,6 +44,12 @@ def _resolve_binary() -> Path:
     )
 
 
+def _get_season(export_path: Path) -> int:
+    """Extract the season year from the export's gameAttributes."""
+    data: dict[str, Any] = json.loads(export_path.read_text(encoding="utf-8"))
+    return data.get("gameAttributes", {}).get("season", 2021)
+
+
 def _filter_export(export_path: Path, teaminfo_path: Path, teams: list[str]) -> dict[str, Any]:
     """Return export JSON with players filtered to the requested teams."""
     data: dict[str, Any] = json.loads(export_path.read_text(encoding="utf-8"))
@@ -121,6 +127,7 @@ def run_cpp_simulation(
             else:
                 effective_export = export_path
 
+            season = _get_season(export_path)
             cmd = [
                 str(binary),
                 str(effective_export.resolve()),
@@ -130,7 +137,7 @@ def run_cpp_simulation(
                 "-r", str(runs),
                 "-w", str(n_workers),
                 "-s", str(seed),
-                "-y", "2021",
+                "-y", str(season),
             ]
             result = subprocess.run(cmd, cwd=str(workspace))
             if result.returncode != 0:
