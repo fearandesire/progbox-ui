@@ -25,6 +25,18 @@ _BINARY_CANDIDATES = [
 ]
 
 
+def _normalize_season(raw_season: Any) -> int:
+    """Return a valid integer season, defaulting for null or non-numeric values."""
+    if type(raw_season) is int:
+        return raw_season
+    if isinstance(raw_season, str):
+        try:
+            return int(raw_season)
+        except ValueError:
+            return 2021
+    return 2021
+
+
 def _resolve_binary() -> Path:
     """Return the C++ binary path, respecting PROGBOX_CPP_BINARY override."""
     override = os.environ.get("PROGBOX_CPP_BINARY")
@@ -42,6 +54,13 @@ def _resolve_binary() -> Path:
         "C++ progbox binary not found. "
         "Run `pnpm build:engine` or set PROGBOX_CPP_BINARY."
     )
+
+
+def _get_season(export_path: Path) -> int:
+    """Extract the season year from the export's gameAttributes."""
+    data: dict[str, Any] = json.loads(export_path.read_text(encoding="utf-8"))
+    raw_season = data.get("gameAttributes", {}).get("season")
+    return _normalize_season(raw_season)
 
 
 def _filter_export(export_path: Path, teaminfo_path: Path, teams: list[str]) -> dict[str, Any]:
@@ -121,6 +140,7 @@ def run_cpp_simulation(
             else:
                 effective_export = export_path
 
+            season = _normalize_season(_get_season(export_path))
             cmd = [
                 str(binary),
                 str(effective_export.resolve()),
@@ -130,7 +150,7 @@ def run_cpp_simulation(
                 "-r", str(runs),
                 "-w", str(n_workers),
                 "-s", str(seed),
-                "-y", "2021",
+                "-y", str(season),
             ]
             result = subprocess.run(cmd, cwd=str(workspace))
             if result.returncode != 0:

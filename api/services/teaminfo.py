@@ -31,7 +31,7 @@ def generate_teaminfo(export_data: dict[str, Any]) -> dict[str, str]:
     teams = export_data.get("teams") or []
     out: dict[str, str] = {}
     for t in teams:
-        if not isinstance(t, dict) or not t.get("active", False):
+        if not isinstance(t, dict) or not t.get("active", True):
             continue
         tid = t.get("tid")
         abbrev = t.get("abbrev")

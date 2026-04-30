@@ -205,6 +205,33 @@ def test_find_cpp_output_dir_wrong_count_raises(tmp_path: Path, n_subdirs: int) 
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# season normalization
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize(
+    ("raw_season", "expected"),
+    [
+        (2024, 2024),
+        ("2025", 2025),
+        (None, 2021),
+        ("playoffs", 2021),
+    ],
+    ids=["int", "numeric-string", "none", "nonnumeric-string"],
+)
+def test_get_season_normalizes_invalid_values(
+    tmp_path: Path,
+    raw_season: object,
+    expected: int,
+) -> None:
+    export = tmp_path / "export.json"
+    export.write_text(
+        json.dumps({"gameAttributes": {"season": raw_season}, "players": []}),
+        encoding="utf-8",
+    )
+
+    assert cpp_adapter._get_season(export) == expected
+
+
 # run_cpp_simulation
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -218,6 +245,26 @@ def test_run_cpp_simulation_passes_flags(cpp_sim_env: SimpleNamespace) -> None:
     assert ("-w", "2") in flag_pairs
     assert ("-s", "42") in flag_pairs
     assert ("-y", "2021") in flag_pairs
+
+
+def test_run_cpp_simulation_normalizes_invalid_season_for_year_flag(
+    cpp_sim_env: SimpleNamespace,
+) -> None:
+    cpp_sim_env.export.write_text(
+        json.dumps(
+            {
+                "gameAttributes": {"season": "playoffs"},
+                "players": [{"pid": 0, "tid": 0}, {"pid": 1, "tid": 1}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cpp_sim_env.run()
+
+    cmd = cpp_sim_env.captured[0]
+    flag_pairs = dict(zip(cmd[4::2], cmd[5::2]))
+    assert flag_pairs["-y"] == "2021"
 
 
 def test_run_cpp_simulation_happy_path_postconditions(cpp_sim_env: SimpleNamespace) -> None:

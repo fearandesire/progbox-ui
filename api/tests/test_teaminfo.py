@@ -26,12 +26,12 @@ class TestGenerateTeaminfo:
             "teams": [
                 {"tid": 0, "abbrev": "BOS", "active": True},
                 {"tid": 999, "abbrev": "DEFUNCT", "active": False},
-                {"tid": 1000, "abbrev": "NOFLAG"},  # missing active flag → excluded
+                {"tid": 1000, "abbrev": "NOFLAG"},  # missing active flag → treated as active
             ]
         }
         result = generate_teaminfo(export)
         assert "999" not in result
-        assert "1000" not in result
+        assert result["1000"] == "NOFLAG"
         assert result["0"] == "BOS"
 
     def test_uppercases_abbreviations(self) -> None:
