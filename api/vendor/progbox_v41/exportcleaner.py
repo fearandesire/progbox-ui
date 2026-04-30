@@ -5,6 +5,18 @@ ATTRS = ["dIQ", "Dnk", "Drb", "End", "2Pt", "FT",
          "Ins", "Jmp", "oIQ", "Pss", "Reb", "Spd", "Str", "3Pt", "Hgt", "Ovr"]
 FAILSAFE = {'end': 'endu', '2pt': 'fg', '3pt': 'tp', 'str': 'stre'}
 
+
+def _normalize_season(raw_season):
+    if type(raw_season) is int:
+        return raw_season
+    if isinstance(raw_season, str):
+        try:
+            return int(raw_season)
+        except ValueError:
+            return 2021
+    return 2021
+
+
 def extract_metadata(export_data):
     """Extract metadata from the league export JSON."""
     meta = export_data.get("meta", {})
@@ -30,7 +42,7 @@ def exportcleaner(export_file, teams:list, teaminfo_file) -> tuple[pd.DataFrame,
         players = data.get("players", [])
     
     metadata = extract_metadata(data)
-    season = data.get("gameAttributes", {}).get("season", 2021)
+    season = _normalize_season(data.get("gameAttributes", {}).get("season", 2021))
 
     with open(teaminfo_file, "rb") as f:
         team_lookup = json.load(f)
