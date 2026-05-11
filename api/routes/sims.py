@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Path, Query, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 from models import RunMetadata
@@ -270,3 +270,17 @@ async def get_sim(build: BuildId) -> RunMetadata:
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
     return run
+
+@router.get("/{build}/analysis.html", response_class=HTMLResponse)
+async def get_analysis_html(build: BuildId):
+    """Serve the analysis.html report for a specific simulation build."""
+    if get_run(build) is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    
+    # Define the path to your HTML file
+    html_path = outputs_root() / build / "analysis_dashboard.html"
+    
+    if not html_path.exists():
+        raise HTTPException(status_code=404, detail="analysis_dashboard.html not found for this run")
+
+    return FileResponse(html_path)

@@ -28,11 +28,14 @@
 #include <sstream>
 #include <random>
 #include <algorithm>
+#include <cctype>
 
 #include "progression_registry.hpp"
 #include "sim_engine.hpp"
 #include "analytics.hpp"
 #include "json.hpp"
+#include "ovr_math.hpp"
+
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -42,6 +45,13 @@ using json = nlohmann::json;
 // CLI
 // ============================================================================
 
+// Helper function to convert string to lowercase for easy comparison
+auto to_lower = [](std::string str) {
+    std::transform(str.begin(), str.end(), str.begin(), 
+                   [](unsigned char c){ return std::tolower(c); });
+    return str;
+};
+
 /// @brief Parsed command-line arguments for the simulator.
 struct CliArgs {
     std::string export_path;       ///< Path to player export JSON.
@@ -49,9 +59,9 @@ struct CliArgs {
     fs::path output_dir;           ///< Base output directory (build ID appended).
     std::string version;           ///< Progression strategy ID (e.g., "v321").
     int runs = 1000;               ///< Number of Monte Carlo simulation runs.
-    int year = 2021;               ///< Season year for age calculation.
+    int year = 2012;               ///< Season year for age calculation.
     int workers = 0;               ///< Worker threads (0 = auto-detect).
-    int seed = 69;                  ///< RNG seed (0 = random).
+    int seed = 69;                 ///< RNG seed (0 = random).
 };
 
 /// @brief Prints usage information and available progression versions to stdout.
@@ -164,7 +174,7 @@ T safe_json_number(const nlohmann::json& j, T default_val = T{}) {
             } else if constexpr (std::is_same_v<T, double>) {
                 return std::stod(j.get<std::string>());
             } else if constexpr (std::is_same_v<T, bool>) {
-                auto s = j.get<std::string>();
+                std::string s = j.get<std::string>();
                 std::transform(s.begin(), s.end(), s.begin(), ::tolower);
                 return s == "true" || s == "1" || s == "yes";
             }
@@ -203,8 +213,8 @@ const std::unordered_map<std::string, std::string> FAILSAFE = {
 std::string make_calver_id() {
     using namespace std::chrono;
 
-    auto now = system_clock::now();
-    auto t = system_clock::to_time_t(now);
+    std::chrono::system_clock::time_point now = system_clock::now();
+    time_t t = system_clock::to_time_t(now);
     std::tm tm = *std::localtime(&t);
 
     std::ostringstream oss;
@@ -212,7 +222,16 @@ std::string make_calver_id() {
     return oss.str();
 }
 
+/// @brief Executes the Python post-processing analysis script.
+/// @param out_dir Directory containing simulation output files.
+/// @return The exit code from the Python script (0 = success).
+int run_python_analysis(const std::filesystem::path& out_dir) {
+    std::string cmd =
+        "python3 tools/analysis.py \"" + out_dir.string() + "\"";
 
+    printf("Running analysis: %s\n", cmd.c_str());
+    return std::system(cmd.c_str());
+}
 
 /// @brief Writes run metadata to a JSON file for reproducibility tracking.
 /// @param out_dir Directory where metadata.json will be saved.
@@ -233,8 +252,8 @@ void write_metadata(
 ) {
     using json = nlohmann::json;
 
-    auto now = std::chrono::system_clock::now();
-    auto t = std::chrono::system_clock::to_time_t(now);
+    std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+    time_t t = std::chrono::system_clock::to_time_t(now);
     std::tm tm = *std::localtime(&t);
 
     std::ostringstream iso_time;
@@ -309,12 +328,12 @@ void load_players(
         int tid = safe_json_get<int>(p, "tid", -2);
         if (p["stats"].empty() || tid < -1) continue;
 
-        auto& last_stat = p["stats"].back();
+        nlohmann::json_abi_v3_12_0::json& last_stat = p["stats"].back();
         bool is_playoffs = safe_json_get<bool>(last_stat, "playoffs", false);
 
-        auto& stat = (is_playoffs && p["stats"].size() >= 2)
-            ? p["stats"][p["stats"].size() - 2]
-            : last_stat;
+        /// @note Assumes at least 2 stat entries if last is playoff data.
+        ///       This could crash if the stats array has exactly 1 playoff entry.
+        nlohmann::json_abi_v3_12_0::json& stat = is_playoffs ? p["stats"][p["stats"].size() - 2] : last_stat;
 
         double per = safe_json_get<double>(stat, "per", 0.0);
         if (per == 0.0) continue;
@@ -329,7 +348,7 @@ void load_players(
         int age = year - birth_year;
         if (age < 25) continue;
 
-        auto& last_rating = p["ratings"].back();
+        nlohmann::json_abi_v3_12_0::json& last_rating = p["ratings"].back();
         std::unordered_map<std::string, int> ratings;
         for (auto& [k, v] : last_rating.items()) {
             std::string key = k;
@@ -379,7 +398,7 @@ void load_players(
 /// @return 0 on success, 1 on error.
 int main(int argc, char** argv) {
     // ── Phase 1: Parse CLI ──────────────────────────────────────────────
-    auto args = parse_args(argc, argv);
+    std::optional<CliArgs> args = parse_args(argc, argv);
     if (!args) {
         print_usage(argv[0]);
         return 1;
@@ -391,14 +410,14 @@ int main(int argc, char** argv) {
     std::filesystem::create_directories(args->output_dir);
 
     // ── Phase 3: Resolve progression strategy ───────────────────────────
-    auto progression = progbox::ProgressionRegistry::create(args->version);
+    std::unique_ptr<progbox::IProgressionStrategy> progression = progbox::ProgressionRegistry::create(args->version);
     if (!progression) {
         printf("Error: Unknown version '%s'\n", args->version.c_str());
         printf("Available: %s\n", progbox::ProgressionRegistry::id_list().c_str());
         return 1;
     }
 
-    const auto* entry = progbox::ProgressionRegistry::find(args->version);
+    const struct progbox::ProgressionEntry* entry = progbox::ProgressionRegistry::find(args->version);
     std::string display_name = entry ? entry->display_name : args->version;
 
     // ── Resolve seed: 0 means generate random ───────────────────────────
@@ -449,7 +468,7 @@ int main(int argc, char** argv) {
     // ── Phase 6: Run simulation ─────────────────────────────────────────
     printf("Simulating...\n");
     progbox::SimEngine engine(*progression, args->workers);
-    auto raw_results = engine.run(player_meta, player_states, args->runs, seed);
+    std::vector<progbox::RunResult> raw_results = engine.run(player_meta, player_states, args->runs, seed);
 
     /// @note Validate simulation output before proceeding to analytics.
     if (raw_results.empty()) {
@@ -474,6 +493,41 @@ int main(int argc, char** argv) {
   Output   : %s
 ═══════════════════════════════════════════════════════════════
 )", player_meta.size(), args->runs, seed, god_count, args->output_dir.string().c_str());
+
+    // ── Phase 8: Python post-processing ─────────────────────────────────
+    bool should_run = true;
+    std::string user_input;
+
+    // Loop until we get a valid yes or no
+    // while (true) {
+    //     std::cout << "\nRun Python post-processing analysis? [y/n]: ";
+        
+    //     // If input is piped (e.g., CI/CD) and hits EOF, break out safely
+    //     if (!std::getline(std::cin, user_input)) {
+    //         break; 
+    //     }
+        
+    //     std::string answer = to_lower(user_input);
+        
+    //     if (answer == "y" || answer == "yes") {
+    //         should_run = true;
+    //         break;
+    //     } else if (answer == "n" || answer == "no") {
+    //         should_run = false;
+    //         break;
+    //     } else {
+    //         std::cout << "  Invalid input. Please type 'y', 'yes', 'n', or 'no'.\n";
+    //     }
+    // }
+    if (should_run) {
+        std::cout << "Running Python analysis...\n";
+        int rc = run_python_analysis(args->output_dir);
+        if (rc != 0) {
+            std::cerr << "Warning: postprocess script failed (" << rc << ")\n";
+        }
+    } else {
+        std::cout << "Skipping Python analysis.\n";
+    }
 
     return 0;
 }

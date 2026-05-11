@@ -33,8 +33,8 @@ def _normalize_season(raw_season: Any) -> int:
         try:
             return int(raw_season)
         except ValueError:
-            return 2021
-    return 2021
+            return 2012
+    return 2012
 
 
 def _resolve_binary() -> Path:
@@ -179,7 +179,7 @@ def run_cpp_simulation(
             if analysis_result.returncode != 0:
                 print(
                     f"Warning: tools/analysis.py exited with code "
-                    f"{analysis_result.returncode} (charts/xlsx may be incomplete)",
+                    f"{analysis_result.returncode} (analysis_dashboard.html may be incomplete)",
                     flush=True,
                 )
     finally:

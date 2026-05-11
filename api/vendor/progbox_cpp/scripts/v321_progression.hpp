@@ -1,3 +1,9 @@
+/// @progbox-register
+///   id: v321
+///   name: "v3.2.1, current progression script"
+///   class: V321Progression
+/// @end-progbox-register
+
 /// @file v321_progression.hpp
 /// @brief V3.2.1 implementation of NET progression.
 /// @author @akshayexists
