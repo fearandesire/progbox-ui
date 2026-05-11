@@ -271,7 +271,7 @@ async def get_sim(build: BuildId) -> RunMetadata:
         raise HTTPException(status_code=404, detail="Run not found")
     return run
 
-@router.get("/{build}/analysis.html", response_class=HTMLResponse)
+@router.get("/{build}/analysis", response_class=HTMLResponse)
 async def get_analysis_html(build: BuildId):
     """Serve the analysis.html report for a specific simulation build."""
     if get_run(build) is None:

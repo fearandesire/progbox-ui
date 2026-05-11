@@ -8,7 +8,7 @@ const props = defineProps<{
 
 // Construct the direct URL to the HTML report
 const analysisUrl = computed(() => {
-  return `${getApiBaseUrl()}/sims/${encodeURIComponent(props.build)}/analysis_dashboard.html`;
+  return `${getApiBaseUrl()}/sims/${encodeURIComponent(props.build)}/analysis`;
 });
 </script>
 
