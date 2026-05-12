@@ -16,12 +16,14 @@ from services import engine_adapter
 _VENDOR_DIR = Path(__file__).resolve().parent.parent / "vendor" / "progbox_cpp"
 _ANALYSIS_SCRIPT = _VENDOR_DIR / "tools" / "analysis.py"
 
-# Candidate binary paths produced by buildprogbox.sh (platform order matters).
+# Candidate binary paths produced by CMake (platform order matters).
 _BINARY_CANDIDATES = [
     _VENDOR_DIR / "build" / "progbox",
     _VENDOR_DIR / "build" / "progbox.exe",
     _VENDOR_DIR / "build" / "Release" / "progbox.exe",
     _VENDOR_DIR / "build" / "Release" / "progbox",
+    _VENDOR_DIR / "build" / "x64" / "Release" / "progbox.exe",
+    _VENDOR_DIR / "build" / "x64" / "Release" / "progbox",
 ]
 
 
@@ -33,8 +35,8 @@ def _normalize_season(raw_season: Any) -> int:
         try:
             return int(raw_season)
         except ValueError:
-            return 2012
-    return 2012
+            return 2021
+    return 2021
 
 
 def _resolve_binary() -> Path:

@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [ main, dev ]
   pull_request:
-    branches: [main, dev]
+    branches: [ main, dev ]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -74,7 +74,7 @@ jobs:
         run: pnpm --filter @progbox/api test:coverage
 
       - name: Build C++ engine
-        run: bash api/vendor/progbox_cpp/buildprogbox.sh
+        run: pnpm run build:engine
 
       - name: Engine smoke test
         run: pnpm run test:api:engine

@@ -70,11 +70,10 @@ def test_cpp_engine_smoke_run(
 
     outputs_csv = run_dir / "raw" / "outputs.csv"
     analysis_xlsx = run_dir / "analysis.xlsx"
-    charts_dir = run_dir / "charts"
+    dashboard_html = run_dir / "analysis_dashboard.html"
     assert outputs_csv.is_file()
     assert analysis_xlsx.is_file()
-    assert charts_dir.is_dir()
-    assert any(charts_dir.glob("*.png"))
+    assert dashboard_html.is_file()
     assert outputs_csv.stat().st_size > 0
     assert analysis_xlsx.stat().st_size > 0
 

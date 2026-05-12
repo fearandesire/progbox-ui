@@ -1,73 +1,37 @@
-import { flushPromises, mount } from "@vue/test-utils";
+import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getApiBaseUrl } from "../lib/api";
 import ChartGallery from "./ChartGallery.vue";
 
 vi.mock("../lib/api", () => ({
-  chartUrl: vi.fn((build: string, name: string) => `/api/sims/${build}/charts/${name}`),
-  fetchCharts: vi.fn(),
+  getApiBaseUrl: vi.fn(() => "/api"),
 }));
-
-import { fetchCharts } from "../lib/api";
 
 describe("ChartGallery", () => {
   beforeEach(() => {
-    vi.mocked(fetchCharts).mockReset();
+    vi.mocked(getApiBaseUrl).mockReset();
+    vi.mocked(getApiBaseUrl).mockReturnValue("/api");
   });
 
-  it("renders charts and opens the preview modal", async () => {
-    vi.mocked(fetchCharts).mockResolvedValueOnce(["trend.png", "distribution.png"]);
-
+  it("renders the analysis report iframe", () => {
     const wrapper = mount(ChartGallery, {
       props: { build: "20260101120000" },
     });
-    await flushPromises();
 
-    expect(fetchCharts).toHaveBeenCalledWith("20260101120000");
-    expect(wrapper.text()).toContain("trend.png");
-    expect(wrapper.text()).toContain("distribution.png");
-
-    const chartButton = wrapper.findAll("button")[0];
-    await chartButton.trigger("click");
-    await flushPromises();
-
-    const modal = wrapper.find(".fixed");
-    expect(modal.exists()).toBe(true);
-    expect(modal.text()).toContain("trend.png");
-
-    const closeButton = wrapper.findAll("button").find((button) => button.text() === "Close");
-    expect(closeButton).toBeDefined();
-    if (!closeButton) {
-      return;
-    }
-
-    await closeButton.trigger("click");
-    await flushPromises();
-
-    expect(wrapper.find(".fixed").exists()).toBe(false);
+    const iframe = wrapper.get("iframe");
+    expect(iframe.attributes("title")).toBe("Analysis Report");
+    expect(iframe.attributes("src")).toBe("/api/sims/20260101120000/analysis");
   });
 
-  it("shows an error and retries loading", async () => {
-    vi.mocked(fetchCharts)
-      .mockRejectedValueOnce(new Error("charts unavailable"))
-      .mockResolvedValueOnce([]);
+  it("uses the configured API base URL and encodes the build id", () => {
+    vi.mocked(getApiBaseUrl).mockReturnValue("http://127.0.0.1:8000/api");
 
     const wrapper = mount(ChartGallery, {
-      props: { build: "20260101120000" },
+      props: { build: "2026 01/01" },
     });
-    await flushPromises();
 
-    expect(wrapper.text()).toContain("charts unavailable");
-
-    const retryButton = wrapper.findAll("button").find((button) => button.text() === "Retry");
-    expect(retryButton).toBeDefined();
-    if (!retryButton) {
-      return;
-    }
-
-    await retryButton.trigger("click");
-    await flushPromises();
-
-    expect(fetchCharts).toHaveBeenCalledTimes(2);
-    expect(wrapper.text()).toContain("No charts yet.");
+    expect(wrapper.get("iframe").attributes("src")).toBe(
+      "http://127.0.0.1:8000/api/sims/2026%2001%2F01/analysis",
+    );
   });
 });

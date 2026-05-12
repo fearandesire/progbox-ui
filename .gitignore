@@ -77,6 +77,12 @@ New folder/
 outputs/*
 !outputs/.gitkeep
 
+# C++ engine build output (local only; never commit)
+api/vendor/progbox_cpp/build/
+
+# Local script overrides (WSL environment tweaks, etc.)
+scripts/*.local.sh
+
 # Optional: local exports / uploads (uncomment if you never commit fixtures)
 # data/*.json
 .codex

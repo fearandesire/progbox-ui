@@ -2,8 +2,8 @@
   "name": "@progbox/api",
   "private": true,
   "scripts": {
-    "dev": "python devserver.py",
-    "build:engine": "bash vendor/progbox_cpp/buildprogbox.sh",
+    "dev": "bash -c 'source ../.venv/bin/activate && python devserver.py'",
+    "build:engine": "node scripts/build-engine.mjs",
     "lint": "python -m compileall -q .",
     "test": "pytest -m \"not engine\"",
     "test:coverage": "pytest --cov=main --cov=routes --cov=services --cov-report=term-missing --cov-fail-under=70 -m \"not engine\"",

@@ -14,6 +14,8 @@
     "lint:api": "pnpm --filter @progbox/api lint",
     "build:engine": "pnpm --filter @progbox/api build:engine",
     "doctor": "node scripts/doctor.mjs",
+    "setup:wsl": "bash scripts/setup-wsl.sh",
+    "setup:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-windows.ps1",
     "test": "pnpm run test:web && pnpm run test:api",
     "test:web": "pnpm --filter web test",
     "test:api": "pnpm --filter @progbox/api test",
