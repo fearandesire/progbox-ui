@@ -103,11 +103,53 @@ e2e/                        Playwright browser tests & fixtures
 
 ## Commands
 
+### First-time setup
+
+| Environment | Commands |
+| --- | --- |
+| WSL / Linux | `pnpm run setup:wsl` then `source .venv/bin/activate` |
+| Windows (PowerShell) | `pnpm run setup:windows` then `.\.venv\Scripts\Activate.ps1` |
+
+### Daily dev — always use `pnpm dev`
+
+`pnpm dev` starts **both** the web UI and API together. Never run one without the other.
+
+```bash
+# WSL / Linux (activate venv first, then start both services)
+source .venv/bin/activate
+pnpm dev
+```
+
+```powershell
+# Windows
+.\.venv\Scripts\Activate.ps1
+pnpm dev
+```
+
+Web UI → http://localhost:5173 | API → http://127.0.0.1:8000
+
+### When something changes
+
+| Situation | Command |
+| --- | --- |
+| Python deps changed (`requirements.txt`) | `pip install -r api/requirements.txt` |
+| C++ engine source changed | `pnpm build:engine` |
+| Node/JS deps changed (`pnpm-lock.yaml`) | `pnpm install` |
+| Full rebuild / repair from scratch | `pnpm run setup:wsl` (WSL) or `pnpm run setup:windows` (Win) |
+
+### Advanced (partial starts)
+
+> These leave you with a broken environment — use only for debugging individual services.
+
+| Command | What it does |
+| --- | --- |
+| `pnpm dev:api-only` | API only — web UI will have no backend |
+| `pnpm dev:web-only` | Web only — all API calls will fail |
+
+### CI / quality
+
 | Command                | Purpose                                             |
 | ---------------------- | --------------------------------------------------- |
-| `pnpm run setup:wsl`   | Install/repair WSL/Linux dependencies              |
-| `pnpm run setup:windows` | Install/repair native Windows dependencies        |
-| `pnpm dev`             | Start web + API dev servers                         |
 | `pnpm check`           | Lint, typecheck, build, and compile-check           |
 | `pnpm test`            | Fast unit tests — Vitest + pytest                   |
 | `pnpm test:api:engine` | Vendored-engine smoke test                          |

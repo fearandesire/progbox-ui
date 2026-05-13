@@ -4,8 +4,9 @@
   "packageManager": "pnpm@10.8.0",
   "scripts": {
     "dev": "pnpm -r --parallel run dev",
-    "dev:web": "pnpm --filter web dev",
-    "dev:api": "pnpm --filter @progbox/api dev",
+    "dev:web-only": "pnpm --filter web dev",
+    "dev:api-only": "pnpm --filter @progbox/api dev",
+    "setup": "pnpm run setup:wsl",
     "build": "pnpm --filter web build",
     "check": "pnpm run lint && pnpm run typecheck && pnpm run build && pnpm run lint:api",
     "check:fix": "pnpm --filter web lint:fix",

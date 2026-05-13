@@ -97,3 +97,6 @@ CLAUDE.local.md
 .claude/memory/
 .claude/plans/
 .claude/todos/
+
+# Dev agent plans (local working docs)
+dev/agents/plans/

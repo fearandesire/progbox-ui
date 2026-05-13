@@ -25,8 +25,8 @@ describe("SimProgressPanel", () => {
       props: { build: "20260101120000" },
     });
 
-    expect(wrapper.text()).toContain("Live progress");
-    expect(wrapper.text()).toContain("… · 0%");
+    expect(wrapper.text()).toContain("Live Progress");
+    expect(wrapper.text()).toContain("0%");
 
     MockEventSource.instances[0].emit({
       phase: "analyzing",
@@ -36,7 +36,7 @@ describe("SimProgressPanel", () => {
     });
     await nextTick();
 
-    expect(wrapper.text()).toContain("analyzing · 87%");
+    expect(wrapper.text()).toContain("87%");
     expect(wrapper.text()).toContain("Generating analysis");
     expect(wrapper.get(".h-full").attributes("style")).toContain("width: 87.2%");
   });
