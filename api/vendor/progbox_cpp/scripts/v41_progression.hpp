@@ -1,3 +1,9 @@
+/// @progbox-register
+///   id: v41
+///   name: "v4.1, new progression script with EWA and DWS on top of PER"
+///   class: V41Progression
+/// @end-progbox-register
+
 /// @file v41_progression.hpp
 /// @brief V4.1 implementation of NET.
 /// @author @akshayexists

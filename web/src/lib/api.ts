@@ -54,7 +54,7 @@ export async function createSim(
 }
 
 export async function fetchCharts(build: string): Promise<string[]> {
-  return ofetch<string[]>(`/sims/${encodeURIComponent(build)}/charts`, {
+  return ofetch<string[]>(`/sims/${encodeURIComponent(build)}/analysis`, {
     baseURL: getApiBaseUrl(),
   });
 }

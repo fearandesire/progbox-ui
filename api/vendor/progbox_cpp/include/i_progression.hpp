@@ -3,10 +3,27 @@
 /// @author @akshayexists
 
 #pragma once
+
 #include "core_types.hpp"
+
+#include <functional>
+#include <memory>
+#include <optional>
 #include <random>
+#include <string>
+#include <vector>
 
 namespace progbox {
+
+// Forward declaration
+class IProgressionStrategy;
+
+/// @brief Descriptor for a registered progression strategy.
+struct ProgressionEntry {
+    std::string id;                                                  ///< CLI identifier (e.g., "v321")
+    std::string display_name;                                        ///< Human-readable description
+    std::function<std::unique_ptr<IProgressionStrategy>()> factory;  ///< Factory function
+};
 
 struct ProgressionResult {
     PlayerState final_state;

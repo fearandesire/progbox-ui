@@ -1,6 +1,6 @@
 """Unit tests for api/services/cpp_adapter.py.
 
-All tests mock subprocess.run and filesystem so no compiled binary is required.
+All tests mock subprocess.Popen and filesystem so no compiled binary is required.
 """
 
 from __future__ import annotations
@@ -91,15 +91,44 @@ def cpp_sim_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> SimpleNamesp
 
     captured: list[list[str]] = []
 
-    def fake_subprocess_run(cmd, **_kwargs):
-        captured.append(list(cmd))
-        for arg in cmd:
-            if "_cpp_tmp_outputs" in str(arg) and Path(arg).exists():
-                _make_fake_cpp_outputs(Path(arg))
-                break
-        return subprocess.CompletedProcess(cmd, 0)
+    class FakeStdout:
+        def read(self, size):
+            return b""  # EOF immediately — no progress output in tests
 
-    monkeypatch.setattr(subprocess, "run", fake_subprocess_run)
+    class FakeProcess:
+        """Mimics subprocess.Popen for testing."""
+        def __init__(self, cmd, **_kwargs):
+            captured.append(list(cmd))
+            self.args = cmd
+            self.returncode = 0
+            self.stdout = FakeStdout()
+            for arg in cmd:
+                if "_cpp_tmp_outputs" in str(arg) and Path(arg).exists():
+                    _make_fake_cpp_outputs(Path(arg))
+                    break
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def wait(self):
+            return self.returncode
+
+        def poll(self):
+            return self.returncode
+
+        def kill(self):
+            self.returncode = -9
+
+        def communicate(self, input=None, timeout=None):
+            return (None, None)
+
+    def fake_popen(*args, **kwargs):
+        return FakeProcess(args[0], **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
     monkeypatch.setattr(
         engine_adapter, "load_exportcleaner_module",
         lambda: _fake_exportcleaner_module(2),
@@ -287,12 +316,39 @@ def test_run_cpp_simulation_team_filter_writes_filtered_export(cpp_sim_env: Simp
     assert "export_filtered.json" in cpp_sim_env.captured[0][1]
 
 
+def test_run_cpp_simulation_stage_callback_fires_in_order(
+    cpp_sim_env: SimpleNamespace,
+) -> None:
+    """stage_callback receives the four post-sim checkpoints in pipeline order."""
+    stages: list[str] = []
+    cpp_sim_env.run(stage_callback=lambda name, _msg: stages.append(name))
+    assert stages == ["cpp_done", "artifacts_copied", "analyzing", "analysis_done"]
+
+
+def test_run_cpp_simulation_without_stage_callback_succeeds(
+    cpp_sim_env: SimpleNamespace,
+) -> None:
+    """Omitting stage_callback (the default) does not raise."""
+    cpp_sim_env.run()  # no stage_callback kwarg
+
+
 def test_run_cpp_simulation_nonzero_exit_raises(
     cpp_sim_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        subprocess, "run",
-        lambda cmd, **_: subprocess.CompletedProcess(cmd, 1),
-    )
+    class _FakeStdoutEOF:
+        def read(self, size):
+            return b""
+
+    class FakeFailingProcess:
+        def __init__(self, *args, **kwargs):
+            self.stdout = _FakeStdoutEOF()
+        def wait(self):
+            return 1
+        def poll(self):
+            return 1
+        def kill(self):
+            pass
+
+    monkeypatch.setattr(subprocess, "Popen", FakeFailingProcess)
     with pytest.raises(RuntimeError, match="exited with code 1"):
         cpp_sim_env.run()

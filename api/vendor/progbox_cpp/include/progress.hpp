@@ -33,7 +33,7 @@ private:
         std::lock_guard<std::mutex> lock(mtx_);
 
         double progress = static_cast<double>(done) / total_;
-        auto now = std::chrono::steady_clock::now();
+        std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
         double elapsed = std::chrono::duration<double>(now - start_time_).count();
 
         // Clear previous line

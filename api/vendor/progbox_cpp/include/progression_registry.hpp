@@ -2,60 +2,45 @@
 /// @brief Central registry of all progression strategy implementations.
 /// @author @akshayexists
 ///
-/// TO ADD A NEW PROGRESSION SCRIPT:
-///   1. Add #include "your_new_progression.hpp" in the INCLUDES section below
-///   2. Add a registry entry to the vector in get()
+/// ============================================================================
+/// AUTO-REGISTRATION SYSTEM
+/// ============================================================================
+/// Entries are automatically discovered from @progbox-register blocks in
+/// script headers. The registry is generated at build time.
 ///
-/// main.cpp will automatically discover and list all registered versions.
+/// TO ADD A NEW PROGRESSION SCRIPT:
+///   1. Create your_new_progression.hpp in the scripts/ directory
+///   2. Add this MANDATORY block at the top of your file:
+///
+///        /// @progbox-register
+///        ///   id: your_id
+///        ///   name: "Your Description Here"
+///        ///   class: YourClassName
+///        /// @end-progbox-register
+///
+///   3. Rebuild - CMake will automatically regenerate the registry
+///
+/// RULES:
+///   - id: Single word, no quotes (e.g., v42, experimental_v1)
+///   - name: Quoted string with description
+///   - class: Exact class name (must inherit IProgressionStrategy)
+/// ============================================================================
 
 #pragma once
 
-// ============================================================================
-// PROGRESSION IMPLEMENTATION INCLUDES
-// ============================================================================
-#include "scripts/v321_progression.hpp"
-#include "scripts/v41_progression.hpp"
-// ── Add new progression headers above this line ──────────────────────────
-// ============================================================================
-
+#include "generated_progression_registry.hpp"
 #include "i_progression.hpp"
-#include <memory>
 #include <string>
-#include <vector>
-#include <functional>
 
 namespace progbox {
 
-/// @brief Descriptor for a registered progression strategy.
-struct ProgressionEntry {
-    std::string id;                                          ///< CLI identifier (e.g., "v321")
-    std::string display_name;                                ///< Human-readable description
-    std::function<std::unique_ptr<IProgressionStrategy>()> factory;  ///< Factory function
-};
-
 /// @brief Singleton registry providing access to all progression strategies.
-/// @note Lazily initialized on first access. Thread-safe in C++11+.
+/// @note Entries are populated from generated_progression_registry.hpp
 class ProgressionRegistry {
 public:
-    /// @brief Get the registry instance (lazy initialization).
+    /// @brief Get all registered entries.
     static const std::vector<ProgressionEntry>& entries() {
-        static const std::vector<ProgressionEntry> registry = {
-            {
-                "v41",
-                "V4.1 - updated version using EWA, DWS on top of PER from v3",
-                []() -> std::unique_ptr<IProgressionStrategy> { return std::make_unique<V41Progression>(); }
-            },
-            {
-                "v321",
-                "V3.2.1 - Current in-use script",
-                []() -> std::unique_ptr<IProgressionStrategy> { return std::make_unique<V321Progression>(); }
-            },
-            // ─────────────────────────────────────────────────────────────────
-            // ADD NEW PROGRESSION ENTRIES ABOVE THIS LINE
-            // Format: { "id", "Description", []() { return std::make_unique<ClassName>(); } }
-            // ─────────────────────────────────────────────────────────────────
-        };
-        return registry;
+        return generated::entries();
     }
 
     /// @brief Create a progression strategy by ID.
@@ -99,8 +84,7 @@ public:
     /// @brief Format a multi-line listing of all versions with descriptions.
     [[nodiscard]] static std::string formatted_list() {
         std::string result;
-        for (size_t i = 0; i < entries().size(); ++i) {
-            const auto& e = entries()[i];
+        for (const auto& e : entries()) {
             result += "  " + e.id + "    " + e.display_name + "\n";
         }
         return result;
@@ -113,7 +97,8 @@ public:
 
     /// @brief Get the default progression ID (first entry).
     [[nodiscard]] static const std::string& default_id() noexcept {
-        return entries().front().id;
+        static const std::string& first_id = entries().front().id;
+        return first_id;
     }
 };
 
