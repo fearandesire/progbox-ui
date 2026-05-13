@@ -225,24 +225,6 @@ node_major() {
   node --version 2>/dev/null | sed -E 's/^v([0-9]+).*/\1/'
 }
 
-python_minor_report() {
-  python3 - <<'PY' 2>/dev/null || true
-import sys
-print(f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
-PY
-}
-
-remove_venv() {
-  local target="$ROOT/.venv"
-  local resolved
-  resolved="$(cd "$(dirname "$target")" && pwd -P)/$(basename "$target")"
-  if [[ "$resolved" != "$ROOT/.venv" ]]; then
-    fail "Refusing to remove unexpected venv path: $resolved"
-    exit 1
-  fi
-  rm -rf "$resolved"
-}
-
 printf '\n%sprogbox-ui WSL/Linux setup%s\n' "$BOLD" "$RESET"
 printf '%sRepo:%s %s\n' "$DIM" "$RESET" "$ROOT"
 printf '%sLog:%s  %s\n\n' "$DIM" "$RESET" "$LOG_FILE"
@@ -265,7 +247,7 @@ fi
 step "Checking system packages"
 if command_exists apt-get && command_exists dpkg-query; then
   missing_packages=()
-  for pkg in git curl ca-certificates cmake build-essential python3 python3-venv python3-pip python-is-python3; do
+  for pkg in git curl ca-certificates cmake build-essential; do
     if ! package_installed "$pkg"; then
       missing_packages+=("$pkg")
     fi
@@ -296,12 +278,10 @@ fi
 
 require_command git "Install git."
 require_command curl "Install curl."
-require_command python3 "Install Python 3."
 require_command cmake "Install CMake."
 require_command g++ "Install build-essential or another C++17 compiler."
 
 ok "$(git --version | head -1)"
-ok "python3 $(python_minor_report)"
 ok "$(cmake --version | head -1)"
 ok "$(g++ --version | head -1)"
 
@@ -381,25 +361,6 @@ else
   fi
 fi
 
-step "Preparing Python virtual environment"
-if [[ -d .venv ]]; then
-  if [[ -x .venv/bin/python && -x .venv/bin/pip ]]; then
-    ok "Existing Linux/WSL .venv is usable"
-  else
-    warn ".venv is missing Linux executables; recreating it for WSL/Linux."
-    remove_venv
-  fi
-fi
-
-if [[ ! -d .venv ]]; then
-  run_cmd "Creating .venv" python3 -m venv .venv
-fi
-
-# shellcheck source=/dev/null
-source .venv/bin/activate
-run_cmd "Upgrading pip" python -m pip install --upgrade pip
-run_cmd "Installing API Python dependencies" python -m pip install -r api/requirements.txt
-
 if [[ "$RUN_ENGINE" == "1" ]]; then
   run_cmd "Building C++ engine" pnpm run build:engine
 else
@@ -413,6 +374,5 @@ else
 fi
 
 printf '\n%sSetup complete%s\n' "$BOLD" "$RESET"
-printf '  Activate: source .venv/bin/activate\n'
 printf '  Start:    pnpm dev\n'
 printf '  Log:      %s\n' "$LOG_FILE"

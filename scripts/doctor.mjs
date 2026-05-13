@@ -14,10 +14,10 @@ function fail(msg) {
 
 let exit = 0;
 
-const py = spawnSync("python", ["--version"], { encoding: "utf8" });
-if (py.status === 0) ok(`python: ${py.stdout.trim()}`);
+const node = spawnSync("node", ["--version"], { encoding: "utf8" });
+if (node.status === 0) ok(`node: ${node.stdout.trim()}`);
 else {
-  fail("python not found");
+  fail("node not found");
   exit = 1;
 }
 
@@ -29,6 +29,12 @@ else {
 }
 
 if (existsSync(join(root, "web", "node_modules"))) ok("web/node_modules present");
+else {
+  fail("run: pnpm install (from repo root)");
+  exit = 1;
+}
+
+if (existsSync(join(root, "api", "node_modules"))) ok("api/node_modules present");
 else {
   fail("run: pnpm install (from repo root)");
   exit = 1;
