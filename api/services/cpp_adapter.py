@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from services import engine_adapter
 
@@ -115,6 +116,51 @@ def _find_cpp_output_dir(base: Path) -> Path:
     return subdirs[0]
 
 
+_PROGRESS_RE = re.compile(rb"(\d+)/(\d+)\s*\(\s*(\d+)\s*%\)")
+
+
+def _stream_cpp_progress(
+    proc: subprocess.Popen[bytes],
+    callback: Callable[[float, str], None] | None,
+) -> None:
+    """Read C++ binary stdout and emit progress callbacks."""
+    if callback is None:
+        proc.stdout.read(4096)
+        return
+
+    buf = b""
+    last_pct = -1
+    is_tty = sys.stdout.isatty()
+
+    while True:
+        chunk = proc.stdout.read(4096)
+        if not chunk:
+            break
+        buf += chunk
+        lines = re.split(rb"[\r\n]", buf)
+        buf = lines[-1]
+        complete_lines = lines[:-1]
+
+        for line in complete_lines:
+            decoded = line.decode("utf-8", errors="replace").strip()
+            if not decoded:
+                continue
+
+            if is_tty:
+                sys.stdout.write(f"\r{decoded}")
+                sys.stdout.flush()
+
+            match = _PROGRESS_RE.search(line)
+            if match:
+                cpp_pct = int(match.group(3))
+                if cpp_pct != last_pct:
+                    last_pct = cpp_pct
+                    callback(float(cpp_pct), decoded)
+
+    if is_tty and buf:
+        print(buf.decode("utf-8", errors="replace").strip())
+
+
 def run_cpp_simulation(
     export_path: Path,
     teaminfo_path: Path,
@@ -123,8 +169,19 @@ def run_cpp_simulation(
     runs: int,
     n_workers: int,
     canonical_run_dir: Path,
+    progress_callback: Callable[[float, str], None] | None = None,
+    stage_callback: Callable[[str, str], None] | None = None,
 ) -> int:
-    """Run the full C++ simulation pipeline and return the player count."""
+    """Run the full C++ simulation pipeline and return the player count.
+
+    stage_callback fires at post-simulation checkpoints with (stage_name, message):
+    "cpp_done", "artifacts_copied", "analyzing", "analysis_done". Lets the runner
+    surface progress for the otherwise-silent save + analysis work.
+    """
+    def _emit_stage(name: str, message: str) -> None:
+        if stage_callback is not None:
+            stage_callback(name, message)
+
     binary = _resolve_binary()
     cpp_outputs_base = canonical_run_dir / "_cpp_tmp_outputs"
     cpp_outputs_base.mkdir(parents=True, exist_ok=True)
@@ -154,9 +211,22 @@ def run_cpp_simulation(
                 "-s", str(seed),
                 "-y", str(season),
             ]
-            result = subprocess.run(cmd, cwd=str(workspace))
-            if result.returncode != 0:
-                raise RuntimeError(f"C++ binary exited with code {result.returncode}")
+            proc = subprocess.Popen(
+                cmd, cwd=str(workspace),
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                bufsize=0,
+            )
+            try:
+                _stream_cpp_progress(proc, progress_callback)
+                returncode = proc.wait()
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+                    proc.wait()
+            if returncode != 0:
+                raise RuntimeError(f"C++ binary exited with code {returncode}")
+
+            _emit_stage("cpp_done", "Saving workbook…")
 
             cpp_run_dir = _find_cpp_output_dir(cpp_outputs_base)
             raw_dst = canonical_run_dir / "raw"
@@ -168,11 +238,14 @@ def run_cpp_simulation(
             if cpp_meta_src.is_file():
                 shutil.copy2(cpp_meta_src, canonical_run_dir / "engine_metadata.json")
 
+            _emit_stage("artifacts_copied", "Copied artifacts.")
+
             # PYTHONUTF8=1 avoids cp1252 crashes on Windows when analysis.py
             # prints box-drawing chars. Non-zero exit is a warning (matches the
             # C++ binary) so tiny filtered runs without enough players for
             # scipy KDE still produce a valid "complete" simulation.
             analysis_env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
+            _emit_stage("analyzing", "Generating analysis…")
             analysis_result = subprocess.run(
                 [sys.executable, str(_ANALYSIS_SCRIPT.resolve()), str(canonical_run_dir.resolve())],
                 cwd=str(workspace),
@@ -184,6 +257,7 @@ def run_cpp_simulation(
                     f"{analysis_result.returncode} (analysis_dashboard.html may be incomplete)",
                     flush=True,
                 )
+            _emit_stage("analysis_done", "Analysis complete.")
     finally:
         shutil.rmtree(cpp_outputs_base, ignore_errors=True)
 

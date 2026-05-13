@@ -66,8 +66,27 @@ def run_simulation_job(
         set_progress(build, "parsing", 2.0, "Loading export…")
         _merge_metadata(build, {"status": "running"})
 
-        # Phase weights: parsing 0–5, simulating 5–85, analyzing 85–100
+        # Phase weights: parsing 0–5, simulating 5–80, saving/analyzing 80–97,
+        # finalizing 97–99, complete 100.
         set_progress(build, "simulating", 5.0, f"Simulating ({runs} runs)…")
+
+        def _on_cpp_progress(cpp_pct: float, message: str) -> None:
+            ui_pct = 5.0 + (cpp_pct * 0.75)
+            set_progress(build, "simulating", ui_pct, f"Simulating ({int(cpp_pct)}%)")
+
+        _stage_map = {
+            "cpp_done": (80.0, "analyzing", "Saving workbook…"),
+            "artifacts_copied": (85.0, "analyzing", "Copied artifacts."),
+            "analyzing": (88.0, "analyzing", "Generating analysis…"),
+            "analysis_done": (97.0, "analyzing", "Analysis complete."),
+        }
+
+        def _on_post_sim_stage(stage: str, message: str) -> None:
+            mapping = _stage_map.get(stage)
+            if mapping is None:
+                return
+            pct, phase, default_msg = mapping
+            set_progress(build, phase, pct, message or default_msg)
 
         player_count = cpp_adapter.run_cpp_simulation(
             export_path=export_path,
@@ -77,11 +96,11 @@ def run_simulation_job(
             runs=runs,
             n_workers=n_workers,
             canonical_run_dir=canonical_run_dir,
+            progress_callback=_on_cpp_progress,
+            stage_callback=_on_post_sim_stage,
         )
 
-        set_progress(build, "simulating", 85.0, "Simulation complete.")
-        set_progress(build, "analyzing", 85.0, "Analysis complete.")
-
+        set_progress(build, "finalizing", 99.0, "Writing metadata…")
         _merge_metadata(
             build,
             {
