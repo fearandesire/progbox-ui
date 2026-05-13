@@ -1,7 +1,8 @@
 import FormData from "form-data";
 import fs from "node:fs";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { FastifyInstance } from "fastify";
 import { buildApp } from "./app.js";
 import { PROGRESS } from "./services/progress.js";
 import * as runner from "./services/runner.js";
@@ -9,13 +10,23 @@ import { useIsolatedOutputs, makeRunDir, isolatedOutputsPath } from "./testUtils
 
 useIsolatedOutputs();
 
+const testApps: FastifyInstance[] = [];
+
 async function buildTestApp() {
-  return buildApp({
+  const app = await buildApp({
     scheduleBackground: (task) => {
       void task();
     },
   });
+  testApps.push(app);
+  return app;
 }
+
+afterEach(async () => {
+  await Promise.all(testApps.map((a) => a.close()));
+  testApps.length = 0;
+  vi.restoreAllMocks();
+});
 
 async function multipartPost(
   app: Awaited<ReturnType<typeof buildApp>>,

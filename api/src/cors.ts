@@ -1,10 +1,13 @@
+import { z } from "zod";
+
+const corsOriginsSchema = z.string().default("http://localhost:5173,http://127.0.0.1:5173");
+
 export function corsAllowOrigins(): string[] {
-  const raw =
-    process.env.CORS_ALLOW_ORIGINS ??
-    "http://localhost:5173,http://127.0.0.1:5173";
+  const result = corsOriginsSchema.safeParse(process.env.CORS_ALLOW_ORIGINS);
+  const raw = result.success ? result.data : "http://localhost:5173,http://127.0.0.1:5173";
   return raw
     .split(",")
-    .map((x) => x.trim())
+    .map((x: string) => x.trim())
     .filter(Boolean);
 }
 

@@ -14,16 +14,23 @@ export class InvalidTeaminfoError extends Error {
 }
 
 export function generateTeaminfo(exportData: Record<string, unknown>): Record<string, string> {
-  const teams = (exportData.teams as unknown[]) ?? [];
+  const teamsRaw = exportData.teams;
+  if (!Array.isArray(teamsRaw)) {
+    return { ...SPECIAL_ENTRIES };
+  }
   const out: Record<string, string> = {};
-  for (const t of teams) {
-    if (!t || typeof t !== "object") continue;
+  for (const t of teamsRaw) {
+    if (!t || typeof t !== "object" || Array.isArray(t)) continue;
     const team = t as Record<string, unknown>;
-    if (team.active === false) continue;
+    // Only include explicitly active teams
+    if (team.active !== true) continue;
     const tid = team.tid;
     const abbrev = team.abbrev;
-    if (tid === undefined || tid === null || !abbrev) continue;
-    out[String(tid)] = String(abbrev).toUpperCase();
+    // Validate tid is a finite number
+    if (typeof tid !== "number" || !Number.isFinite(tid)) continue;
+    // Validate abbrev is a non-empty string
+    if (typeof abbrev !== "string" || abbrev.trim() === "") continue;
+    out[String(tid)] = abbrev.trim().toUpperCase();
   }
   return { ...out, ...SPECIAL_ENTRIES };
 }

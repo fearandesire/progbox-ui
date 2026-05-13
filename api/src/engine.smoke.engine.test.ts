@@ -83,12 +83,19 @@ beforeAll(() => {
   }
 });
 
+const ORIGINAL_PROGBOX_OUTPUTS = process.env.PROGBOX_OUTPUTS_DIR;
+
 describe.skipIf(!hasBinary)("C++ engine smoke", () => {
   let prevOutputs: string | undefined;
 
   afterEach(() => {
-    if (prevOutputs === undefined) delete process.env.PROGBOX_OUTPUTS_DIR;
-    else process.env.PROGBOX_OUTPUTS_DIR = prevOutputs;
+    if (prevOutputs !== undefined) {
+      process.env.PROGBOX_OUTPUTS_DIR = prevOutputs;
+    } else if (ORIGINAL_PROGBOX_OUTPUTS !== undefined) {
+      process.env.PROGBOX_OUTPUTS_DIR = ORIGINAL_PROGBOX_OUTPUTS;
+    } else {
+      delete process.env.PROGBOX_OUTPUTS_DIR;
+    }
     PROGRESS.clear();
   });
 
@@ -105,52 +112,58 @@ describe.skipIf(!hasBinary)("C++ engine smoke", () => {
     const exportPayload = sampleExport();
     const exportPath = path.join(runDir, "export.json");
     const teaminfoPath = path.join(runDir, "teaminfo.json");
-    await fsp.writeFile(exportPath, JSON.stringify(exportPayload, null, 2), "utf8");
-    await fsp.writeFile(teaminfoPath, JSON.stringify(sampleTeaminfo(), null, 2), "utf8");
-    await fsp.writeFile(
-      path.join(runDir, "metadata.json"),
-      JSON.stringify({
-        build,
-        status: "running",
-        script_version: engineAdapter.scriptVersion(),
-        teams: [],
-      }),
-      "utf8",
-    );
 
-    await runSimulationJob(build, exportPath, teaminfoPath, [], 69, 2, 1);
+    try {
+      await fsp.writeFile(exportPath, JSON.stringify(exportPayload, null, 2), "utf8");
+      await fsp.writeFile(teaminfoPath, JSON.stringify(sampleTeaminfo(), null, 2), "utf8");
+      await fsp.writeFile(
+        path.join(runDir, "metadata.json"),
+        JSON.stringify({
+          build,
+          status: "running",
+          script_version: engineAdapter.scriptVersion(),
+          teams: [],
+        }),
+        "utf8",
+      );
 
-    const metadata = JSON.parse(
-      await fsp.readFile(path.join(runDir, "metadata.json"), "utf8"),
-    ) as Record<string, unknown>;
-    expect(metadata.build).toBe(build);
-    expect(metadata.status).toBe("complete");
-    expect(metadata.script_version).toBe(engineAdapter.scriptVersion());
-    expect(metadata.player_count).toBe((exportPayload.players as unknown[]).length);
-    expect(metadata.error).toBeNull();
+      await runSimulationJob(build, exportPath, teaminfoPath, [], 69, 2, 1);
 
-    const outputsCsv = path.join(runDir, "raw", "outputs.csv");
-    const analysisXlsx = path.join(runDir, "analysis.xlsx");
-    const dashboardHtml = path.join(runDir, "analysis_dashboard.html");
-    expect(fs.statSync(outputsCsv).size).toBeGreaterThan(0);
-    expect(fs.statSync(analysisXlsx).size).toBeGreaterThan(0);
-    expect(fs.statSync(dashboardHtml).size).toBeGreaterThan(0);
+      const metadata = JSON.parse(
+        await fsp.readFile(path.join(runDir, "metadata.json"), "utf8"),
+      ) as Record<string, unknown>;
+      expect(metadata.build).toBe(build);
+      expect(metadata.status).toBe("complete");
+      expect(metadata.script_version).toBe(engineAdapter.scriptVersion());
+      expect(metadata.player_count).toBe((exportPayload.players as unknown[]).length);
+      expect(metadata.error).toBeNull();
 
-    const csvText = await fsp.readFile(outputsCsv, "utf8");
-    const rows = parse(csvText, { columns: true, skip_empty_lines: true }) as Record<
-      string,
-      string
-    >[];
-    const cols = Object.keys(rows[0] ?? {});
-    expect(cols.some((c) => c.startsWith("Unnamed"))).toBe(false);
-    expect(cols).toContain("Run");
-    const runs = new Set(rows.map((r) => r.Run));
-    expect(runs.size).toBe(2);
-    const pids = new Set(rows.map((r) => r.PlayerID));
-    expect(pids.size).toBe((exportPayload.players as unknown[]).length);
-    expect(rows.length).toBe(2 * (exportPayload.players as unknown[]).length);
+      const outputsCsv = path.join(runDir, "raw", "outputs.csv");
+      const analysisXlsx = path.join(runDir, "analysis.xlsx");
+      const dashboardHtml = path.join(runDir, "analysis_dashboard.html");
+      expect(fs.statSync(outputsCsv).size).toBeGreaterThan(0);
+      expect(fs.statSync(analysisXlsx).size).toBeGreaterThan(0);
+      expect(fs.statSync(dashboardHtml).size).toBeGreaterThan(0);
 
-    await fsp.rm(root, { recursive: true, force: true });
+      const csvText = await fsp.readFile(outputsCsv, "utf8");
+      const rows = parse(csvText, { columns: true, skip_empty_lines: true }) as Record<
+        string,
+        string
+      >[];
+      const cols = Object.keys(rows[0] ?? {});
+      expect(cols.some((c) => c.startsWith("Unnamed"))).toBe(false);
+      expect(cols).toContain("Run");
+      const runs = new Set(rows.map((r) => r.Run));
+      expect(runs.size).toBe(2);
+      const pids = new Set(rows.map((r) => r.PlayerID));
+      expect(pids.size).toBe((exportPayload.players as unknown[]).length);
+      expect(rows.length).toBe(2 * (exportPayload.players as unknown[]).length);
+    } finally {
+      await fsp.rm(root, { recursive: true, force: true });
+      if (prevOutputs !== undefined) {
+        process.env.PROGBOX_OUTPUTS_DIR = prevOutputs;
+      }
+    }
   });
 
   it("filters to BOS when teams=['BOS']", async () => {
@@ -166,35 +179,41 @@ describe.skipIf(!hasBinary)("C++ engine smoke", () => {
     const exportPayload = sampleExport();
     const exportPath = path.join(runDir, "export.json");
     const teaminfoPath = path.join(runDir, "teaminfo.json");
-    await fsp.writeFile(exportPath, JSON.stringify(exportPayload, null, 2), "utf8");
-    await fsp.writeFile(teaminfoPath, JSON.stringify(sampleTeaminfo(), null, 2), "utf8");
-    await fsp.writeFile(
-      path.join(runDir, "metadata.json"),
-      JSON.stringify({
-        build,
-        status: "running",
-        script_version: engineAdapter.scriptVersion(),
-        teams: ["BOS"],
-      }),
-      "utf8",
-    );
 
-    await runSimulationJob(build, exportPath, teaminfoPath, ["BOS"], 99, 2, 1);
+    try {
+      await fsp.writeFile(exportPath, JSON.stringify(exportPayload, null, 2), "utf8");
+      await fsp.writeFile(teaminfoPath, JSON.stringify(sampleTeaminfo(), null, 2), "utf8");
+      await fsp.writeFile(
+        path.join(runDir, "metadata.json"),
+        JSON.stringify({
+          build,
+          status: "running",
+          script_version: engineAdapter.scriptVersion(),
+          teams: ["BOS"],
+        }),
+        "utf8",
+      );
 
-    const metadata = JSON.parse(
-      await fsp.readFile(path.join(runDir, "metadata.json"), "utf8"),
-    ) as Record<string, unknown>;
-    expect(metadata.status).toBe("complete");
-    expect(metadata.error).toBeNull();
+      await runSimulationJob(build, exportPath, teaminfoPath, ["BOS"], 99, 2, 1);
 
-    const csvText = await fsp.readFile(path.join(runDir, "raw", "outputs.csv"), "utf8");
-    const rows = parse(csvText, { columns: true, skip_empty_lines: true }) as Record<
-      string,
-      string
-    >[];
-    const teams = new Set(rows.map((r) => r.Team));
-    expect(teams).toEqual(new Set(["BOS"]));
+      const metadata = JSON.parse(
+        await fsp.readFile(path.join(runDir, "metadata.json"), "utf8"),
+      ) as Record<string, unknown>;
+      expect(metadata.status).toBe("complete");
+      expect(metadata.error).toBeNull();
 
-    await fsp.rm(root, { recursive: true, force: true });
+      const csvText = await fsp.readFile(path.join(runDir, "raw", "outputs.csv"), "utf8");
+      const rows = parse(csvText, { columns: true, skip_empty_lines: true }) as Record<
+        string,
+        string
+      >[];
+      const teams = new Set(rows.map((r) => r.Team));
+      expect(teams).toEqual(new Set(["BOS"]));
+    } finally {
+      await fsp.rm(root, { recursive: true, force: true });
+      if (prevOutputs !== undefined) {
+        process.env.PROGBOX_OUTPUTS_DIR = prevOutputs;
+      }
+    }
   });
 });

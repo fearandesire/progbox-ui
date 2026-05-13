@@ -2,8 +2,10 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { availableParallelism } from "node:os";
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { z } from "zod";
 import { isValidBuildId } from "../buildId.js";
 import { outputsRoot } from "../paths.js";
 import * as engineAdapter from "../services/engineAdapter.js";
@@ -50,34 +52,42 @@ function newBuildId(): string {
 }
 
 function defaultNWorkers(requested: number | null | undefined): number {
-  if (requested != null && requested !== undefined) return requested;
+  if (requested != null) return requested;
+  // Requires Node.js >= 18.14.0 for os.availableParallelism
   const cpu =
     typeof availableParallelism === "function" ? availableParallelism() : 4;
   return Math.max(cpu - 1, 1);
 }
 
-interface SimCreateBody {
-  teams: string[];
-  seed: number;
-  runs: number;
-  n_workers: number | null;
-}
+const SimCreateBodySchema = z.object({
+  teams: z.array(z.string()).default([]),
+  seed: z.number().int().default(69),
+  runs: z.number().int().positive().default(500),
+  n_workers: z.number().int().positive().nullable().optional(),
+});
+
+type SimCreateBody = z.infer<typeof SimCreateBodySchema>;
 
 function parseSimCreateBody(json: string): SimCreateBody {
-  const data = JSON.parse(json) as Record<string, unknown>;
-  return {
-    teams: Array.isArray(data.teams) ? (data.teams as string[]) : [],
-    seed: typeof data.seed === "number" ? data.seed : 69,
-    runs: typeof data.runs === "number" ? data.runs : 500,
-    n_workers:
-      data.n_workers === null || data.n_workers === undefined
-        ? null
-        : Number(data.n_workers),
-  };
+  const data = JSON.parse(json);
+  return SimCreateBodySchema.parse(data);
 }
 
 function badRequest(reply: FastifyReply, status: number, detail: string) {
   return reply.status(status).send({ detail });
+}
+
+async function validateBuildIdHandler(
+  request: { params: unknown },
+  reply: FastifyReply,
+) {
+  const { build } = request.params as { build: string };
+  if (!isValidBuildId(build)) {
+    return badRequest(reply, 422, "Invalid build id");
+  }
+  if (storage.getRun(build) == null) {
+    return reply.status(404).send({ detail: "Run not found" });
+  }
 }
 
 export async function registerSimsRoutes(
@@ -89,125 +99,154 @@ export async function registerSimsRoutes(
   });
 
   fastify.post("/api/sims", async (request, reply) => {
-    let exportBuf: Buffer | null = null;
-    let teaminfoBuf: Buffer | null = null;
+    let exportPath: string | null = null;
+    let teaminfoPath: string | null = null;
     let configStr = "";
-
-    for await (const part of request.parts()) {
-      if (part.type === "file") {
-        const buf = await part.toBuffer();
-        if (part.fieldname === "export") exportBuf = buf;
-        if (part.fieldname === "teaminfo") teaminfoBuf = buf;
-      } else if (part.fieldname === "config") {
-        configStr = String(part.value ?? "");
-      }
-    }
-
-    if (!exportBuf || exportBuf.length === 0) {
-      return badRequest(reply, 422, "export file is empty");
-    }
-
-    let body: SimCreateBody;
-    try {
-      body = parseSimCreateBody(configStr);
-    } catch (e) {
-      return badRequest(reply, 422, `config is not valid JSON: ${String(e)}`);
-    }
-
-    const n_workers = defaultNWorkers(body.n_workers);
-    if (n_workers < 1) {
-      return badRequest(reply, 422, "n_workers must be >= 1");
-    }
 
     const build = newBuildId();
     const out = path.join(outputsRoot(), build);
     await fsp.mkdir(out, { recursive: true });
 
-    let exportData: Record<string, unknown>;
+    const tempFiles: string[] = [];
     try {
-      exportData = JSON.parse(exportBuf.toString("utf8")) as Record<string, unknown>;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return badRequest(reply, 422, `export is not valid JSON: ${msg}`);
-    }
-
-    let teaminfoSource: "generated" | "user";
-    let teaminfoMap: Record<string, string>;
-
-    if (teaminfoBuf != null) {
-      if (teaminfoBuf.length === 0) {
-        return badRequest(reply, 422, "teaminfo file is empty");
+      for await (const part of request.parts()) {
+        if (part.type === "file") {
+          if (part.fieldname === "export") {
+            const tempPath = path.join(out, ".export.tmp");
+            tempFiles.push(tempPath);
+            await pipeline(part.file, fs.createWriteStream(tempPath));
+            const finalPath = path.join(out, "export.json");
+            await fsp.rename(tempPath, finalPath);
+            exportPath = finalPath;
+            tempFiles.splice(tempFiles.indexOf(tempPath), 1);
+          } else if (part.fieldname === "teaminfo") {
+            const tempPath = path.join(out, ".teaminfo.tmp");
+            tempFiles.push(tempPath);
+            await pipeline(part.file, fs.createWriteStream(tempPath));
+            const finalPath = path.join(out, "teaminfo.json");
+            await fsp.rename(tempPath, finalPath);
+            teaminfoPath = finalPath;
+            tempFiles.splice(tempFiles.indexOf(tempPath), 1);
+          }
+        } else if (part.fieldname === "config") {
+          configStr = String(part.value ?? "");
+        }
       }
+
+      if (!exportPath) {
+        return badRequest(reply, 422, "export file is empty");
+      }
+
+      const exportStat = await fsp.stat(exportPath);
+      if (exportStat.size === 0) {
+        return badRequest(reply, 422, "export file is empty");
+      }
+
+      let body: SimCreateBody;
       try {
-        const rawTeaminfo = JSON.parse(teaminfoBuf.toString("utf8"));
-        teaminfoMap = validateTeaminfo(rawTeaminfo);
+        body = parseSimCreateBody(configStr);
       } catch (e) {
-        if (e instanceof InvalidTeaminfoError) {
-          return badRequest(reply, 400, e.message);
-        }
-        if (e instanceof SyntaxError) {
-          return badRequest(reply, 400, `teaminfo.json is not valid JSON: ${e.message}`);
-        }
-        throw e;
+        return badRequest(reply, 422, `config is not valid JSON: ${String(e)}`);
       }
-      teaminfoSource = "user";
-    } else {
-      teaminfoMap = generateTeaminfo(exportData);
-      teaminfoSource = "generated";
-    }
 
-    await fsp.writeFile(path.join(out, "export.json"), exportBuf);
-    await fsp.writeFile(
-      path.join(out, "teaminfo.json"),
-      JSON.stringify(teaminfoMap, null, 2),
-      "utf8",
-    );
+      const n_workers = defaultNWorkers(body.n_workers);
+      if (n_workers < 1) {
+        return badRequest(reply, 422, "n_workers must be >= 1");
+      }
 
-    const meta = {
-      build,
-      script_version: engineAdapter.scriptVersion(),
-      teams: body.teams,
-      seed: body.seed,
-      runs: body.runs,
-      n_workers,
-      export_file: `outputs/${build}/export.json`,
-      teaminfo_file: `outputs/${build}/teaminfo.json`,
-      teaminfo_source: teaminfoSource,
-      status: "running",
-      started_at: utcNowIso(),
-      completed_at: null,
-      player_count: null,
-      config_snapshot: engineAdapter.configSnapshot(),
-      error: null,
-    };
-    await fsp.writeFile(path.join(out, "metadata.json"), JSON.stringify(meta, null, 2), "utf8");
+      let exportData: Record<string, unknown>;
+      try {
+        const exportBuf = await fsp.readFile(exportPath, "utf8");
+        exportData = JSON.parse(exportBuf) as Record<string, unknown>;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return badRequest(reply, 422, `export is not valid JSON: ${msg}`);
+      }
 
-    const exportPath = path.join(out, "export.json");
-    const teaminfoPath = path.join(out, "teaminfo.json");
+      let teaminfoSource: "generated" | "user";
+      let teaminfoMap: Record<string, string>;
 
-    opts.scheduleBackground(() =>
-      runSimulationJob(
-        build,
-        exportPath,
+      if (teaminfoPath != null) {
+        const teaminfoStat = await fsp.stat(teaminfoPath);
+        if (teaminfoStat.size === 0) {
+          return badRequest(reply, 422, "teaminfo file is empty");
+        }
+        try {
+          const teaminfoBuf = await fsp.readFile(teaminfoPath, "utf8");
+          const rawTeaminfo = JSON.parse(teaminfoBuf);
+          teaminfoMap = validateTeaminfo(rawTeaminfo);
+        } catch (e) {
+          if (e instanceof InvalidTeaminfoError) {
+            return badRequest(reply, 400, e.message);
+          }
+          if (e instanceof SyntaxError) {
+            return badRequest(reply, 400, `teaminfo.json is not valid JSON: ${e.message}`);
+          }
+          throw e;
+        }
+        teaminfoSource = "user";
+      } else {
+        teaminfoMap = generateTeaminfo(exportData);
+        teaminfoSource = "generated";
+      }
+
+      if (!teaminfoPath) {
+        teaminfoPath = path.join(out, "teaminfo.json");
+      }
+      await fsp.writeFile(
         teaminfoPath,
-        body.teams,
-        body.seed,
-        body.runs,
-        n_workers,
-      ),
-    );
+        JSON.stringify(teaminfoMap, null, 2),
+        "utf8",
+      );
 
-    return reply.send({ build });
+      const meta = {
+        build,
+        script_version: engineAdapter.scriptVersion(),
+        teams: body.teams,
+        seed: body.seed,
+        runs: body.runs,
+        n_workers,
+        export_file: `outputs/${build}/export.json`,
+        teaminfo_file: `outputs/${build}/teaminfo.json`,
+        teaminfo_source: teaminfoSource,
+        status: "running",
+        started_at: utcNowIso(),
+        completed_at: null,
+        player_count: null,
+        config_snapshot: engineAdapter.configSnapshot(),
+        error: null,
+      };
+      await fsp.writeFile(path.join(out, "metadata.json"), JSON.stringify(meta, null, 2), "utf8");
+
+      opts.scheduleBackground(() =>
+        runSimulationJob(
+          build,
+          exportPath!,
+          teaminfoPath!,
+          body.teams,
+          body.seed,
+          body.runs,
+          n_workers,
+        ),
+      );
+
+      return reply.send({ build });
+    } catch (err) {
+      // Clean up temp files on error
+      for (const tmpFile of tempFiles) {
+        await fsp.rm(tmpFile, { force: true }).catch(() => {});
+      }
+      throw err;
+    } finally {
+      // Clean up any remaining temp files
+      for (const tmpFile of tempFiles) {
+        await fsp.rm(tmpFile, { force: true }).catch(() => {});
+      }
+    }
   });
 
-  fastify.get("/api/sims/:build/progress", async (request, reply) => {
+  fastify.get("/api/sims/:build/progress", { preHandler: validateBuildIdHandler }, async (request, reply) => {
     const { build } = request.params as { build: string };
-    if (!isValidBuildId(build)) {
-      return badRequest(reply, 422, "Invalid build id");
-    }
-    if (storage.getRun(build) == null) {
-      return reply.status(404).send({ detail: "Run not found" });
-    }
 
     async function* eventStream(): AsyncGenerator<string> {
       while (true) {
@@ -270,21 +309,13 @@ export async function registerSimsRoutes(
       .send(Readable.from(eventStream()));
   });
 
-  fastify.get("/api/sims/:build/charts", async (request, reply) => {
+  fastify.get("/api/sims/:build/charts", { preHandler: validateBuildIdHandler }, async (request, reply) => {
     const { build } = request.params as { build: string };
-    if (!isValidBuildId(build)) return badRequest(reply, 422, "Invalid build id");
-    if (storage.getRun(build) == null) {
-      return reply.status(404).send({ detail: "Run not found" });
-    }
     return reply.send(listChartFilenames(build));
   });
 
-  fastify.get("/api/sims/:build/charts/:name", async (request, reply) => {
+  fastify.get("/api/sims/:build/charts/:name", { preHandler: validateBuildIdHandler }, async (request, reply) => {
     const { build, name } = request.params as { build: string; name: string };
-    if (!isValidBuildId(build)) return badRequest(reply, 422, "Invalid build id");
-    if (storage.getRun(build) == null) {
-      return reply.status(404).send({ detail: "Run not found" });
-    }
     try {
       const p = chartPath(build, name);
       return reply.type("image/png").send(fs.createReadStream(p));
@@ -299,12 +330,8 @@ export async function registerSimsRoutes(
     }
   });
 
-  fastify.get("/api/sims/:build/players", async (request, reply) => {
+  fastify.get("/api/sims/:build/players", { preHandler: validateBuildIdHandler }, async (request, reply) => {
     const { build } = request.params as { build: string };
-    if (!isValidBuildId(build)) return badRequest(reply, 422, "Invalid build id");
-    if (storage.getRun(build) == null) {
-      return reply.status(404).send({ detail: "Run not found" });
-    }
     try {
       return reply.send(playerSummaries(build));
     } catch {
@@ -312,12 +339,8 @@ export async function registerSimsRoutes(
     }
   });
 
-  fastify.get("/api/sims/:build/players/:pid", async (request, reply) => {
+  fastify.get("/api/sims/:build/players/:pid", { preHandler: validateBuildIdHandler }, async (request, reply) => {
     const { build, pid } = request.params as { build: string; pid: string };
-    if (!isValidBuildId(build)) return badRequest(reply, 422, "Invalid build id");
-    if (storage.getRun(build) == null) {
-      return reply.status(404).send({ detail: "Run not found" });
-    }
     try {
       const rows = playerAllRuns(build, pid);
       if (!rows.length) {
@@ -329,25 +352,17 @@ export async function registerSimsRoutes(
     }
   });
 
-  fastify.get("/api/sims/:build/godprogs", async (request, reply) => {
+  fastify.get("/api/sims/:build/godprogs", { preHandler: validateBuildIdHandler }, async (request, reply) => {
     const { build } = request.params as { build: string };
-    if (!isValidBuildId(build)) return badRequest(reply, 422, "Invalid build id");
-    if (storage.getRun(build) == null) {
-      return reply.status(404).send({ detail: "Run not found" });
-    }
     return reply.send(godprogsRecords(build));
   });
 
   fastify.get<{
     Params: { build: string };
     Querystring: { artifact?: string };
-  }>("/api/sims/:build/download", async (request, reply) => {
+  }>("/api/sims/:build/download", { preHandler: validateBuildIdHandler }, async (request, reply) => {
     const { build } = request.params;
     const artifact = request.query.artifact ?? "analysis";
-    if (!isValidBuildId(build)) return badRequest(reply, 422, "Invalid build id");
-    if (storage.getRun(build) == null) {
-      return reply.status(404).send({ detail: "Run not found" });
-    }
     if (["analysis", "xlsx", "analysis.xlsx"].includes(artifact)) {
       const p = analysisXlsxPath(build);
       if (!fs.existsSync(p)) {
@@ -384,12 +399,8 @@ export async function registerSimsRoutes(
     return reply.send({ ok: true });
   });
 
-  fastify.get("/api/sims/:build/analysis", async (request, reply) => {
+  fastify.get("/api/sims/:build/analysis", { preHandler: validateBuildIdHandler }, async (request, reply) => {
     const { build } = request.params as { build: string };
-    if (!isValidBuildId(build)) return badRequest(reply, 422, "Invalid build id");
-    if (storage.getRun(build) == null) {
-      return reply.status(404).send({ detail: "Run not found" });
-    }
     const htmlPath = analysisDashboardPath(build);
     if (!fs.existsSync(htmlPath)) {
       return reply
@@ -399,13 +410,9 @@ export async function registerSimsRoutes(
     return reply.type("text/html").send(fs.createReadStream(htmlPath));
   });
 
-  fastify.get("/api/sims/:build", async (request, reply) => {
+  fastify.get("/api/sims/:build", { preHandler: validateBuildIdHandler }, async (request, reply) => {
     const { build } = request.params as { build: string };
-    if (!isValidBuildId(build)) return badRequest(reply, 422, "Invalid build id");
     const run = storage.getRun(build);
-    if (run == null) {
-      return reply.status(404).send({ detail: "Run not found" });
-    }
     return reply.send(run);
   });
 }

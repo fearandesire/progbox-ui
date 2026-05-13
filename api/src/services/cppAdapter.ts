@@ -5,6 +5,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { vendorCppDir } from "../paths.js";
+import { normalizeSeason } from "../utils/normalizeSeason.js";
 import { buildInputRows, rowsToCsv } from "./exportCleaner.js";
 import { generateAnalysis } from "./analysisGenerate.js";
 
@@ -31,15 +32,6 @@ export function resolveBinary(): string {
     if (fs.existsSync(c)) return c;
   }
   throw new Error("C++ progbox binary not found. Run `pnpm build:engine` or set PROGBOX_CPP_BINARY.");
-}
-
-function normalizeSeason(raw: unknown): number {
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  if (typeof raw === "string") {
-    const n = parseInt(raw, 10);
-    if (!Number.isNaN(n)) return n;
-  }
-  return 2021;
 }
 
 export function getSeason(exportPath: string): number {
@@ -224,7 +216,7 @@ export async function runCppSimulation(opts: RunCppOptions): Promise<number> {
       try {
         await generateAnalysis(canonicalRunDir);
       } catch (e) {
-        console.warn("Warning: generateAnalysis failed", e);
+        console.error("Warning: generateAnalysis failed for", canonicalRunDir, e);
       }
       emitStage("analysis_done", "Analysis complete.");
 

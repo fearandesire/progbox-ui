@@ -2,6 +2,8 @@
  * Export cleaner — produces rows for `data/input.csv` (logic aligned with legacy Progbox v4.1 exportcleaner).
  */
 
+import { normalizeSeason } from "../utils/normalizeSeason.js";
+
 const ATTRS = [
   "dIQ",
   "Dnk",
@@ -28,15 +30,6 @@ const FAILSAFE: Record<string, string> = {
   str: "stre",
 };
 
-function normalizeSeason(raw: unknown): number {
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  if (typeof raw === "string") {
-    const n = parseInt(raw, 10);
-    if (!Number.isNaN(n)) return n;
-  }
-  return 2021;
-}
-
 export function extractMetadata(exportData: Record<string, unknown>): Record<string, unknown> {
   const meta = (exportData.meta as Record<string, unknown>) ?? {};
   const gameAttributes = (exportData.gameAttributes as Record<string, unknown>) ?? {};
@@ -62,9 +55,7 @@ export function buildInputRows(
   teamsFilter: string[],
 ): ExportCleanerRow[] {
   const players = (exportData.players as unknown[]) ?? [];
-  const metadata = extractMetadata(exportData);
   const season = normalizeSeason((exportData.gameAttributes as Record<string, unknown>)?.season ?? 2021);
-  void metadata;
 
   const records: ExportCleanerRow[] = [];
 
@@ -77,6 +68,8 @@ export function buildInputRows(
     if (typeof tid !== "number" || tid < -1) continue;
 
     const last = statsArr[statsArr.length - 1] as Record<string, unknown>;
+    // Skip playoff-only records
+    if (statsArr.length === 1 && last.playoffs) continue;
     const prev = statsArr.length >= 2 ? (statsArr[statsArr.length - 2] as Record<string, unknown>) : last;
     const stats = (last.playoffs ? prev : last) as Record<string, unknown>;
 

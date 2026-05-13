@@ -5,16 +5,22 @@ import path from "node:path";
 import { PROGRESS } from "./services/progress.js";
 
 let tmpRoot: string | undefined;
+let origOutputsDir: string | undefined;
 
 /** Isolated outputs dir + cleared PROGRESS for Vitest. */
 export function useIsolatedOutputs(): void {
   beforeEach(() => {
+    origOutputsDir = process.env.PROGBOX_OUTPUTS_DIR;
     tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pb-out-"));
     process.env.PROGBOX_OUTPUTS_DIR = tmpRoot;
     PROGRESS.clear();
   });
   afterEach(() => {
-    delete process.env.PROGBOX_OUTPUTS_DIR;
+    if (origOutputsDir !== undefined) {
+      process.env.PROGBOX_OUTPUTS_DIR = origOutputsDir;
+    } else {
+      delete process.env.PROGBOX_OUTPUTS_DIR;
+    }
     if (tmpRoot && fs.existsSync(tmpRoot)) {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
@@ -64,10 +70,10 @@ export function makeRunDir(
   const payload = baseMetadata(build, options.metadata ?? {});
   fs.writeFileSync(path.join(runDir, "metadata.json"), JSON.stringify(payload, null, 2), "utf8");
 
-  if (options.rawRows) {
+  if (options.rawRows && options.rawRows.length > 0) {
     const rawDir = path.join(runDir, "raw");
     fs.mkdirSync(rawDir, { recursive: true });
-    const header = Object.keys(options.rawRows[0]!);
+    const header = Object.keys(options.rawRows[0]);
     const lines = [header.join(",")];
     for (const row of options.rawRows) {
       lines.push(header.map((h) => String(row[h] ?? "")).join(","));

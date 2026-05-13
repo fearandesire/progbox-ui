@@ -31,14 +31,26 @@ export function listRuns(): RunMetadata[] {
   return runs;
 }
 
+function isValidRunMetadata(data: unknown, expectedBuild: string): data is RunMetadata {
+  if (!data || typeof data !== "object") return false;
+  const obj = data as Record<string, unknown>;
+
+  // Required fields
+  if (typeof obj.build !== "string" || obj.build !== expectedBuild) return false;
+  if (typeof obj.status !== "string") return false;
+  if (!Array.isArray(obj.teams)) return false;
+
+  return true;
+}
+
 export function getRun(build: string): RunMetadata | null {
   if (!isValidBuildId(build)) return null;
   const p = metadataPath(build);
   if (!fs.existsSync(p)) return null;
   try {
-    const data = JSON.parse(fs.readFileSync(p, "utf8")) as RunMetadata;
-    if (typeof data.build !== "string") return null;
-    return data;
+    const data = JSON.parse(fs.readFileSync(p, "utf8"));
+    if (!isValidRunMetadata(data, build)) return null;
+    return data as RunMetadata;
   } catch {
     return null;
   }

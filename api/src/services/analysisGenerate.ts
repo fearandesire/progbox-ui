@@ -60,12 +60,22 @@ export async function generateAnalysis(canonicalRunDir: string): Promise<void> {
       const keys = Object.keys(rows[0]);
       const tbl = document.createElement('table');
       const thead = document.createElement('thead');
-      thead.innerHTML = '<tr>' + keys.map(k => '<th>' + k + '</th>').join('') + '</tr>';
+      const theadTr = document.createElement('tr');
+      for (const k of keys) {
+        const th = document.createElement('th');
+        th.textContent = k;
+        theadTr.appendChild(th);
+      }
+      thead.appendChild(theadTr);
       tbl.appendChild(thead);
       const tbody = document.createElement('tbody');
       for (const r of rows.slice(0, 200)) {
         const tr = document.createElement('tr');
-        tr.innerHTML = keys.map(k => '<td>' + (r[k] ?? '') + '</td>').join('');
+        for (const k of keys) {
+          const td = document.createElement('td');
+          td.textContent = r[k] ?? '';
+          tr.appendChild(td);
+        }
         tbody.appendChild(tr);
       }
       tbl.appendChild(tbody);

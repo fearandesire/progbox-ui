@@ -21,8 +21,8 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   await fastify.register(cors, {
     origin: origins,
     credentials: allowCredentials,
-    methods: ["*"],
-    allowedHeaders: ["*"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   });
 
   await fastify.register(multipart, {

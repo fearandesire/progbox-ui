@@ -8,7 +8,7 @@ import { setProgress } from "./progress.js";
 export { PROGRESS, setProgress } from "./progress.js";
 
 function utcNowIso(): string {
-  return new Date().toISOString().replace(/\+00:00$/, "Z");
+  return new Date().toISOString();
 }
 
 async function mergeMetadata(build: string, updates: Record<string, unknown>): Promise<void> {

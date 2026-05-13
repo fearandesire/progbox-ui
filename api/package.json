@@ -18,7 +18,8 @@
     "@fastify/multipart": "^9.0.3",
     "csv-parse": "^5.6.0",
     "exceljs": "^4.4.0",
-    "fastify": "^5.2.1"
+    "fastify": "^5.2.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.13.5",
