@@ -213,19 +213,6 @@ function Get-NodeMajor {
     return 0
 }
 
-function Get-PythonVersion {
-    if (-not (Test-Command "python")) {
-        return $null
-    }
-
-    $global:LASTEXITCODE = 0
-    $version = & python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')" 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        return $null
-    }
-    return $version
-}
-
 function Get-VSWherePath {
     $candidates = @(
         "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe",
@@ -314,20 +301,6 @@ if ($nodeMajor -lt $NodeMinMajor) {
 }
 Write-Ok "node $(& node --version)"
 
-$pythonVersion = Get-PythonVersion
-if (-not $pythonVersion) {
-    Write-Warn "Python is missing or not executable."
-    Install-WithWinget "Python 3.12" "Python.Python.3.12" | Out-Null
-    $pythonVersion = Get-PythonVersion
-}
-if (-not $pythonVersion) {
-    throw "Python 3.12+ is required. Install Python, reopen PowerShell, and rerun this script."
-}
-Write-Ok "python $pythonVersion"
-if ($pythonVersion -notmatch "^3\.12\.") {
-    Write-Warn "Python 3.12 is the CI baseline; continuing with $pythonVersion."
-}
-
 if (-not (Test-Command "cmake")) {
     Write-Warn "CMake is missing."
     Install-WithWinget "CMake" "Kitware.CMake" | Out-Null
@@ -400,35 +373,6 @@ if (Test-FrontendNativeDeps) {
     Write-Ok "Frontend native dependencies are usable"
 }
 
-Write-Step "Preparing Python virtual environment"
-$venv = Join-Path $Root ".venv"
-$venvPython = Join-Path $venv "Scripts\python.exe"
-$linuxVenvPython = Join-Path $venv "bin\python"
-
-if (Test-Path $venv) {
-    if (Test-Path $venvPython) {
-        Write-Ok "Existing Windows .venv is usable"
-    } else {
-        if (Test-Path $linuxVenvPython) {
-            Write-Warn ".venv appears to be from WSL/Linux; recreating it for Windows."
-        } else {
-            Write-Warn ".venv is incomplete; recreating it for Windows."
-        }
-        Remove-RepoChildDirectory $venv ".venv"
-    }
-}
-
-if (-not (Test-Path $venv)) {
-    Invoke-Native "Creating .venv" "python" @("-m", "venv", ".venv")
-}
-
-$env:VIRTUAL_ENV = $venv
-$env:Path = "$(Join-Path $venv 'Scripts');$env:Path"
-$venvPython = Join-Path $venv "Scripts\python.exe"
-
-Invoke-Native "Upgrading pip" $venvPython @("-m", "pip", "install", "--upgrade", "pip")
-Invoke-Native "Installing API Python dependencies" $venvPython @("-m", "pip", "install", "-r", "api/requirements.txt")
-
 if (-not $SkipEngine) {
     Invoke-Native "Building C++ engine" "pnpm" @("run", "build:engine")
 } else {
@@ -443,6 +387,5 @@ if (-not $SkipDoctor) {
 
 Write-Host ""
 Write-Host "Setup complete" -ForegroundColor White
-Write-Host "  Activate: .\.venv\Scripts\Activate.ps1"
 Write-Host "  Start:    pnpm dev"
 Write-Host "  Log:      $LogFile"

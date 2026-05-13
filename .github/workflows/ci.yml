@@ -57,20 +57,10 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          pip install -r api/requirements.txt
+        run: pnpm install --frozen-lockfile
 
-      - name: Byte-compile
-        working-directory: api
-        run: python -m compileall -q .
-
-      - name: Test (pytest coverage)
+      - name: Test (Vitest coverage)
         run: pnpm --filter @progbox/api test:coverage
 
       - name: Build C++ engine
@@ -94,14 +84,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          pip install -r api/requirements.txt
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
@@ -135,14 +119,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          pip install -r api/requirements.txt
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium

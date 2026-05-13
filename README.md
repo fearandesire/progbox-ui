@@ -13,7 +13,6 @@ A clean UI + API for running [Progbox](https://github.com/akshayexists/progbox) 
 # From repo root. Interactive by default; add --yes for non-interactive installs.
 pnpm run setup:wsl
 
-source .venv/bin/activate
 pnpm dev
 ```
 
@@ -22,16 +21,15 @@ pnpm dev
 ```powershell
 pnpm run setup:windows
 
-.\.venv\Scripts\Activate.ps1
 pnpm dev
 ```
 
-The setup scripts install workspace dependencies, create or repair `.venv`, install API Python packages, build the vendored C++ engine, and run `pnpm doctor`. Terminal output is intentionally condensed; full logs are written to `logs/setup-wsl-*.log` or `logs/setup-windows-*.log`. For prerequisite-only checks, use `bash scripts/setup-wsl.sh --preflight-only` or `.\scripts\setup-windows.ps1 -PreflightOnly`.
+The setup scripts install workspace dependencies, optionally build the vendored C++ engine, and run `pnpm doctor`. Terminal output is intentionally condensed; full logs are written to `logs/setup-wsl-*.log` or `logs/setup-windows-*.log`. For prerequisite-only checks, use `bash scripts/setup-wsl.sh --preflight-only` or `.\scripts\setup-windows.ps1 -PreflightOnly`.
 
 | Service | URL |
 | --- | --- |
 | Web UI | http://localhost:5173 |
-| API Docs | http://127.0.0.1:8000/docs |
+| API | http://127.0.0.1:8000 (e.g. `GET /api/config`) |
 
 ## Requirements
 
@@ -39,7 +37,6 @@ The setup scripts install workspace dependencies, create or repair `.venv`, inst
 | --- | --- | --- |
 | Node.js | 22+ preferred; setup can install NodeSource 22.x with approval | 22+ preferred; setup can offer `winget` install |
 | pnpm | `10.8.0` via Corepack/packageManager | `10.8.0` via Corepack/packageManager |
-| Python | 3.12 preferred, `python3-venv`, `python-is-python3` | 3.12 preferred, `python` on `PATH` |
 | C++ toolchain | CMake + `build-essential`/`g++` | CMake + Visual Studio Build Tools with Desktop development with C++ |
 | Storage/services | No database, cache, or broker; file-backed under `outputs/` | Same |
 
@@ -48,13 +45,12 @@ If you want to install prerequisites manually first:
 ```bash
 # WSL Ubuntu / Linux
 sudo apt update
-sudo apt install -y git curl ca-certificates cmake build-essential python3 python3-venv python3-pip python-is-python3
+sudo apt install -y git curl ca-certificates cmake build-essential
 ```
 
 ```powershell
 # Windows PowerShell examples
 winget install --id OpenJS.NodeJS.LTS -e
-winget install --id Python.Python.3.12 -e
 winget install --id Kitware.CMake -e
 winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
 ```
@@ -68,9 +64,6 @@ Use these steps if you do not want the setup scripts to install or repair anythi
 corepack enable
 corepack prepare pnpm@10.8.0 --activate
 pnpm install
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r api/requirements.txt
 pnpm build:engine
 pnpm dev
 ```
@@ -80,9 +73,6 @@ pnpm dev
 corepack enable
 corepack prepare pnpm@10.8.0 --activate
 pnpm install
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r api/requirements.txt
 pnpm build:engine
 pnpm dev
 ```
@@ -93,9 +83,8 @@ After `pnpm build:engine`, the API discovers the binary under `api/vendor/progbo
 
 ```
 web/                        Vue 3 + Vite + Tailwind v4 frontend
-api/                        FastAPI backend (routes, services, models)
+api/                        TypeScript Fastify API (`src/`)
 api/vendor/progbox_cpp/     Vendored C++ Progbox engine source
-api/vendor/progbox_v41/     Vendored Python v4.1 helpers for export cleaning
 data/                       Default export.json for local runs
 outputs/                    Simulation run storage (gitignored)
 e2e/                        Playwright browser tests & fixtures
@@ -107,22 +96,20 @@ e2e/                        Playwright browser tests & fixtures
 
 | Environment | Commands |
 | --- | --- |
-| WSL / Linux | `pnpm run setup:wsl` then `source .venv/bin/activate` |
-| Windows (PowerShell) | `pnpm run setup:windows` then `.\.venv\Scripts\Activate.ps1` |
+| WSL / Linux | `pnpm run setup:wsl` |
+| Windows (PowerShell) | `pnpm run setup:windows` |
 
 ### Daily dev — always use `pnpm dev`
 
 `pnpm dev` starts **both** the web UI and API together. Never run one without the other.
 
 ```bash
-# WSL / Linux (activate venv first, then start both services)
-source .venv/bin/activate
+# WSL / Linux
 pnpm dev
 ```
 
 ```powershell
 # Windows
-.\.venv\Scripts\Activate.ps1
 pnpm dev
 ```
 
@@ -132,7 +119,6 @@ Web UI → http://localhost:5173 | API → http://127.0.0.1:8000
 
 | Situation | Command |
 | --- | --- |
-| Python deps changed (`requirements.txt`) | `pip install -r api/requirements.txt` |
 | C++ engine source changed | `pnpm build:engine` |
 | Node/JS deps changed (`pnpm-lock.yaml`) | `pnpm install` |
 | Full rebuild / repair from scratch | `pnpm run setup:wsl` (WSL) or `pnpm run setup:windows` (Win) |
@@ -150,8 +136,8 @@ Web UI → http://localhost:5173 | API → http://127.0.0.1:8000
 
 | Command                | Purpose                                             |
 | ---------------------- | --------------------------------------------------- |
-| `pnpm check`           | Lint, typecheck, build, and compile-check           |
-| `pnpm test`            | Fast unit tests — Vitest + pytest                   |
+| `pnpm check`           | Lint, typecheck, build, and API `tsc --noEmit`      |
+| `pnpm test`            | Fast unit tests — Vitest (web + api)                |
 | `pnpm test:api:engine` | Vendored-engine smoke test                          |
 | `pnpm test:e2e`        | Playwright smoke suite                              |
 | `pnpm test:e2e:full`   | Full seeded Playwright suite                        |
@@ -164,8 +150,6 @@ Web UI → http://localhost:5173 | API → http://127.0.0.1:8000
 
 | Symptom | Fix |
 | --- | --- |
-| `.venv` was created in Windows and then used from WSL, or the reverse | Rerun the matching setup script. It recreates `.venv` only when it detects the wrong platform or an incomplete venv. |
-| `python` is missing in WSL but `python3` exists | Install `python-is-python3`, or rerun `pnpm run setup:wsl` and approve apt installs. |
 | `pnpm` is missing or the wrong version | Run `corepack enable && corepack prepare pnpm@10.8.0 --activate`, or rerun the setup script. |
 | Vite/Vitest cannot find a native binding after switching Windows/WSL | Rerun the matching setup script; it validates Vite's native dependency load and uses a forced frozen pnpm install only when repair is needed. |
 | Native Windows C++ build cannot find a compiler | Install Visual Studio Build Tools with the Desktop development with C++ workload, then reopen PowerShell. |
@@ -180,15 +164,15 @@ The active simulation backend is the vendored C++ engine source at `api/vendor/p
 
 The API runner orchestrates three stages:
 
-1. **Clean** — Python v4.1 `exportcleaner` validates the uploaded export
+1. **Clean** — TypeScript export cleaner (`api/src/services/exportCleaner.ts`) validates the uploaded export and writes `input.csv` for the engine
 2. **Simulate** — the C++ `progbox` binary runs the Monte Carlo simulation
-3. **Analyze** — C++ engine tooling produces the report artifacts
+3. **Analyze** — TypeScript (`api/src/services/analysisGenerate.ts`) writes `analysis.xlsx` and `analysis_dashboard.html` from `raw/outputs.csv`
 
-All engine imports go through `api/services/engine_adapter.py`.
+Static engine config for the UI is mirrored in [`api/src/services/engineAdapter.ts`](api/src/services/engineAdapter.ts).
 
 ### `teaminfo.json` is auto-generated
 
-`exportcleaner` needs a `{tid → abbrev}` map to resolve player team membership. Rather than require users to hand-maintain a `teaminfo.json`, the API derives it from each upload's `teams` array ([`api/services/teaminfo.py`](api/services/teaminfo.py)): active teams are mapped `tid → ABBREV` (uppercased), and the three BBGM game-rule slots (`-1 FA`, `-2 UDFA`, `-3 Retired`) are always appended. Users may still upload a custom `teaminfo.json` to override abbreviations for custom or historical leagues — when they do, the run's `metadata.json` records `teaminfo_source: "user"` instead of `"generated"`.
+The cleaner needs a `{tid → abbrev}` map to resolve player team membership. Rather than require users to hand-maintain a `teaminfo.json`, the API derives it from each upload's `teams` array ([`api/src/services/teaminfo.ts`](api/src/services/teaminfo.ts)): active teams are mapped `tid → ABBREV` (uppercased), and the three BBGM game-rule slots (`-1 FA`, `-2 UDFA`, `-3 Retired`) are always appended. Users may still upload a custom `teaminfo.json` to override abbreviations for custom or historical leagues — when they do, the run's `metadata.json` records `teaminfo_source: "user"` instead of `"generated"`.
 
 <details>
 <summary><strong>Updating the engine</strong></summary>
@@ -211,6 +195,7 @@ Run `pnpm verify` after updating to validate the integration.
 | GET    | `/api/sims`                     | List all runs                       |
 | GET    | `/api/sims/{build}`             | Run metadata                        |
 | GET    | `/api/sims/{build}/progress`    | SSE progress stream                 |
+| GET    | `/api/sims/{build}/analysis`    | Analysis dashboard HTML             |
 | GET    | `/api/sims/{build}/charts`      | List chart PNG filenames (legacy runs may have `charts/*.png`; C++ pipeline often uses the HTML dashboard instead) |
 | GET    | `/api/sims/{build}/charts/{name}`| Serve chart PNG                    |
 | GET    | `/api/sims/{build}/players`     | Player table                        |

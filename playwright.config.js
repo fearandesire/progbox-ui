@@ -23,9 +23,9 @@ module.exports = defineConfig({
   ],
   webServer: [
     {
-      command: "python -m uvicorn main:app --host 127.0.0.1 --port 8000",
+      command: "pnpm --filter @progbox/api exec tsx src/server.ts",
       cwd: path.join(__dirname, "api"),
-      url: "http://127.0.0.1:8000/docs",
+      url: "http://127.0.0.1:8000/api/config",
       reuseExistingServer: !process.env.CI,
       env: {
         ...process.env,

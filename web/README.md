@@ -1,6 +1,6 @@
 # progbox-ui Web
 
-Vue 3 frontend for Progbox Monte Carlo simulations. The v4.1 engine is vendored in the repo under `api/vendor/progbox_v41/` and executed by the FastAPI app.
+Vue 3 frontend for Progbox Monte Carlo simulations. The simulation engine is the vendored **C++** binary under `api/vendor/progbox_cpp/`; the HTTP API is **TypeScript (Fastify)** in `api/src/`.
 
 ## Stack
 
@@ -29,4 +29,4 @@ src/
 
 ## API
 
-The web app proxies `/api` to the FastAPI backend. Set `VITE_API_BASE_URL` to override.
+The web app proxies `/api` to the Node API (`http://127.0.0.1:8000` in dev). Set `VITE_API_BASE_URL` to override.

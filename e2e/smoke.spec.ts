@@ -19,7 +19,7 @@ test("dashboard links to completed run detail @smoke", async ({ page }) => {
 });
 
 test("run detail shows not-found state for missing build @smoke", async ({ page }) => {
-  await page.goto("/runs/20260101999999");
+  await page.goto("/runs/20260101235959");
 
   await expect(page.getByText(/Run not found/)).toBeVisible();
 });
