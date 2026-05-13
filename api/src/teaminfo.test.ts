@@ -27,11 +27,15 @@ describe("teaminfo", () => {
         { tid: 0, abbrev: "BOS", active: true },
         { tid: 999, abbrev: "DEFUNCT", active: false },
         { tid: 1000, abbrev: "NOFLAG" },
+        { tid: 1001, abbrev: "DISABLED", disabled: true },
+        { tid: 1002, abbrev: "enabled", disabled: false },
       ],
     };
     const r = generateTeaminfo(exportData);
     expect(r["999"]).toBeUndefined();
     expect(r["1000"]).toBe("NOFLAG");
+    expect(r["1001"]).toBeUndefined();
+    expect(r["1002"]).toBe("ENABLED");
     expect(r["0"]).toBe("BOS");
   });
 

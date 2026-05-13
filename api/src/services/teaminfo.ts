@@ -22,8 +22,8 @@ export function generateTeaminfo(exportData: Record<string, unknown>): Record<st
   for (const t of teamsRaw) {
     if (!t || typeof t !== "object" || Array.isArray(t)) continue;
     const team = t as Record<string, unknown>;
-    // Only include explicitly active teams
-    if (team.active !== true) continue;
+    // Exclude teams only when the export explicitly marks them inactive or disabled.
+    if (team.active === false || team.disabled === true) continue;
     const tid = team.tid;
     const abbrev = team.abbrev;
     // Validate tid is a finite number
