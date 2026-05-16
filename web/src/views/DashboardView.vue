@@ -198,7 +198,10 @@ async function removeRun(build: string, e: Event) {
         >
           <template v-if="exportFile">
             From
-            <LeagueExportPill :file="exportFile" :title="exportTitle" />
+            <LeagueExportPill
+              :file="exportFile"
+              :title="exportTitle"
+            />
           </template>
           <template v-if="playerCount != null">
             <span v-if="exportFile"> · </span>
@@ -402,6 +405,7 @@ async function removeRun(build: string, e: Event) {
           class="run-row"
           role="link"
           tabindex="0"
+          :aria-label="r.build"
           @click="openRun(r.build)"
           @keydown.enter.prevent="openRun(r.build)"
           @keydown.space.prevent="openRun(r.build)"

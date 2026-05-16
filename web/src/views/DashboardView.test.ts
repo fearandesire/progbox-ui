@@ -2,7 +2,10 @@ import { mount, RouterLinkStub, flushPromises } from "@vue/test-utils";
 import { nextTick, reactive } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DashboardView from "./DashboardView.vue";
+import { deleteSim } from "../lib/api";
 import type { RunMetadata } from "../lib/types";
+
+const mockRouterPush = vi.hoisted(() => vi.fn());
 
 const mockSimsStore = reactive({
   runs: [] as RunMetadata[],
@@ -15,9 +18,20 @@ vi.mock("../stores/sims", () => ({
   useSimsStore: () => mockSimsStore,
 }));
 
+vi.mock("vue-router", async () => {
+  const actual = await vi.importActual<typeof import("vue-router")>(
+    "vue-router",
+  );
+  return {
+    ...actual,
+    useRouter: () => ({ push: mockRouterPush }),
+  };
+});
+
 vi.mock("../lib/api", () => ({
   fetchPlayers: vi.fn().mockResolvedValue([]),
   fetchGodprogs: vi.fn().mockResolvedValue([]),
+  deleteSim: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe("DashboardView", () => {
@@ -26,6 +40,8 @@ describe("DashboardView", () => {
     mockSimsStore.loading = false;
     mockSimsStore.error = null;
     mockSimsStore.load.mockClear();
+    vi.mocked(deleteSim).mockClear();
+    mockRouterPush.mockClear();
   });
 
   it("shows a loading state while the store is loading", async () => {
@@ -89,5 +105,29 @@ describe("DashboardView", () => {
 
     expect(wrapper.text()).toContain("20260101120000");
     expect(wrapper.text()).toContain("running");
+  });
+
+  it("deletes a run after confirmation and reloads the dashboard", async () => {
+    mockSimsStore.runs = [
+      { build: "20260101120000", status: "complete", teams: [] },
+    ];
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const wrapper = mount(DashboardView, {
+      global: {
+        stubs: {
+          RouterLink: RouterLinkStub,
+        },
+      },
+    });
+    await flushPromises();
+
+    await wrapper
+      .get('button[aria-label="Delete run 20260101120000"]')
+      .trigger("click");
+    await flushPromises();
+
+    expect(deleteSim).toHaveBeenCalledWith("20260101120000");
+    expect(mockSimsStore.load).toHaveBeenCalledTimes(2);
   });
 });
