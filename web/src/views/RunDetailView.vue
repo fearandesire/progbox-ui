@@ -147,7 +147,7 @@ async function removeRun() {
 </script>
 
 <template>
-  <main class="page">
+  <div class="page">
     <RouterLink
       class="back"
       to="/"
@@ -449,5 +449,5 @@ async function removeRun() {
         :build="run.build"
       />
     </template>
-  </main>
+  </div>
 </template>

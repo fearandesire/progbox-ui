@@ -180,7 +180,7 @@ async function removeRun(build: string, e: Event) {
 </script>
 
 <template>
-  <main class="page">
+  <div class="page">
     <div class="section-head">
       <div>
         <h1 class="page-title">
@@ -459,5 +459,5 @@ async function removeRun(build: string, e: Event) {
         </div>
       </div>
     </template>
-  </main>
+  </div>
 </template>

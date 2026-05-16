@@ -104,7 +104,7 @@ async function submit() {
 </script>
 
 <template>
-  <main class="page">
+  <div class="page">
     <RouterLink
       class="back"
       to="/"
@@ -327,5 +327,5 @@ async function submit() {
       </p>
       <SimProgressPanel :build="activeBuild" />
     </div>
-  </main>
+  </div>
 </template>
