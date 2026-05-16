@@ -11,7 +11,6 @@ defineProps<{ file: string }>();
   <span
     class="league-pill"
     :title="`Source export — ${file}`"
-    tabindex="0"
   >
     <DeIcon
       name="box"

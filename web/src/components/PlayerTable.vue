@@ -82,7 +82,7 @@ const sorting = ref<SortingState>([{ id: "P50", desc: true }]);
 
 const table = useVueTable({
   get data() {
-    return filtered.value as PlayerSummary[];
+    return filtered.value;
   },
   columns,
   state: {
@@ -98,12 +98,12 @@ const table = useVueTable({
 });
 
 function cellStyle(colId: string, raw: unknown): Record<string, string> {
-  if (colId === "MeanDelta") {
-    const v = raw as number;
+  if (colId === "MeanDelta" && typeof raw === "number") {
+    const v = raw;
     if (v > 0) return { color: "var(--em-700)" };
     if (v < 0) return { color: "var(--rd-700)" };
   }
-  if (colId === "StdDelta" && (raw as number) >= 2) {
+  if (colId === "StdDelta" && typeof raw === "number" && raw >= 2) {
     return { color: "var(--am-700)" };
   }
   return {};

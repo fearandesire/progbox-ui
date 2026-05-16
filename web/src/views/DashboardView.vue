@@ -103,7 +103,7 @@ const lastStats = computed(() => {
 function openRun(build: string) {
   void router.push(`/runs/${build}`);
 }
-function onCardClick(e: MouseEvent) {
+function onCardClick(e: Event) {
   if ((e.target as HTMLElement).closest(".info-tip")) return;
   if (lastCompleted.value) openRun(lastCompleted.value.build);
 }
@@ -169,8 +169,13 @@ const chips: { id: Filter; label: string }[] = [
 async function removeRun(build: string, e: Event) {
   e.stopPropagation();
   if (!window.confirm(`Delete run ${build}?`)) return;
-  await deleteSim(build);
-  await sims.load();
+  try {
+    await deleteSim(build);
+    await sims.load();
+  } catch (err) {
+    console.error(err);
+    window.alert("Failed to delete run. Please try again.");
+  }
 }
 </script>
 
@@ -263,6 +268,8 @@ async function removeRun(build: string, e: Event) {
         role="link"
         tabindex="0"
         @click="onCardClick"
+        @keydown.enter.prevent="lastCompleted && openRun(lastCompleted.build)"
+        @keydown.space.prevent="lastCompleted && openRun(lastCompleted.build)"
       >
         <div class="last-run__head">
           <span class="eyebrow">Last completed run · stats below are for this run only</span>
@@ -390,6 +397,8 @@ async function removeRun(build: string, e: Event) {
           role="link"
           tabindex="0"
           @click="openRun(r.build)"
+          @keydown.enter.prevent="openRun(r.build)"
+          @keydown.space.prevent="openRun(r.build)"
         >
           <div class="run-row__main">
             <span class="run-row__id">{{ r.build }}</span>

@@ -5,7 +5,8 @@
    preflight supplies the reset, so only component chrome lives here.
    ─────────────────────────────────────────────────────────────── */
 
-a { color: inherit; text-decoration: none; }
+a { color: inherit; }
+.brand, .nav-link, .back, .gh, .btn { text-decoration: none; }
 
 /* ── Top bar (sticky) ──────────────────────────────────────── */
 .topbar {

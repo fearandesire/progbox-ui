@@ -27,6 +27,7 @@ const error = ref<string | null>(null);
 const notFound = ref(false);
 const deleteError = ref<string | null>(null);
 const copied = ref(false);
+let requestSeq = 0;
 
 function httpStatus(e: unknown): number | null {
   if (typeof e !== "object" || e === null) return null;
@@ -37,6 +38,7 @@ function httpStatus(e: unknown): number | null {
 }
 
 async function loadDetail() {
+  const seq = ++requestSeq;
   const b = build.value;
   if (!b) {
     error.value = "Missing build id";
@@ -47,8 +49,11 @@ async function loadDetail() {
   notFound.value = false;
   run.value = null;
   try {
-    run.value = await fetchSim(b);
+    const data = await fetchSim(b);
+    if (seq !== requestSeq) return;
+    run.value = data;
   } catch (e: unknown) {
+    if (seq !== requestSeq) return;
     const status = httpStatus(e);
     if (status === 404) {
       notFound.value = true;
@@ -60,7 +65,7 @@ async function loadDetail() {
       error.value = String(e);
     }
   } finally {
-    loading.value = false;
+    if (seq === requestSeq) loading.value = false;
   }
 }
 
@@ -143,18 +148,16 @@ async function removeRun() {
 
 <template>
   <main class="page">
-    <a
+    <RouterLink
       class="back"
-      role="link"
-      tabindex="0"
-      @click="router.push('/')"
+      to="/"
     >
       <DeIcon
         name="arrow-left"
         :size="14"
       />
       Dashboard
-    </a>
+    </RouterLink>
 
     <div
       v-if="loading"

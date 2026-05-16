@@ -33,8 +33,10 @@ export function useRunStats(build: Ref<string | null>) {
   const stats = ref<RunStats | null>(null);
   const loading = ref(false);
   const failed = ref(false);
+  let requestSeq = 0;
 
   async function load(b: string) {
+    const seq = ++requestSeq;
     loading.value = true;
     failed.value = false;
     stats.value = null;
@@ -45,6 +47,7 @@ export function useRunStats(build: Ref<string | null>) {
       ]);
       const deltas = players.map((p) => p.MeanDelta);
       const p50s = players.map((p) => p.P50);
+      if (seq !== requestSeq) return;
       stats.value = {
         godProgs: godprogs.length,
         severeRegressions: players.filter(
@@ -60,11 +63,12 @@ export function useRunStats(build: Ref<string | null>) {
         playersAnalyzed: players.length,
       };
     } catch {
+      if (seq !== requestSeq) return;
       // Graceful fallback: the card renders the metadata-only subset.
       failed.value = true;
       stats.value = null;
     } finally {
-      loading.value = false;
+      if (seq === requestSeq) loading.value = false;
     }
   }
 
@@ -73,6 +77,7 @@ export function useRunStats(build: Ref<string | null>) {
     (b) => {
       if (b) void load(b);
       else {
+        requestSeq++;
         stats.value = null;
         loading.value = false;
         failed.value = false;

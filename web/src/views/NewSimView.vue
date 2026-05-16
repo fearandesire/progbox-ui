@@ -32,7 +32,9 @@ const teaminfoExample = `{
 const showTeaminfoDetails = ref(false);
 const showAdvanced = ref(false);
 
-const canSubmit = computed(() => exportFile.value && state.value !== "uploading");
+const canSubmit = computed(
+  () => !!exportFile.value && (state.value === "idle" || state.value === "failed"),
+);
 const simProgress = useSimProgress(activeBuild);
 
 watch(
@@ -103,18 +105,16 @@ async function submit() {
 
 <template>
   <main class="page">
-    <a
+    <RouterLink
       class="back"
-      role="link"
-      tabindex="0"
-      @click="router.push('/')"
+      to="/"
     >
       <DeIcon
         name="arrow-left"
         :size="14"
       />
       Dashboard
-    </a>
+    </RouterLink>
 
     <div
       class="section-head"
@@ -135,8 +135,9 @@ async function submit() {
       @submit.prevent="submit"
     >
       <div class="field">
-        <label>Export JSON <span class="req">*</span></label>
+        <label for="export-file">Export JSON <span class="req">*</span></label>
         <input
+          id="export-file"
           class="file"
           type="file"
           accept=".json,application/json"
@@ -150,16 +151,18 @@ async function submit() {
 
       <div class="field-row">
         <div class="field">
-          <label>Seed</label>
+          <label for="sim-seed">Seed</label>
           <input
+            id="sim-seed"
             v-model.number="seed"
             class="input mono"
             type="number"
           >
         </div>
         <div class="field">
-          <label>Runs</label>
+          <label for="sim-runs">Runs</label>
           <input
+            id="sim-runs"
             v-model.number="runs"
             class="input mono"
             type="number"
@@ -167,8 +170,9 @@ async function submit() {
           >
         </div>
         <div class="field">
-          <label>Workers (blank = auto)</label>
+          <label for="sim-workers">Workers (blank = auto)</label>
           <input
+            id="sim-workers"
             :value="nWorkers ?? ''"
             class="input mono"
             type="number"
@@ -196,8 +200,9 @@ async function submit() {
           style="margin-top: 16px; display: grid; gap: 18px"
         >
           <div class="field">
-            <label>Teams (comma-separated)</label>
+            <label for="sim-teams">Teams (comma-separated)</label>
             <input
+              id="sim-teams"
               v-model="teamsCsv"
               class="input"
               type="text"
@@ -207,7 +212,7 @@ async function submit() {
           </div>
 
           <div class="field">
-            <label>Teaminfo override</label>
+            <label for="sim-teaminfo">Teaminfo override</label>
             <div class="callout-warn">
               <DeIcon
                 name="alert"
@@ -226,6 +231,7 @@ async function submit() {
               </div>
             </div>
             <input
+              id="sim-teaminfo"
               class="file"
               style="margin-top: 10px"
               type="file"
@@ -279,6 +285,7 @@ async function submit() {
 
       <p
         v-if="error"
+        role="alert"
         style="color: var(--rd-600); font-size: 13px; margin: 0"
       >
         {{ error }}

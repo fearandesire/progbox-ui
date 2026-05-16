@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { useId } from "vue";
 /* Small ⓘ glyph with a hover/focus bubble. Used to attach a
    plain-English explanation to any math-y label. */
 withDefaults(defineProps<{ label?: string }>(), { label: "More info" });
+const tooltipId = useId();
 </script>
 
 <template>
@@ -9,6 +11,7 @@ withDefaults(defineProps<{ label?: string }>(), { label: "More info" });
     class="info-tip"
     tabindex="0"
     :aria-label="label"
+    :aria-describedby="tooltipId"
   >
     <svg
       width="11"
@@ -38,6 +41,7 @@ withDefaults(defineProps<{ label?: string }>(), { label: "More info" });
       />
     </svg>
     <span
+      :id="tooltipId"
       class="info-tip__bubble"
       role="tooltip"
     ><slot /></span>
