@@ -206,6 +206,7 @@ async function removeRun() {
               <LeagueExportPill
                 v-if="run.export_file"
                 :file="run.export_file"
+                :title="run.export_title"
               />
             </div>
           </div>

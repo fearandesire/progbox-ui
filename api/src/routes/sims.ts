@@ -199,6 +199,9 @@ export async function registerSimsRoutes(
         "utf8",
       );
 
+      const exportMeta = exportData.meta as Record<string, unknown> | undefined;
+      const exportTitle = typeof exportMeta?.title === "string" ? exportMeta.title : null;
+
       const meta = {
         build,
         script_version: engineAdapter.scriptVersion(),
@@ -207,6 +210,7 @@ export async function registerSimsRoutes(
         runs: body.runs,
         n_workers,
         export_file: `outputs/${build}/export.json`,
+        export_title: exportTitle,
         teaminfo_file: `outputs/${build}/teaminfo.json`,
         teaminfo_source: teaminfoSource,
         status: "running",

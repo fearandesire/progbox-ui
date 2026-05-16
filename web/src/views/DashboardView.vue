@@ -38,6 +38,12 @@ const exportFile = computed(
     sortedRuns.value[0]?.export_file ??
     null,
 );
+const exportTitle = computed(
+  () =>
+    lastCompleted.value?.export_title ??
+    sortedRuns.value[0]?.export_title ??
+    null,
+);
 const playerCount = computed(
   () =>
     lastCompleted.value?.player_count ??
@@ -192,7 +198,7 @@ async function removeRun(build: string, e: Event) {
         >
           <template v-if="exportFile">
             From
-            <LeagueExportPill :file="exportFile" />
+            <LeagueExportPill :file="exportFile" :title="exportTitle" />
           </template>
           <template v-if="playerCount != null">
             <span v-if="exportFile"> · </span>

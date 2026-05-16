@@ -1,10 +1,10 @@
 <script setup lang="ts">
-/* Technical detail: the source BBGM export this run was built from.
-   Real metadata only carries the filename (no league title / size),
-   so the pill shows the filename and explains itself on hover. */
+import { computed } from "vue";
 import DeIcon from "./DeIcon.vue";
 
-defineProps<{ file: string }>();
+const props = defineProps<{ file: string; title?: string | null }>();
+
+const label = computed(() => props.title ?? props.file.split("/").pop() ?? props.file);
 </script>
 
 <template>
@@ -17,6 +17,6 @@ defineProps<{ file: string }>();
       :size="12"
     />
     <b>export</b>
-    <span class="league-pill__file">{{ file }}</span>
+    <span class="league-pill__file">{{ label }}</span>
   </span>
 </template>
