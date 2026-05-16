@@ -288,6 +288,7 @@ async function removeRun() {
           </div>
           <p
             v-if="deleteError"
+            role="alert"
             style="color: var(--rd-600); font-size: 13px; margin: 0"
           >
             {{ deleteError }}
