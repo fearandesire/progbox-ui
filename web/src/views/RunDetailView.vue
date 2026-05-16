@@ -241,7 +241,7 @@ async function removeRun() {
               <dt>Script</dt><dd>{{ run.script_version ?? "—" }}</dd>
             </div>
             <div class="meta-row">
-              <dt>Teams</dt><dd>{{ run.teams.length ? run.teams.join(", ") : "all" }}</dd>
+              <dt>Teams</dt><dd>{{ run.teams?.length ? run.teams.join(", ") : "all" }}</dd>
             </div>
             <div class="meta-row">
               <dt>Started</dt><dd>{{ run.started_at ?? "—" }}</dd>
