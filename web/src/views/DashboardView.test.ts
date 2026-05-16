@@ -15,6 +15,11 @@ vi.mock("../stores/sims", () => ({
   useSimsStore: () => mockSimsStore,
 }));
 
+vi.mock("../lib/api", () => ({
+  fetchPlayers: vi.fn().mockResolvedValue([]),
+  fetchGodprogs: vi.fn().mockResolvedValue([]),
+}));
+
 describe("DashboardView", () => {
   beforeEach(() => {
     mockSimsStore.runs = [];

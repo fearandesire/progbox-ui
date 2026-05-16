@@ -55,7 +55,7 @@ export function useRunStats(build: Ref<string | null>) {
           : 0,
         sigma: stddev(p50s),
         p95Ceiling: players.length
-          ? Math.max(...players.map((p) => p.P95))
+          ? players.reduce((m, p) => Math.max(m, p.P95), -Infinity)
           : 0,
         playersAnalyzed: players.length,
       };
