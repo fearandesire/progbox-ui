@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { RouterLink } from "vue-router";
 import { useRouter } from "vue-router";
+import DeIcon from "../components/DeIcon.vue";
 import SimProgressPanel from "../components/SimProgressPanel.vue";
 import { createSim } from "../lib/api";
 import { useSimProgress } from "../composables/useSimProgress";
@@ -32,7 +32,9 @@ const teaminfoExample = `{
 const showTeaminfoDetails = ref(false);
 const showAdvanced = ref(false);
 
-const canSubmit = computed(() => exportFile.value && state.value !== "uploading");
+const canSubmit = computed(
+  () => !!exportFile.value && (state.value === "idle" || state.value === "failed"),
+);
 const simProgress = useSimProgress(activeBuild);
 
 watch(
@@ -53,18 +55,15 @@ function parseTeams(value: string): string[] {
 
 function onExportChange(event: Event) {
   const target = event.target as HTMLInputElement;
-  const file = target.files?.[0] ?? null;
-  exportFile.value = file;
+  exportFile.value = target.files?.[0] ?? null;
 }
 
 function onTeaminfoChange(event: Event) {
   const target = event.target as HTMLInputElement;
-  const file = target.files?.[0] ?? null;
-  teaminfoFile.value = file;
+  teaminfoFile.value = target.files?.[0] ?? null;
 }
 
 function httpErrorMessage(err: unknown): string {
-  // ofetch surfaces the API body as `err.data`; prefer FastAPI's `detail` string.
   if (err && typeof err === "object" && "data" in err) {
     const data = (err as { data?: unknown }).data;
     if (data && typeof data === "object" && "detail" in data) {
@@ -85,12 +84,16 @@ async function submit() {
   error.value = null;
   state.value = "uploading";
   try {
-    const response = await createSim(exportFile.value, {
-      teams: parseTeams(teamsCsv.value),
-      seed: seed.value,
-      runs: runs.value,
-      n_workers: nWorkers.value,
-    }, teaminfoFile.value);
+    const response = await createSim(
+      exportFile.value,
+      {
+        teams: parseTeams(teamsCsv.value),
+        seed: seed.value,
+        runs: runs.value,
+        n_workers: nWorkers.value,
+      },
+      teaminfoFile.value,
+    );
     activeBuild.value = response.build;
     state.value = "running";
   } catch (e: unknown) {
@@ -101,189 +104,179 @@ async function submit() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-2xl px-4 py-8">
+  <div class="page">
     <RouterLink
+      class="back"
       to="/"
-      class="mb-6 inline-block text-sm text-sky-600 transition-colors duration-150 hover:text-sky-500 hover:underline"
     >
-      ← Back
+      <DeIcon
+        name="arrow-left"
+        :size="14"
+      />
+      Dashboard
     </RouterLink>
-    <h1 class="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-      New simulation
-    </h1>
-    <p class="mt-2 text-neutral-600 dark:text-neutral-400">
-      Upload a BBGM export and launch a new Progbox run.
-    </p>
 
-    <form
-      class="mt-6 space-y-5 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm transition-shadow duration-150 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
-      @submit.prevent="submit"
+    <div
+      class="section-head"
+      style="margin-bottom: 8px"
     >
       <div>
-        <label class="mb-1 block text-sm font-medium">
-          Export JSON <span class="ml-0.5 text-red-500">*</span>
-        </label>
-        <input
-          type="file"
-          accept=".json,application/json"
-          class="block w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
-          @change="onExportChange"
-        >
-        <p
-          v-if="exportFile"
-          class="mt-1 text-xs text-neutral-500"
-        >
-          {{ exportFile.name }}
+        <h1 class="page-title">
+          New simulation
+        </h1>
+        <p class="page-desc">
+          Upload a BBGM export and launch a new Progbox run.
         </p>
       </div>
+    </div>
 
-      <div class="grid gap-3 sm:grid-cols-3">
-        <div>
-          <label class="mb-1 block text-sm font-medium">Seed</label>
+    <form
+      class="form-card"
+      @submit.prevent="submit"
+    >
+      <div class="field">
+        <label for="export-file">Export JSON <span class="req">*</span></label>
+        <input
+          id="export-file"
+          class="file"
+          type="file"
+          accept=".json,application/json"
+          @change="onExportChange"
+        >
+        <span
+          v-if="exportFile"
+          class="hint"
+        >{{ exportFile.name }}</span>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="sim-seed">Seed</label>
           <input
+            id="sim-seed"
             v-model.number="seed"
+            class="input mono"
             type="number"
-            class="block w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
           >
         </div>
-        <div>
-          <label class="mb-1 block text-sm font-medium">Runs</label>
+        <div class="field">
+          <label for="sim-runs">Runs</label>
           <input
+            id="sim-runs"
             v-model.number="runs"
+            class="input mono"
             type="number"
             min="1"
-            class="block w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
           >
         </div>
-        <div>
-          <label class="mb-1 block text-sm font-medium">Workers (blank = auto)</label>
+        <div class="field">
+          <label for="sim-workers">Workers (blank = auto)</label>
           <input
+            id="sim-workers"
             :value="nWorkers ?? ''"
+            class="input mono"
             type="number"
             min="1"
-            class="block w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
             @input="nWorkers = ($event.target as HTMLInputElement).value ? Number(($event.target as HTMLInputElement).value) : null"
           >
         </div>
       </div>
 
-      <div class="border-t border-neutral-200 pt-3 dark:border-neutral-700">
+      <div style="border-top: 1px solid var(--line); padding-top: 16px">
         <button
           type="button"
-          class="flex items-center gap-1.5 text-sm text-neutral-400 transition-colors hover:text-neutral-600 dark:hover:text-neutral-300"
+          class="disclosure"
+          :aria-expanded="showAdvanced"
           @click="showAdvanced = !showAdvanced"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 16 16"
-            fill="currentColor"
-            class="h-3.5 w-3.5 transition-transform duration-150"
-            :class="showAdvanced ? 'rotate-90' : ''"
-          >
-            <path
-              fill-rule="evenodd"
-              d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 0 1 0-1.06Z"
-              clip-rule="evenodd"
-            />
-          </svg>
+          <DeIcon
+            name="chevron-right"
+            :size="14"
+          />
           Advanced options
         </button>
         <div
           v-show="showAdvanced"
-          class="mt-3 space-y-6"
+          style="margin-top: 16px; display: grid; gap: 18px"
         >
-          <div>
-            <label class="mb-1 block text-sm font-medium">Teams (comma-separated)</label>
+          <div class="field">
+            <label for="sim-teams">Teams (comma-separated)</label>
             <input
+              id="sim-teams"
               v-model="teamsCsv"
+              class="input"
               type="text"
               placeholder="GSW, BOS"
-              class="block w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
             >
-            <p class="mt-1 text-xs text-neutral-400">
-              Filter the simulation to specific team abbreviations only.
-            </p>
+            <span class="hint">Filter the simulation to specific team abbreviations only.</span>
           </div>
 
-          <div>
-            <h4 class="mb-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">
-              Teaminfo override
-            </h4>
-            <div class="relative border-l-4 border-red-500 bg-black p-5 shadow-[4px_4px_0px_rgba(239,68,68,0.3)]">
-              <div class="flex gap-4">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  class="mt-0.5 h-5 w-5 flex-shrink-0 text-red-500"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-                <div>
-                  <h5 class="mb-2 text-sm font-semibold text-red-500">
-                    Warning
-                  </h5>
-                  <p class="text-sm leading-relaxed text-neutral-300">
-                    Teaminfo is <strong class="text-white">auto-generated</strong> from your export. Only override this if you need custom team abbreviations (renamed teams, custom league, etc.). An incorrect override can break the simulation.
-                  </p>
-                </div>
+          <div class="field">
+            <label for="sim-teaminfo">Teaminfo override</label>
+            <div class="callout-warn">
+              <DeIcon
+                name="alert"
+                :size="18"
+              />
+              <div>
+                <p class="callout-warn__title">
+                  Warning
+                </p>
+                <p class="callout-warn__body">
+                  Teaminfo is <strong>auto-generated</strong> from your export.
+                  Only override this if you need custom team abbreviations
+                  (renamed teams, custom league, etc.). An incorrect override
+                  can break the simulation.
+                </p>
               </div>
             </div>
-
-            <div class="mt-3">
-              <input
-                type="file"
-                accept=".json,application/json"
-                class="block w-full rounded border border-neutral-300 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
-                @change="onTeaminfoChange"
+            <input
+              id="sim-teaminfo"
+              class="file"
+              style="margin-top: 10px"
+              type="file"
+              accept=".json,application/json"
+              @change="onTeaminfoChange"
+            >
+            <p
+              v-if="teaminfoFile"
+              class="hint"
+            >
+              Override selected:
+              <span style="font-family: var(--mono)">{{ teaminfoFile.name }}</span>
+            </p>
+            <div style="margin-top: 8px">
+              <button
+                type="button"
+                class="disclosure"
+                style="font-size: 12px"
+                :aria-expanded="showTeaminfoDetails"
+                @click="showTeaminfoDetails = !showTeaminfoDetails"
               >
-              <p
-                v-if="teaminfoFile"
-                class="mt-1 text-xs text-neutral-600 dark:text-neutral-300"
+                <DeIcon
+                  name="chevron-right"
+                  :size="12"
+                />
+                {{ showTeaminfoDetails ? 'Hide format details' : 'Show format details' }}
+              </button>
+              <div
+                v-show="showTeaminfoDetails"
+                style="margin-top: 8px; display: grid; gap: 8px; font-size: 12.5px; color: var(--fg-mute); line-height: 1.5"
               >
-                Override selected: <span class="font-mono">{{ teaminfoFile.name }}</span>
-              </p>
-              <div class="mt-1.5">
-                <button
-                  type="button"
-                  class="flex items-center gap-1 text-xs text-neutral-400 transition-colors hover:text-neutral-600 dark:hover:text-neutral-300"
-                  @click="showTeaminfoDetails = !showTeaminfoDetails"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 16 16"
-                    fill="currentColor"
-                    class="h-3 w-3 transition-transform duration-150"
-                    :class="showTeaminfoDetails ? 'rotate-90' : ''"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 0 1 0-1.06Z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
-                  {{ showTeaminfoDetails ? 'Hide format details' : 'Show format details' }}
-                </button>
-                <div
-                  v-show="showTeaminfoDetails"
-                  class="mt-2 space-y-1 text-xs text-neutral-500 dark:text-neutral-400"
-                >
-                  <p>
-                    By default, <span class="font-mono">teaminfo.json</span> is <strong>auto-generated</strong>
-                    from the active teams in your export (team ID → abbreviation, plus the
-                    <span class="font-mono">-1 FA</span> / <span class="font-mono">-2 UDFA</span> /
-                    <span class="font-mono">-3 Retired</span> game-rule slots).
-                  </p>
-                  <p>
-                    Only upload a file here to override team abbreviations — for example a custom
-                    league or a different era with renamed teams. Expected format:
-                  </p>
-                  <pre class="overflow-x-auto rounded bg-neutral-100 px-2 py-1 font-mono text-[11px] leading-snug dark:bg-neutral-800">{{ teaminfoExample }}</pre>
-                </div>
+                <p style="margin: 0">
+                  By default, <span style="font-family: var(--mono)">teaminfo.json</span>
+                  is <strong>auto-generated</strong> from the active teams in your
+                  export (team ID → abbreviation, plus the
+                  <span style="font-family: var(--mono)">-1 FA</span> /
+                  <span style="font-family: var(--mono)">-2 UDFA</span> /
+                  <span style="font-family: var(--mono)">-3 Retired</span> slots).
+                </p>
+                <p style="margin: 0">
+                  Only upload a file here to override team abbreviations — for
+                  example a custom league or a different era with renamed teams.
+                  Expected format:
+                </p>
+                <pre class="code-block">{{ teaminfoExample }}</pre>
               </div>
             </div>
           </div>
@@ -292,29 +285,42 @@ async function submit() {
 
       <p
         v-if="error"
-        class="text-sm text-red-600"
+        role="alert"
+        style="color: var(--rd-600); font-size: 13px; margin: 0"
       >
         {{ error }}
       </p>
 
-      <button
-        type="submit"
-        :disabled="!canSubmit"
-        class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors duration-150 hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {{ state === "uploading" ? "Starting..." : "Start simulation" }}
-      </button>
+      <div style="display: flex; gap: 8px">
+        <button
+          type="submit"
+          class="btn primary lg"
+          :disabled="!canSubmit"
+        >
+          <DeIcon name="plus" />
+          {{ state === "uploading" ? "Starting…" : "Start simulation" }}
+        </button>
+        <button
+          type="button"
+          class="btn ghost"
+          @click="router.push('/')"
+        >
+          Cancel
+        </button>
+      </div>
     </form>
 
     <div
       v-if="state === 'running' && activeBuild"
-      class="mt-4"
+      style="margin-top: 20px"
     >
-      <p class="mb-2 text-sm text-neutral-600 dark:text-neutral-400">
-        Run started:
+      <p
+        style="font-family: var(--mono); font-size: 11.5px; color: var(--fg-mute); letter-spacing: 0.04em; margin: 0 0 10px"
+      >
+        run started ·
         <RouterLink
           :to="`/runs/${activeBuild}`"
-          class="font-mono text-sky-600 transition-colors duration-150 hover:text-sky-500 hover:underline"
+          style="color: var(--accent-text)"
         >
           {{ activeBuild }}
         </RouterLink>

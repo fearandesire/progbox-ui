@@ -3,17 +3,17 @@ import { expect, test } from "@playwright/test";
 test("dashboard loads and shows seeded runs @smoke", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Runs" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Simulations", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "New simulation" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /20260101120000/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: "20260101120000", exact: true })).toBeVisible();
 });
 
 test("dashboard links to completed run detail @smoke", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("link", { name: /20260101120000/i }).click();
+  await page.getByRole("link", { name: "20260101120000", exact: true }).click();
 
   await expect(page).toHaveURL(/\/runs\/20260101120000$/);
-  await expect(page.getByText("Run Metadata")).toBeVisible();
+  await expect(page.getByText("Run summary")).toBeVisible();
   await expect(page.getByText("complete", { exact: true })).toBeVisible();
   await expect(page.getByText("v4.1")).toBeVisible();
 });

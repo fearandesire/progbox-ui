@@ -53,7 +53,7 @@ describe("PlayerTable", () => {
     expect(fetchPlayers).toHaveBeenCalledWith("20260101120000");
     expect(wrapper.findAll("tbody tr")).toHaveLength(2);
     expect(wrapper.findAll("tbody tr")[0].text()).toContain("Alice Example");
-    expect(wrapper.text()).toContain("50.12");
+    expect(wrapper.text()).toContain("50.1");
     expect(wrapper.text()).toContain("2.50");
 
     const p50Header = wrapper.findAll("thead button").find((button) => button.text().includes("P50"));
@@ -77,7 +77,7 @@ describe("PlayerTable", () => {
     await minAgeInput.setValue("40");
     await flushPromises();
 
-    expect(wrapper.text()).toContain("No players yet.");
+    expect(wrapper.text()).toContain("No players match these filters.");
   });
 
   it("shows an error and retries loading", async () => {

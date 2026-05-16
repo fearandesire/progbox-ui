@@ -7,6 +7,7 @@ export interface RunMetadata {
   runs?: number | null;
   n_workers?: number | null;
   export_file?: string | null;
+  export_title?: string | null;
   teaminfo_file?: string | null;
   teaminfo_source?: "generated" | "user";
   started_at?: string | null;

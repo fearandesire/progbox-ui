@@ -3,9 +3,7 @@ import { onMounted, ref } from "vue";
 import { fetchGodprogs } from "../lib/api";
 import type { GodProg } from "../lib/types";
 
-const props = defineProps<{
-  build: string;
-}>();
+const props = defineProps<{ build: string }>();
 
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -29,56 +27,71 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="space-y-4">
-    <div
-      v-if="loading"
-      class="h-44 animate-pulse rounded-lg bg-neutral-200 dark:bg-neutral-800"
-    />
-
-    <div
-      v-else-if="error"
-      class="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-    >
-      <p>{{ error }}</p>
-      <button
-        class="mt-2 rounded bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500"
-        @click="load"
-      >
-        Retry
-      </button>
+  <section class="panel table-panel">
+    <div class="table-head">
+      <h3 class="panel-title">
+        God Progs · seed-level outliers
+      </h3>
+      <p class="panel-sub">
+        {{ events.length }} flagged
+      </p>
     </div>
 
-    <p
+    <div
+      v-if="loading"
+      class="empty"
+      style="margin: 22px"
+    >
+      Loading god progs…
+    </div>
+    <div
+      v-else-if="error"
+      class="empty"
+      style="margin: 22px; color: var(--rd-600); border-color: color-mix(in oklab, var(--rd-600) 35%, transparent)"
+    >
+      {{ error }}
+      <div style="margin-top: 10px">
+        <button
+          class="btn ghost"
+          type="button"
+          @click="load"
+        >
+          Retry
+        </button>
+      </div>
+    </div>
+    <div
       v-else-if="events.length === 0"
-      class="rounded-lg border border-neutral-200 bg-white p-4 text-sm text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400"
+      class="empty"
+      style="margin: 22px"
     >
       No god progs recorded.
-    </p>
+    </div>
 
     <div
       v-else
-      class="overflow-x-auto rounded-lg border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
+      class="table-scroll"
     >
-      <table class="min-w-full text-sm">
-        <thead class="border-b border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950">
+      <table class="de-table">
+        <thead>
           <tr>
-            <th class="px-3 py-2 text-left font-medium text-neutral-700 dark:text-neutral-300">
-              Name
+            <th class="no-sort cell-name">
+              Player
             </th>
-            <th class="px-3 py-2 text-left font-medium text-neutral-700 dark:text-neutral-300">
+            <th class="no-sort">
               Age
             </th>
-            <th class="px-3 py-2 text-left font-medium text-neutral-700 dark:text-neutral-300">
+            <th class="no-sort">
               OVR
             </th>
-            <th class="px-3 py-2 text-left font-medium text-neutral-700 dark:text-neutral-300">
+            <th class="no-sort">
               Bonus
             </th>
-            <th class="px-3 py-2 text-left font-medium text-neutral-700 dark:text-neutral-300">
+            <th class="no-sort">
               Chance
             </th>
-            <th class="px-3 py-2 text-left font-medium text-neutral-700 dark:text-neutral-300">
-              Run Seed
+            <th class="no-sort">
+              Run seed
             </th>
           </tr>
         </thead>
@@ -86,24 +99,17 @@ onMounted(() => {
           <tr
             v-for="event in events"
             :key="`${event.name}-${event.run_seed}-${event.age}-${event.ovr}`"
-            class="border-b border-neutral-100 last:border-b-0 dark:border-neutral-800"
           >
-            <td class="px-3 py-2 text-neutral-700 dark:text-neutral-300">
+            <td class="cell-name">
               {{ event.name }}
             </td>
-            <td class="px-3 py-2 text-neutral-700 dark:text-neutral-300">
-              {{ event.age }}
+            <td>{{ event.age }}</td>
+            <td>{{ event.ovr }}</td>
+            <td style="color: var(--em-600)">
+              +{{ event.bonus.toFixed(2) }}
             </td>
-            <td class="px-3 py-2 text-neutral-700 dark:text-neutral-300">
-              {{ event.ovr }}
-            </td>
-            <td class="px-3 py-2 text-neutral-700 dark:text-neutral-300">
-              {{ event.bonus.toFixed(2) }}
-            </td>
-            <td class="px-3 py-2 text-neutral-700 dark:text-neutral-300">
-              {{ event.chance.toFixed(4) }}
-            </td>
-            <td class="px-3 py-2 font-mono text-neutral-700 dark:text-neutral-300">
+            <td>{{ event.chance.toFixed(4) }}</td>
+            <td class="cell-seed">
               {{ event.run_seed }}
             </td>
           </tr>
