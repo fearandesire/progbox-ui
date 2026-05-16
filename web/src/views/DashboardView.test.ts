@@ -35,7 +35,7 @@ describe("DashboardView", () => {
     });
     await nextTick();
 
-    expect(wrapper.text()).toContain("Loading…");
+    expect(wrapper.text()).toContain("Loading simulations…");
     expect(mockSimsStore.load).toHaveBeenCalledTimes(1);
   });
 
@@ -49,7 +49,7 @@ describe("DashboardView", () => {
     });
     await flushPromises();
 
-    expect(wrapper.text()).toContain("No runs yet");
+    expect(wrapper.text()).toContain("No simulations yet");
   });
 
   it("shows an error state when the store fails", async () => {

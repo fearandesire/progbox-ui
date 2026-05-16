@@ -1,0 +1,324 @@
+/* ──────────────────────────────────────────────────────────────────
+   PROGBOX · DEEP ENGINE — DESIGN TOKENS
+   Ported from the claude.ai/design handoff bundle (colors_and_type.css).
+   Source of truth for type, color, surface, radius, shadow.
+   Font src paths repointed to /fonts/ (served from web/public/fonts).
+   ─────────────────────────────────────────────────────────────── */
+
+/* ── Brand fonts (self-hosted) ─────────────────────────────── */
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-variable.woff2") format("woff2-variations"),
+       url("/fonts/Geist-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-Italic-variable.woff2") format("woff2-variations"),
+       url("/fonts/Geist-Italic-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("/fonts/SpaceGrotesk-Variable.ttf") format("truetype-variations"),
+       url("/fonts/SpaceGrotesk-Variable.ttf") format("truetype");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMono-variable.woff2") format("woff2-variations"),
+       url("/fonts/GeistMono-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Geist Pixel — five decorative ornament faces. Brand-only. */
+@font-face {
+  font-family: "Geist Pixel Circle";
+  src: url("/fonts/GeistPixel-Circle.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Geist Pixel Grid";
+  src: url("/fonts/GeistPixel-Grid.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Geist Pixel Line";
+  src: url("/fonts/GeistPixel-Line.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Geist Pixel Square";
+  src: url("/fonts/GeistPixel-Square.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Geist Pixel Triangle";
+  src: url("/fonts/GeistPixel-Triangle.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+
+
+:root {
+  /* ── Type families ───────────────────────────────────────── */
+  --display: "Space Grotesk", "DM Sans", "Inter", system-ui, sans-serif;
+  --sans:    "Geist", "Inter", "Segoe UI", system-ui, sans-serif;
+  --mono:    "Geist Mono", ui-monospace, "Cascadia Code", monospace;
+
+  --ornament-circle:   "Geist Pixel Circle",   "Space Grotesk", sans-serif;
+  --ornament-grid:     "Geist Pixel Grid",     "Space Grotesk", sans-serif;
+  --ornament-line:     "Geist Pixel Line",     "Space Grotesk", sans-serif;
+  --ornament-square:   "Geist Pixel Square",   "Space Grotesk", sans-serif;
+  --ornament-triangle: "Geist Pixel Triangle", "Space Grotesk", sans-serif;
+
+  /* ── Neutral scale (Tailwind neutral) ────────────────────── */
+  --n-50:  #fafafa;
+  --n-100: #f5f5f5;
+  --n-200: #e5e5e5;
+  --n-300: #d4d4d4;
+  --n-400: #a3a3a3;
+  --n-500: #737373;
+  --n-600: #525252;
+  --n-700: #404040;
+  --n-800: #262626;
+  --n-900: #171717;
+  --n-950: #0a0a0a;
+
+  /* ── Sky accent (Tailwind sky) ───────────────────────────── */
+  --sky-100: #e0f2fe;
+  --sky-200: #bae6fd;
+  --sky-300: #7dd3fc;
+  --sky-400: #38bdf8;
+  --sky-500: #0ea5e9;
+  --sky-600: #0284c7;
+  --sky-700: #0369a1;
+  --sky-900: #0c4a6e;
+
+  /* ── Semantic accents (status / signal) ──────────────────── */
+  --em-100: #d1fae5;
+  --em-300: #6ee7b7;
+  --em-600: #059669;
+  --em-700: #047857;
+  --am-100: #fef3c7;
+  --am-700: #b45309;
+  --rd-100: #fee2e2;
+  --rd-600: #dc2626;
+
+  /* ── Radii ───────────────────────────────────────────────── */
+  --r-sm:  6px;
+  --r:     8px;
+  --r-lg:  12px;
+  --r-xl:  14px;
+  --r-2xl: 18px;
+
+  /* ── Spacing scale ───────────────────────────────────────── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 48px;
+
+  /* ── Type scale (px, tabular numerics on body) ───────────── */
+  --t-display:  60px;
+  --t-h1:       26px;
+  --t-h2:       18px;
+  --t-h3:       15px;
+  --t-body:     14px;
+  --t-data:     13px;
+  --t-label:    11.5px;
+  --t-micro:    11px;
+  --tr-tight:  -0.03em;
+  --tr-snug:   -0.02em;
+  --tr-label:   0.06em;
+  --tr-eyebrow: 0.08em;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   LIGHT (default) — semantic tokens
+   ─────────────────────────────────────────────────────────────── */
+:root,
+[data-theme="light"] {
+  --bg:           var(--n-50);
+  --surface:      #ffffff;
+  --surface-2:    var(--n-100);
+  --fg:           var(--n-900);
+  --fg-soft:      var(--n-700);
+  --fg-mute:      var(--n-500);
+  --fg-faint:     var(--n-400);
+  --line:         var(--n-200);
+  --line-strong: var(--n-300);
+
+  --accent:       var(--sky-600);
+  --accent-hover: var(--sky-500);
+  --accent-soft:  var(--sky-100);
+  --accent-fg:    #ffffff;
+  --accent-text:  var(--sky-700);
+  --ring:         color-mix(in oklab, var(--sky-500) 35%, transparent);
+
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / .04);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / .06), 0 1px 3px 0 rgb(0 0 0 / .04);
+  --shadow-md: 0 4px 16px -4px rgb(0 0 0 / .08), 0 2px 4px -2px rgb(0 0 0 / .04);
+  --shadow-lg: 0 12px 32px -8px rgb(0 0 0 / .10), 0 4px 8px -4px rgb(0 0 0 / .06);
+
+  --bg-dot:      color-mix(in oklab, var(--n-900) 5.5%, transparent);
+  --bg-gradient: radial-gradient(circle, var(--bg-dot) 1px, transparent 1px);
+  --bg-size:     22px 22px;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   DARK — semantic tokens
+   ─────────────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg:           var(--n-950);
+  --surface:      var(--n-900);
+  --surface-2:    var(--n-800);
+  --fg:           var(--n-100);
+  --fg-soft:      var(--n-300);
+  --fg-mute:      var(--n-500);
+  --fg-faint:     var(--n-600);
+  --line:         var(--n-800);
+  --line-strong:  var(--n-700);
+
+  --accent:       var(--sky-500);
+  --accent-hover: var(--sky-400);
+  --accent-soft:  color-mix(in oklab, var(--sky-500) 16%, var(--n-950));
+  --accent-text:  var(--sky-300);
+
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / .25);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / .35), 0 1px 3px 0 rgb(0 0 0 / .25);
+  --shadow-md: 0 4px 18px -4px rgb(0 0 0 / .45), 0 2px 6px -2px rgb(0 0 0 / .25);
+  --shadow-lg: 0 16px 40px -8px rgb(0 0 0 / .55);
+
+  --bg-dot:      color-mix(in oklab, var(--n-100) 8%, transparent);
+  --bg-gradient: radial-gradient(circle, var(--bg-dot) 1px, transparent 1px);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Body baseline — apply to the app root
+   ─────────────────────────────────────────────────────────────── */
+.de-canvas {
+  background-color: var(--bg);
+  background-image: var(--bg-gradient);
+  background-size: var(--bg-size);
+  color: var(--fg);
+  font: 14px/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-variant-numeric: tabular-nums;
+  min-height: 100svh;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Semantic typography helpers
+   ─────────────────────────────────────────────────────────────── */
+.t-h1 {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: var(--t-h1);
+  line-height: 1.1;
+  letter-spacing: var(--tr-snug);
+  color: var(--fg);
+  margin: 0;
+}
+.t-h1 .accent { color: var(--accent-text); }
+
+.t-h2 {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: var(--t-h2);
+  line-height: 1.2;
+  letter-spacing: var(--tr-snug);
+  color: var(--fg);
+  margin: 0;
+}
+.t-h3 {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: var(--t-h3);
+  letter-spacing: -0.01em;
+  color: var(--fg);
+  margin: 0;
+}
+.t-body { font-size: var(--t-body); color: var(--fg-soft); line-height: 1.55; }
+.t-desc { font-size: 13.5px; color: var(--fg-mute); line-height: 1.55; }
+.t-mute { color: var(--fg-mute); }
+.t-faint { color: var(--fg-faint); }
+
+.t-data {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--t-data);
+  color: var(--fg);
+}
+.t-display {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: var(--t-display);
+  line-height: 1;
+  letter-spacing: var(--tr-tight);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+.t-mono {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--fg-soft);
+}
+.t-mono-cap {
+  font-family: var(--mono);
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: var(--tr-label);
+  color: var(--fg-mute);
+  font-weight: 500;
+}
+.t-eyebrow {
+  font-family: var(--mono);
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: var(--tr-eyebrow);
+  color: var(--fg-mute);
+  font-weight: 500;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Surfaces
+   ─────────────────────────────────────────────────────────────── */
+.de-surface {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-sm);
+}
+.de-surface-2 {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Density variants (mirrors reference)
+   ─────────────────────────────────────────────────────────────── */
+[data-density="compact"] .kpi { padding: 16px 18px 14px; min-height: 130px }
+[data-density="compact"] .kpi-number,
+[data-density="compact"] .kpi-number.mono { font-size: 46px }
+[data-density="compact"] .manifest { padding: 18px }
+
+[data-density="comfy"] .kpi { padding: 28px 30px 26px; min-height: 200px }
+[data-density="comfy"] .kpi-number,
+[data-density="comfy"] .kpi-number.mono { font-size: 68px }
+[data-density="comfy"] .manifest { padding: 30px }
+
+[data-sparklines="false"] .sparkline { display: none }

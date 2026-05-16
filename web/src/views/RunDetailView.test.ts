@@ -80,7 +80,7 @@ describe("RunDetailView", () => {
     });
     await flushPromises();
 
-    expect(wrapper.text()).toContain("Loading…");
+    expect(wrapper.text()).toContain("Loading run…");
     resolveRun({
       build: "20260101120000",
       status: "complete",
@@ -111,7 +111,7 @@ describe("RunDetailView", () => {
     });
     await flushPromises();
 
-    expect(wrapper.text()).toContain("Run Metadata");
+    expect(wrapper.text()).toContain("Run summary");
     expect(wrapper.text()).toContain("complete");
     expect(wrapper.text()).toContain("v4.1.0");
     expect(wrapper.find('[data-test="progress-panel"]').exists()).toBe(false);
@@ -154,7 +154,7 @@ describe("RunDetailView", () => {
     });
     await flushPromises();
 
-    expect(wrapper.text()).toContain("Invalid build id");
+    expect(wrapper.text()).toContain("Invalid Run ID");
   });
 
   it("renders the progress panel for running runs", async () => {
@@ -256,7 +256,7 @@ describe("RunDetailView", () => {
     });
     await flushPromises();
 
-    const deleteButton = wrapper.findAll("button").find((button) => button.text() === "Delete Run");
+    const deleteButton = wrapper.findAll("button").find((button) => button.text() === "Delete");
     expect(deleteButton).toBeDefined();
     if (!deleteButton) {
       return;

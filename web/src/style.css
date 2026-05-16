@@ -1,19 +1,16 @@
 @import "tailwindcss";
+@import "./styles/tokens.css";
+@import "./styles/deep-engine.css";
+
+/* Drive any residual Tailwind dark: utilities off the [data-theme] toggle. */
+@custom-variant dark (&:is([data-theme="dark"] *));
 
 @theme {
-  --font-sans: "DM Sans", "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", "Cascadia Code", monospace;
+  --font-sans: "Geist", "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Space Grotesk", "DM Sans", "Inter", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
 }
 
-body {
-  margin: 0;
-  min-height: 100svh;
-  font-family: var(--font-sans);
-  background:
-    radial-gradient(circle at 10% -10%, rgb(14 165 233 / 0.12), transparent 40%),
-    radial-gradient(circle at 110% 0%, rgb(56 189 248 / 0.08), transparent 32%);
-}
-
-#app {
-  min-height: 100svh;
-}
+html, body { margin: 0; padding: 0; }
+body { min-height: 100svh; font-family: var(--sans); }
+#app { min-height: 100svh; }

@@ -25,7 +25,7 @@ describe("SimProgressPanel", () => {
       props: { build: "20260101120000" },
     });
 
-    expect(wrapper.text()).toContain("Live Progress");
+    expect(wrapper.text()).toContain("Live progress");
     expect(wrapper.text()).toContain("0%");
 
     MockEventSource.instances[0].emit({
@@ -38,6 +38,6 @@ describe("SimProgressPanel", () => {
 
     expect(wrapper.text()).toContain("87%");
     expect(wrapper.text()).toContain("Generating analysis");
-    expect(wrapper.get(".h-full").attributes("style")).toContain("width: 87.2%");
+    expect(wrapper.get(".progress__fill").attributes("style")).toContain("width: 87.2%");
   });
 });
