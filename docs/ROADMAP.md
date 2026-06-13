@@ -1,38 +1,50 @@
 # progbox-ui — roadmap
 
-planning is done week-by-week. we do a quick sync on sundays to set the next week's focus. issues are tracked in [GitHub Projects](../../projects).
+planning is done week-by-week. issues live in [GitHub Projects (#10)](https://github.com/users/fearandesire/projects/10). this doc is the high-level view; the board is the source of truth for status.
+
+---
+
+## the goal: v1.0
+
+a dashboard that's genuinely useful for reading sim results — not just running them. for v1.0 that means:
+
+- run sims with a selectable NET script version (v3.0 / v3.1 / v4.1)
+- run + dashboard cards that surface impactful, at-a-glance data
+- compare runs against each other, including cross-version
+- brief in-app docs so the outputs aren't a mystery
+
+everything tagged [`v1.0`](https://github.com/fearandesire/progbox-ui/labels/v1.0) on the repo is in scope for the release.
 
 ---
 
 ## how we plan
 
-- one week at a time, no further
-- each week has a small set of issues — scoped tightly, shippable
-- milestones map to weeks (e.g. `week of 2026-06-16`)
-- backlog lives below — items get pulled into the current week on sundays
+- one week at a time, no further out than that
+- each week = a small milestone of tightly-scoped, shippable issues
+- the board (#10) tracks status; this doc tracks intent
+- backlog below gets pulled into a sprint when we're ready
 
 ---
 
-## current week — 2026-06-16
+## current sprint — [Sprint 1: ends Fri Jun 19](https://github.com/fearandesire/progbox-ui/milestone/1)
 
-| # | item | notes |
-|---|------|-------|
-| 1 | sync latest chart changes into UI | carry over from recent engine updates |
-| 2 | script version selector | support v3.0, v3.1, v4.1 (Shawn's build) |
-| 3 | improve run cards — clearer, more impactful data | aggregated stats that actually help you read a result |
+| # | item |
+|---|------|
+| [#18](https://github.com/fearandesire/progbox-ui/issues/18) | sync latest chart changes into the UI |
+| [#19](https://github.com/fearandesire/progbox-ui/issues/19) | NET script version selector (v3.0 / v3.1 / v4.1) |
+| [#20](https://github.com/fearandesire/progbox-ui/issues/20) | improve run cards — key aggregated stats |
+| [#21](https://github.com/fearandesire/progbox-ui/issues/21) | brief in-app docs page |
 
 ---
 
 ## backlog
 
-items here are unscheduled — gets pulled into a week when we're ready.
+unscheduled — pulled into a sprint when ready.
 
-- **run comparison** — compare two or more runs side-by-side, including cross-version (e.g. v3.1 vs v4.1 results on the same export)
-- **docs page** — brief in-app docs explaining what each output/metric means
-- **per-run card improvements** — build on top of the current week's card work; deeper aggregated insights
+- [#22](https://github.com/fearandesire/progbox-ui/issues/22) **run comparison** — side-by-side, cross-version (v3.1 vs v4.1 on the same export). builds on #20.
 
 ---
 
 ## out of scope
 
-see [scope doc](SCOPE.md) for the full picture. short version: we're not touching sim logic, not building for end users, not hosting this anywhere.
+see [scope doc](SCOPE.md). short version: we're not touching sim logic, not building for end users, not hosting this anywhere.
