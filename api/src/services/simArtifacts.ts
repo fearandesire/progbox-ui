@@ -175,6 +175,41 @@ export function playerAllRuns(build: string, pid: string): Record<string, unknow
   });
 }
 
+const SEVERE_REGRESSION_THRESHOLD = -2.0;
+
+export interface RunAggregateStats {
+  god_progs: number | null;
+  mean_delta: number | null;
+  severe_regressions: number | null;
+}
+
+const NULL_RUN_STATS: RunAggregateStats = {
+  god_progs: null,
+  mean_delta: null,
+  severe_regressions: null,
+};
+
+/** League-wide aggregates for metadata persistence and list views. */
+export function computeRunStats(build: string): RunAggregateStats {
+  try {
+    const players = playerSummaries(build);
+    const godprogs = godprogsRecords(build);
+    const deltas = players.map((p) => Number(p.MeanDelta ?? 0));
+    const meanDelta = deltas.length
+      ? deltas.reduce((a, b) => a + b, 0) / deltas.length
+      : null;
+    return {
+      god_progs: godprogs.length,
+      mean_delta: meanDelta !== null ? round4(meanDelta) : null,
+      severe_regressions: players.filter(
+        (p) => Number(p.MeanDelta ?? 0) <= SEVERE_REGRESSION_THRESHOLD,
+      ).length,
+    };
+  } catch {
+    return { ...NULL_RUN_STATS };
+  }
+}
+
 export function godprogsRecords(build: string): Record<string, unknown>[] {
   const p = path.join(rawDir(build), "godprogs.json");
   if (!fs.existsSync(p) || fs.statSync(p).size <= 2) {

@@ -393,6 +393,8 @@ a { color: inherit; }
   color: var(--fg-mute); letter-spacing: 0.04em;
 }
 .run-row__meta b { color: var(--fg-soft); font-weight: 500; }
+.run-row__stat { color: var(--fg-mute); }
+.run-row__stat--delta b { color: var(--em-600); }
 .run-row__del {
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px;

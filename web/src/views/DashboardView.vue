@@ -54,6 +54,24 @@ const playerCount = computed(
 const num = (v: number | undefined | null, d = 0) =>
   v === undefined || v === null ? "—" : v.toFixed(d);
 
+function godProgsDisplay(
+  r: RunMetadata | null | undefined,
+  fallback: number | undefined,
+): string {
+  if (r?.god_progs != null) return String(r.god_progs);
+  if (fallback !== undefined) return String(fallback);
+  return "—";
+}
+
+function meanDeltaDisplay(
+  r: RunMetadata | null | undefined,
+  fallback: number | undefined,
+): string {
+  if (r?.mean_delta != null) return signed(r.mean_delta);
+  if (fallback !== undefined) return signed(fallback);
+  return "—";
+}
+
 // Six stats: scale (iter / players / god progs) + shape (severe regs / mean delta / sigma).
 const lastStats = computed(() => {
   const r = lastCompleted.value;
@@ -76,21 +94,26 @@ const lastStats = computed(() => {
       tip: "The players actually simulated. Free Agents, UDFA, and Retired buckets are skipped; only players currently slotted onto a team get a projection.",
     },
     {
-      v: s ? String(s.godProgs) : "—",
+      v: godProgsDisplay(r, s?.godProgs),
       l: "God progs",
       sub: "elite outliers",
       accent: true,
       tip: "Players who had a freak good run: an unusually large rating bump for their age. Open the run's God Progs tab for the per-event log.",
     },
     {
-      v: s ? String(s.severeRegressions) : "—",
+      v:
+        r?.severe_regressions != null
+          ? String(r.severe_regressions)
+          : s
+            ? String(s.severeRegressions)
+            : "—",
       l: "Severe regressions",
       sub: "cliff cases",
       color: "var(--rd-600)",
       tip: "Players who fell off a cliff: a big drop in projected rating. These are not gentle decliners, they are collapse cases (mean delta of -2.0 or worse from baseline).",
     },
     {
-      v: s ? signed(s.meanDelta) : "—",
+      v: meanDeltaDisplay(r, s?.meanDelta),
       l: "Mean Δ",
       sub: "baseline → P50",
       color: "var(--em-600)",
@@ -416,6 +439,14 @@ async function removeRun(build: string, e: Event) {
             <div class="run-row__meta">
               <span><b>{{ r.runs ?? "—" }}</b> iter</span>
               <span><b>{{ r.player_count ?? "—" }}</b> players</span>
+              <span
+                v-if="r.status === 'complete'"
+                class="run-row__stat"
+              ><b>{{ godProgsDisplay(r, undefined) }}</b> god progs</span>
+              <span
+                v-if="r.status === 'complete'"
+                class="run-row__stat run-row__stat--delta"
+              ><b>{{ meanDeltaDisplay(r, undefined) }}</b> mean Δ</span>
               <span>{{ timeAgo(r.started_at) || (r.started_at ?? "—") }}</span>
             </div>
           </div>

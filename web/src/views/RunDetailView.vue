@@ -77,6 +77,24 @@ const statsBuild = computed<string | null>(() =>
 );
 const { stats } = useRunStats(statsBuild);
 
+function godProgsDisplay(
+  r: RunMetadata | null | undefined,
+  fallback: number | undefined,
+): string {
+  if (r?.god_progs != null) return String(r.god_progs);
+  if (fallback !== undefined) return String(fallback);
+  return "—";
+}
+
+function meanDeltaDisplay(
+  r: RunMetadata | null | undefined,
+  fallback: number | undefined,
+): string {
+  if (r?.mean_delta != null) return signed(r.mean_delta);
+  if (fallback !== undefined) return signed(fallback);
+  return "—";
+}
+
 const kpis = computed(() => {
   const s = stats.value;
   return [
@@ -91,7 +109,7 @@ const kpis = computed(() => {
     {
       eyebrow: "God progs detected",
       info: "Iterations where a player gained an unusually large rating bump for their age. See the God Progs tab for per-event detail.",
-      value: s ? String(s.godProgs) : "—",
+      value: godProgsDisplay(run.value, s?.godProgs),
       accent: true,
       mono: false,
       label: "Elite outcomes flagged across the run.",
@@ -99,7 +117,7 @@ const kpis = computed(() => {
     {
       eyebrow: "Mean Δ baseline → P50",
       info: "Average rating change from each player's pre-sim baseline to their median projection. Positive means the cohort projects to improve.",
-      value: s ? signed(s.meanDelta) : "—",
+      value: meanDeltaDisplay(run.value, s?.meanDelta),
       accent: false,
       mono: true,
       label: "Did the league get better or worse, on average.",

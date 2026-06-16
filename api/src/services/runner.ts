@@ -4,6 +4,7 @@ import path from "node:path";
 import { outputsRoot } from "../paths.js";
 import * as cppAdapter from "./cppAdapter.js";
 import { setProgress } from "./progress.js";
+import { computeRunStats } from "./simArtifacts.js";
 
 export { PROGRESS, setProgress } from "./progress.js";
 
@@ -77,10 +78,23 @@ export async function runSimulationJob(
     });
 
     setProgress(build, "finalizing", 99, "Writing metadata…");
+    let aggregateStats = {
+      god_progs: null as number | null,
+      mean_delta: null as number | null,
+      severe_regressions: null as number | null,
+    };
+    try {
+      aggregateStats = computeRunStats(build);
+    } catch {
+      // Run still completes; list rows show "—" for missing stats.
+    }
     await mergeMetadata(build, {
       status: "complete",
       completed_at: utcNowIso(),
       player_count: playerCount,
+      god_progs: aggregateStats.god_progs,
+      mean_delta: aggregateStats.mean_delta,
+      severe_regressions: aggregateStats.severe_regressions,
       error: null,
     });
     setProgress(build, "complete", 100, "Done.", true);

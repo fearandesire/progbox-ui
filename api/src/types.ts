@@ -15,6 +15,9 @@ export interface RunMetadata {
   started_at?: string | null;
   completed_at?: string | null;
   player_count?: number | null;
+  god_progs?: number | null;
+  mean_delta?: number | null;
+  severe_regressions?: number | null;
   config_snapshot?: Record<string, unknown> | null;
   error?: string | null;
   error_detail?: string | null;

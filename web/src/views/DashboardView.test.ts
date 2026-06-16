@@ -90,7 +90,15 @@ describe("DashboardView", () => {
 
   it("renders run links when runs are present", async () => {
     mockSimsStore.runs = [
-      { build: "20260101120000", status: "complete", teams: [] },
+      {
+        build: "20260101120000",
+        status: "complete",
+        teams: [],
+        runs: 100,
+        player_count: 450,
+        god_progs: 3,
+        mean_delta: 0.42,
+      },
       { build: "20260102120000", status: "running", teams: [] },
     ];
 
@@ -105,6 +113,10 @@ describe("DashboardView", () => {
 
     expect(wrapper.text()).toContain("20260101120000");
     expect(wrapper.text()).toContain("running");
+    expect(wrapper.text()).toContain("3");
+    expect(wrapper.text()).toContain("god progs");
+    expect(wrapper.text()).toContain("+0.42");
+    expect(wrapper.text()).toContain("mean Δ");
   });
 
   it("deletes a run after confirmation and reloads the dashboard", async () => {

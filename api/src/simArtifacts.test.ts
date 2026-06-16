@@ -6,6 +6,7 @@ import {
   playerSummaries,
   playerAllRuns,
   godprogsRecords,
+  computeRunStats,
   listChartFilenames,
   chartPath,
   InvalidChartNameError,
@@ -130,5 +131,51 @@ describe("simArtifacts", () => {
     fs.mkdirSync(path.join(bad, "raw"), { recursive: true });
     fs.writeFileSync(path.join(bad, "raw", "godprogs.json"), "{}", "utf8");
     expect(godprogsRecords("20260301120000")).toEqual([]);
+  });
+
+  it("computeRunStats aggregates league-wide metrics", () => {
+    makeRunDir("20260401120000", {
+      rawRows: rowsFixture(),
+      godprogs: [{ name: "Alpha One" }, { name: "Beta Two" }],
+    });
+    expect(computeRunStats("20260401120000")).toEqual({
+      god_progs: 2,
+      mean_delta: 0.75,
+      severe_regressions: 0,
+    });
+
+    const severeRows = [
+      {
+        PlayerID: 2,
+        Name: "Cliff Three",
+        Team: "LAL",
+        Age: 34,
+        Baseline: 60,
+        Ovr: 55,
+        Delta: -3.0,
+        PER: 15,
+        DWS: 1.0,
+        EWA: 0.5,
+      },
+      {
+        PlayerID: 2,
+        Name: "Cliff Three",
+        Team: "LAL",
+        Age: 34,
+        Baseline: 60,
+        Ovr: 56,
+        Delta: -2.5,
+        PER: 15,
+        DWS: 1.0,
+        EWA: 0.5,
+      },
+    ];
+    makeRunDir("20260501120000", { rawRows: severeRows });
+    expect(computeRunStats("20260501120000").severe_regressions).toBe(1);
+    expect(computeRunStats("missing-build")).toEqual({
+      god_progs: null,
+      mean_delta: null,
+      severe_regressions: null,
+    });
   });
 });
