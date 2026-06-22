@@ -1,0 +1,41 @@
+name: E2E Full (Manual)
+
+# Run from Actions → E2E Full (Manual) → Run workflow when you want the full Playwright suite.
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e-full:
+    runs-on: [self-hosted, linux, dexter]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.8.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright full suite
+        run: pnpm run test:e2e:full
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-full-artifacts
+          path: |
+            playwright-report
+            test-results
+          retention-days: 1
+          if-no-files-found: ignore
