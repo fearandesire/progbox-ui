@@ -1,0 +1,12 @@
+Target         Old             New             Verdict       Reason                                                                   
+-------------  --------------  --------------  ------------  -------------------------------------------------------------------------
+T1 PEAK        -               29.19           INCONCLUSIVE  PeakAge missing for old and/or new script                                
+T2 DECLINE     -               -0.796          INCONCLUSIVE  DeclineSlope missing for old and/or new script                           
+T3 CEILING     0.000% / 76.00  0.001% / 77.00  PASS          new %>cap<0.5% (0.001%)=True, new P99<=82.0 (77.00)=True                 
+T4 SEPARATION  1.367 / 0.511   0.489 / 0.687   PASS          new PrimeSep>0 (0.489)=True, new PrimeSep(OVRadj)>0 (0.687)=True         
+T5 DEFENSE     -               -               INCONCLUSIVE  verified separately via defender spot-check (see verdict doc)            
+T6 NOISE       0.984 / 0.980   0.940 / 0.933   FAIL          new ICC>=old (0.940>=0.984)=False, new KendallW>=old (0.933>=0.980)=False
+T7 SANITY      -1.887          0.070           PASS          abs(new Drift)<=0.5 (|0.070|)=True; GodProg/run(new)=5.896 [INFO]        
+
+GATE: 3/6 required targets passed
+OVERALL: FAIL
