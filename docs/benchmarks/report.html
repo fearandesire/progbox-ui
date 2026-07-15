@@ -1,0 +1,274 @@
+<title>Progbox — v4.1 vs v4.3 Benchmark Verdict</title>
+<style>
+  :root{
+    --paper:#f4f2ee; --ink:#16181d; --muted:#5b6472; --line:#d9d4cb;
+    --card:#fbfaf7; --slate:#5b6b82; --amber:#d97a1a; --court:#1b2530;
+    --good:#2f8f57; --bad:#c1443a; --warn:#c98a1a;
+    --ff-disp:"Helvetica Neue",Arial,system-ui,sans-serif;
+    --ff-body:ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
+    --ff-mono:"SF Mono",ui-monospace,"Cascadia Code",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  .wrap{background:var(--paper);color:var(--ink);font-family:var(--ff-body);
+    line-height:1.6;padding:clamp(20px,5vw,64px) clamp(16px,5vw,48px);min-height:100%;
+    transition:background .35s ease,color .35s ease}
+  .col{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:38px}
+  .eyebrow{font-family:var(--ff-mono);font-size:12px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--amber);margin:0}
+  h1{font-family:var(--ff-disp);font-weight:800;letter-spacing:-.02em;
+    font-size:clamp(30px,6vw,52px);line-height:1.02;margin:.2em 0 0;text-wrap:balance}
+  h2{font-family:var(--ff-disp);font-weight:750;letter-spacing:-.01em;
+    font-size:clamp(20px,3.5vw,27px);margin:0 0 4px;text-wrap:balance}
+  p{margin:0;max-width:68ch}
+  .sub{color:var(--muted);max-width:70ch}
+  a{color:var(--amber);text-underline-offset:3px}
+
+  /* palette switcher */
+  .palbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+    font-family:var(--ff-mono);font-size:11.5px}
+  .palbar .plab{letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .palbtn{cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink);
+    font-family:var(--ff-mono);font-size:11.5px;letter-spacing:.03em;
+    padding:6px 13px;border-radius:999px;display:inline-flex;align-items:center;gap:7px;
+    transition:border-color .2s,transform .1s}
+  .palbtn:hover{transform:translateY(-1px)}
+  .palbtn .sw{width:11px;height:11px;border-radius:50%;background:var(--amber)}
+  .palbtn[aria-pressed="true"]{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber) inset}
+  .palbtn:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+  .verdict{background:var(--court);color:#fff;border-radius:14px;
+    padding:clamp(22px,4vw,34px);display:flex;flex-direction:column;gap:14px}
+  .verdict .tag{display:inline-flex;align-items:center;gap:9px;align-self:flex-start;
+    font-family:var(--ff-mono);font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;
+    background:color-mix(in srgb,var(--amber) 18%,transparent);color:var(--amber);
+    border:1px solid color-mix(in srgb,var(--amber) 45%,transparent);
+    padding:6px 12px;border-radius:999px}
+  .verdict .big{font-family:var(--ff-disp);font-size:clamp(19px,3vw,25px);
+    font-weight:650;line-height:1.34;letter-spacing:-.01em;color:#fff;max-width:64ch;opacity:.96}
+  .verdict .big b{color:var(--amber);font-weight:800;opacity:1}
+
+  .flips{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+  .flip{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px}
+  .flip .lab{font-family:var(--ff-mono);font-size:11.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+  .flip .row{display:flex;align-items:baseline;gap:10px;font-variant-numeric:tabular-nums}
+  .flip .from{font-family:var(--ff-disp);font-size:30px;font-weight:750;color:var(--slate)}
+  .flip .arrow{color:var(--amber);font-size:20px;font-weight:800}
+  .flip .to{font-family:var(--ff-disp);font-size:34px;font-weight:820;color:var(--amber)}
+  .flip .cap{margin:11px 0 0;font-size:13.5px;color:var(--muted);max-width:36ch}
+
+  .tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+  th,td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  thead th{font-family:var(--ff-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--muted)}
+  tbody tr:last-child td{border-bottom:none}
+  td.kpi{font-weight:650}
+  .v41{color:var(--slate);font-family:var(--ff-mono)}
+  .v43{color:var(--amber);font-weight:700;font-family:var(--ff-mono)}
+  .chip{display:inline-block;font-family:var(--ff-mono);font-size:11px;font-weight:700;
+    letter-spacing:.04em;padding:3px 9px;border-radius:999px;text-transform:uppercase}
+  .c-good{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good);
+    border:1px solid color-mix(in srgb,var(--good) 40%,transparent)}
+  .c-bad{background:color-mix(in srgb,var(--bad) 15%,transparent);color:var(--bad);
+    border:1px solid color-mix(in srgb,var(--bad) 40%,transparent)}
+  .c-warn{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn);
+    border:1px solid color-mix(in srgb,var(--warn) 42%,transparent)}
+
+  /* age-curve mini bars */
+  .curve{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:6px}
+  .cbar{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 12px;
+    display:flex;flex-direction:column;gap:8px;text-align:center}
+  .cbar .age{font-family:var(--ff-mono);font-size:11px;letter-spacing:.06em;color:var(--muted)}
+  .cbar .track{height:52px;display:flex;align-items:center;justify-content:center}
+  .cbar .val{font-family:var(--ff-disp);font-weight:780;font-size:18px;font-variant-numeric:tabular-nums}
+  .cbar .pos{color:var(--good)} .cbar .neg{color:var(--bad)} .cbar .flat{color:var(--muted)}
+
+  .goals{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+  .goal{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;
+    display:flex;flex-direction:column;gap:7px}
+  .goal .q{font-weight:700;font-size:14.5px}
+  .goal .a{font-size:13.5px;color:var(--muted)}
+  .goal .a b{color:var(--ink)}
+
+  .cav{border-left:3px solid var(--warn);background:color-mix(in srgb,var(--warn) 8%,var(--card));
+    border-radius:0 10px 10px 0;padding:16px 20px;display:flex;flex-direction:column;gap:6px}
+  .cav h3{margin:0;font-size:15.5px;font-family:var(--ff-disp)}
+  .cav p{font-size:13.5px;color:var(--muted)}
+
+  pre{font-family:var(--ff-mono);font-size:12px;background:var(--court);color:#eee;
+    padding:18px;border-radius:11px;overflow-x:auto;line-height:1.5;margin:0;opacity:.95}
+
+  .foot{display:flex;flex-wrap:wrap;gap:10px 22px;font-size:13px;color:var(--muted);
+    border-top:1px solid var(--line);padding-top:20px}
+  .foot .k{font-family:var(--ff-mono);color:var(--ink)}
+  .divide{height:1px;background:var(--line);border:none;margin:0}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap"><div class="col">
+
+  <div class="palbar">
+    <span class="plab">Palette</span>
+    <button class="palbtn" data-pal="vermilion" aria-pressed="true"><span class="sw"></span>Vermilion</button>
+    <button class="palbtn" data-pal="hardwood" aria-pressed="false"><span class="sw"></span>Hardwood</button>
+    <button class="palbtn" data-pal="blueprint" aria-pressed="false"><span class="sw"></span>Blueprint</button>
+  </div>
+
+  <header>
+    <p class="eyebrow">Progbox · progression peer review · 500 runs · seed 69</p>
+    <h1>v4.1 vs v4.3 — is the new script actually better?</h1>
+    <p class="sub" style="margin-top:14px">Head-to-head on the same export, same seed, same run count — only the progression script changed. Verified, not eyeballed: a shared scorecard, a defender spot-check, and a pass/fail gate against seven pre-agreed targets.</p>
+  </header>
+
+  <section class="verdict">
+    <span class="tag">● Verdict — adopt v4.3</span>
+    <p class="big">v4.3 fixes the two things that mattered: it stops the league-wide <b>OVR deflation</b> and it stops <b>burying defenders</b>. Talent still separates at equal OVR, the age curve is healthy, and the ceiling stays controlled. The one real cost is a bit more run-to-run noise — still <b>94% driven by player identity</b>.</p>
+  </section>
+
+  <section>
+    <h2>The two flips that carry the verdict</h2>
+    <p class="sub" style="margin:6px 0 18px">Sample-independent — they don't depend on threshold choices or the roster's age shape.</p>
+    <div class="flips">
+      <div class="flip">
+        <p class="lab">League drift · OVR / player / run</p>
+        <div class="row"><span class="from">−1.89</span><span class="arrow">→</span><span class="to">+0.07</span></div>
+        <p class="cap">v4.1 deflates the whole league ~1.9 points every run. v4.3 is balanced.</p>
+      </div>
+      <div class="flip">
+        <p class="lab">Defender pool · mean ΔOVR (n=32)</p>
+        <div class="row"><span class="from">−1.92</span><span class="arrow">→</span><span class="to">+0.29</span></div>
+        <p class="cap">Low-PER, high-DBPM/STL/BLK players. The sign flips from decline to growth.</p>
+      </div>
+      <div class="flip">
+        <p class="lab">Talent separation at equal OVR</p>
+        <div class="row"><span class="from">0.51</span><span class="arrow">→</span><span class="to">0.69</span></div>
+        <p class="cap">Better players out-progress worse ones more — the fairness metric.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The age curve is exactly the shape you asked for</h2>
+    <p class="sub" style="margin:6px 0 4px">v4.3 mean ΔOVR by age band — rise, plateau, then an accelerating falloff. v4.1 had no curve at all in this cohort (pure decline). The sim progresses age 25+; BBGM handles younger players natively.</p>
+    <div class="curve">
+      <div class="cbar"><span class="age">AGE 25–27</span><div class="track"><span class="val pos">+1.45</span></div><span class="age">rising</span></div>
+      <div class="cbar"><span class="age">AGE 28–30</span><div class="track"><span class="val flat">−0.06</span></div><span class="age">plateau · peak ~29</span></div>
+      <div class="cbar"><span class="age">AGE 31–33</span><div class="track"><span class="val neg">−0.63</span></div><span class="age">decline</span></div>
+      <div class="cbar"><span class="age">AGE 34+</span><div class="track"><span class="val neg">−3.73</span></div><span class="age">steep falloff</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Scorecard</h2>
+    <p class="sub" style="margin:6px 0 16px">Ash's <span style="font-family:var(--ff-mono)">analysis.py</span> comparison mode, distilled to one number per script.</p>
+    <div class="tblwrap"><table>
+      <thead><tr><th>KPI</th><th>v4.1</th><th>v4.3</th><th>Verdict</th><th>Read</th></tr></thead>
+      <tbody>
+        <tr><td class="kpi">Drift (league inflation)</td><td class="v41">−1.887</td><td class="v43">+0.070</td><td><span class="chip c-good">Pass</span></td><td>Balanced vs heavy deflation</td></tr>
+        <tr><td class="kpi">PrimeSep (OVR-adjusted)</td><td class="v41">0.511</td><td class="v43">0.687</td><td><span class="chip c-good">Pass</span></td><td>Fairer at equal OVR</td></tr>
+        <tr><td class="kpi">P99 OVR / % over cap</td><td class="v41">76 / 0.00%</td><td class="v43">77 / 0.001%</td><td><span class="chip c-good">Pass</span></td><td>Ceiling controlled both</td></tr>
+        <tr><td class="kpi">Peak age</td><td class="v41">— none —</td><td class="v43">29.19</td><td><span class="chip c-good">Healthy</span></td><td>Real curve; v4.1 has none</td></tr>
+        <tr><td class="kpi">Decline slope · OVR/yr</td><td class="v41">— none —</td><td class="v43">−0.796</td><td><span class="chip c-good">Healthy</span></td><td>Then −3.7 at 34+</td></tr>
+        <tr><td class="kpi">PrimeSep (raw)</td><td class="v41">1.367</td><td class="v43">0.489</td><td><span class="chip c-warn">Expected</span></td><td>Ceiling compressing the top</td></tr>
+        <tr><td class="kpi">Identity share · ICC(OVR)</td><td class="v41">0.984</td><td class="v43">0.940</td><td><span class="chip c-bad">Trade</span></td><td>Noisier by design — still 94% identity</td></tr>
+        <tr><td class="kpi">Rank stability · Kendall W</td><td class="v41">0.980</td><td class="v43">0.933</td><td><span class="chip c-bad">Trade</span></td><td>Same noise knob</td></tr>
+        <tr><td class="kpi">God-progs / run</td><td class="v41">2.41</td><td class="v43">5.90</td><td><span class="chip c-warn">Info</span></td><td>More frequent boom-progs</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <hr class="divide">
+
+  <section>
+    <h2>Defender spot-check</h2>
+    <p class="sub" style="margin:6px 0 16px">The "defenders buried by PER" goal, tested on named players: low PER, real defensive value, prime age. v4.3 routes STL%/BLK%/DBPM into dIQ/Str/Jmp (dIQ carries a 0.159 OVR weight) instead of dragging them down on offense.</p>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Player</th><th>Age</th><th>PER</th><th>DBPM</th><th>v4.1 Δ</th><th>v4.3 Δ</th><th>Gain</th></tr></thead>
+      <tbody>
+        <tr><td class="kpi">Serge Ibaka</td><td>28</td><td>9.4</td><td>5.36</td><td class="v41">−1.96</td><td class="v43">+0.01</td><td>+1.97</td></tr>
+        <tr><td class="kpi">Ian Mahinmi</td><td>31</td><td>10.9</td><td>1.15</td><td class="v41">−4.88</td><td class="v43">−0.73</td><td>+4.15</td></tr>
+        <tr><td class="kpi">Jason Thompson</td><td>31</td><td>10.8</td><td>1.84</td><td class="v41">−4.24</td><td class="v43">−0.43</td><td>+3.81</td></tr>
+        <tr><td class="kpi">Ryan Kelly</td><td>26</td><td>10.1</td><td>1.27</td><td class="v41">−2.32</td><td class="v43">+1.45</td><td>+3.77</td></tr>
+        <tr><td class="kpi">Chris Singleton</td><td>28</td><td>9.9</td><td>1.74</td><td class="v41">−3.19</td><td class="v43">−0.79</td><td>+2.40</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Every goal → the evidence</h2>
+    <div class="goals">
+      <div class="goal"><span class="q">Players good too long</span><span class="a"><b>Fixed.</b> v4.1's real flaw was pure deflation (−1.9). v4.3 rises to 27, plateaus ~29, then falls off hard.</span></div>
+      <div class="goal"><span class="q">Defenders buried by PER</span><span class="a"><b>Decisively fixed.</b> Pool sign flips −1.92 → +0.29; every spot-checked defender gains.</span></div>
+      <div class="goal"><span class="q">All-Star track stays All-Star</span><span class="a"><b>Held.</b> Separation at equal OVR up 0.51 → 0.69; ceiling keeps the top from running away.</span></div>
+      <div class="goal"><span class="q">Plateau then aggressive falloff</span><span class="a"><b>Confirmed.</b> Soft ceiling 78, decline −0.6 at 31–33 steepening to −3.7 at 34+; ~0% break OVR 84.</span></div>
+      <div class="goal"><span class="q">Randomization bounded</span><span class="a"><b>Held.</b> 94% of outcome is player identity — dice never dominate — vs v4.1's 98%.</span></div>
+      <div class="goal"><span class="q">EWA was a mistake</span><span class="a"><b>Agreed.</b> v4.3 drops EWA entirely; drivers are BPM 70% + PER 30% + per-stat nudges.</span></div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:14px">
+    <h2>The one honest caveat</h2>
+    <div class="cav"><h3>v4.3 trades a slice of determinism for its noise knob</h3><p>ICC 0.984 → 0.940, Kendall W 0.980 → 0.933. Still strongly identity-dominated (94% of outcome is <em>who the player is</em>), but deliberately noisier — a per-player common-shock that makes breakouts and busts possible. Your call to make: is 94% acceptable? If you want it tighter, ask Ash to lower <span style="font-family:var(--ff-mono)">commonNoise</span> / <span style="font-family:var(--ff-mono)">noiseAmp</span> in the v4.3 config.</p></div>
+  </section>
+
+  <section>
+    <h2>What you can state</h2>
+    <pre>"v4.3 fixes the two things that mattered: it stops the league-wide OVR
+ deflation (drift -1.9 -> +0.07) and it stops burying defenders (defender
+ pool delta -1.92 -> +0.29, sign flips). It gives a healthy age curve --
+ rising to 27, plateau at ~29, then an accelerating falloff -- talent still
+ separates at equal OVR (0.51 -> 0.69), and the ceiling stays controlled
+ (~0% over OVR 84). The only cost is a bit more run-to-run noise (identity
+ share 98% -> 94%, still identity-dominated). Net: adopt v4.3; decide
+ separately whether to dial its noise down."</pre>
+  </section>
+
+  <footer class="foot">
+    <span><span class="k">Engine</span> upstream@75605dc (C++20)</span>
+    <span><span class="k">Data</span> export.json · 359 progressing (age 25+)</span>
+    <span><span class="k">Full charts</span> progbox-v41-vs-v43-dashboard.html (28 Plotly charts)</span>
+    <span><span class="k">Gate</span> tools/scorecard_gate.py</span>
+    <span><span class="k">Verdict doc</span> docs/benchmarks/v41-vs-v43.md</span>
+  </footer>
+
+</div></div>
+
+<script>
+  const PAL = {
+    hardwood:{
+      light:{paper:"#f4f2ee",ink:"#16181d",muted:"#5b6472",line:"#d9d4cb",card:"#fbfaf7",slate:"#5b6b82",amber:"#d97a1a",court:"#1b2530"},
+      dark: {paper:"#12161c",ink:"#e9ebef",muted:"#9aa4b2",line:"#2a323d",card:"#181e26",slate:"#8fa4bd",amber:"#f0a03c",court:"#0c1016"}
+    },
+    blueprint:{
+      light:{paper:"#eaeef2",ink:"#152230",muted:"#5a6672",line:"#cfd8e1",card:"#f7fafc",slate:"#8593a3",amber:"#2f7d95",court:"#17242f"},
+      dark: {paper:"#0d141b",ink:"#dce6ee",muted:"#8497a8",line:"#243441",card:"#141f29",slate:"#6d8194",amber:"#46b3c9",court:"#0a1017"}
+    },
+    vermilion:{
+      light:{paper:"#f6f3ef",ink:"#1c1917",muted:"#6b625a",line:"#e0d8cf",card:"#fdfbf8",slate:"#7d7268",amber:"#c8432c",court:"#241f1c"},
+      dark: {paper:"#15120f",ink:"#ece6df",muted:"#a89c8f",line:"#332c24",card:"#201b16",slate:"#9a8d7f",amber:"#e4614a",court:"#0e0b08"}
+    }
+  };
+  let current = "vermilion";
+  function effTheme(){
+    const t = document.documentElement.getAttribute("data-theme");
+    if (t === "dark" || t === "light") return t;
+    return window.matchMedia("(prefers-color-scheme:dark)").matches ? "dark" : "light";
+  }
+  function apply(name){
+    current = name;
+    const set = PAL[name][effTheme()];
+    const s = document.documentElement.style;
+    for (const k in set) s.setProperty("--" + k, set[k]);
+    document.querySelectorAll(".palbtn").forEach(function(b){
+      b.setAttribute("aria-pressed", String(b.dataset.pal === name));
+    });
+  }
+  document.querySelectorAll(".palbtn").forEach(function(b){
+    b.addEventListener("click", function(){ apply(b.dataset.pal); });
+  });
+  window.matchMedia("(prefers-color-scheme:dark)").addEventListener("change", function(){ apply(current); });
+  new MutationObserver(function(){ apply(current); })
+    .observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
+  apply("vermilion");
+</script>
