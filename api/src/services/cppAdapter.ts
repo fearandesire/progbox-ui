@@ -130,6 +130,7 @@ export interface RunCppOptions {
   canonicalRunDir: string;
   progressCallback?: (pct: number, message: string) => void;
   stageCallback?: (stage: string, message: string) => void;
+  version?: string;
 }
 
 export async function runCppSimulation(opts: RunCppOptions): Promise<number> {
@@ -168,7 +169,7 @@ export async function runCppSimulation(opts: RunCppOptions): Promise<number> {
         path.resolve(opts.teaminfoPath),
         path.resolve(cppOutputsBase),
         "-v",
-        "v41",
+        opts.version ?? "v41",
         "-r",
         String(opts.runs),
         "-w",
