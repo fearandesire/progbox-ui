@@ -1,8 +1,10 @@
 #pragma once
-#include "core_types.hpp"
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 // ─────────────────────────────────────────────────────────────────────────────
 // Lightweight progress indicator
 // ─────────────────────────────────────────────────────────────────────────────
@@ -30,6 +32,10 @@ public:
 
 private:
     void display(int done, bool final = false) {
+        #ifdef _WIN32
+            // Forces the Windows console to properly translate and render UTF-8 blocks
+            SetConsoleOutputCP(CP_UTF8);
+        #endif
         std::lock_guard<std::mutex> lock(mtx_);
 
         double progress = static_cast<double>(done) / total_;

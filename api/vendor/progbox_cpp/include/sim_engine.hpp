@@ -1,5 +1,6 @@
 /// @file sim_engine.hpp
 /// @brief Parallel simulation engine for Monte Carlo player progressions.
+/// @author @akshayexists
 
 #pragma once
 #include "core_types.hpp"
@@ -21,7 +22,7 @@ namespace progbox {
 
 class SimEngine {
 private:
-    const IProgressionStrategy& strategy_;
+    IProgressionStrategy& strategy_;
     size_t num_workers_;
 
     /// @brief A lightweight, fixed-size thread pool for parallel task execution.
@@ -96,19 +97,21 @@ public:
     /// @brief Constructs the simulation engine.
     /// @param strategy The progression strategy to apply to each player.
     /// @param workers The number of threads to use (defaults to hardware concurrency).
-    SimEngine(const IProgressionStrategy& strategy,
+    SimEngine(IProgressionStrategy& strategy,
               size_t workers = std::thread::hardware_concurrency())
         : strategy_(strategy), num_workers_(workers > 0 ? workers : 1) {}
 
     /// @brief Executes multiple simulation runs in parallel and collects results.
     /// @param meta Vector of player metadata (names, teams).
     /// @param base_states Vector of initial player states to progress.
+    /// @param base_stats Vector of immutable season profiles (parallel to base_states).
     /// @param runs The total number of Monte Carlo simulations to execute.
     /// @param seed The master seed for reproducible RNG generation.
     /// @return A vector of RunResult containing the outcomes of every simulation.
     std::vector<RunResult> run(
         const std::vector<PlayerMeta>& meta,
         const std::vector<PlayerState>& base_states,
+        const std::vector<PlayerStats>& base_stats,
         int runs,
         int seed = 69
     ) {
@@ -119,10 +122,10 @@ public:
         for (int i = 0; i < runs; ++i) {
             run_seeds[i] = seed_dist(master_rng);
         }
-
+        strategy_.prepare(base_stats);
         thread_pool pool(num_workers_);
         ProgressIndicator progress(runs, "simulations");
-        
+
         std::vector<std::future<RunResult>> futures;
         futures.reserve(runs);
 
@@ -130,7 +133,7 @@ public:
 
         for (int r = 0; r < runs; ++r) {
             futures.emplace_back(pool.enqueue(
-                [this, &progress, s = run_seeds[r], &base_states, &meta, n_players]()
+                [this, &progress, s = run_seeds[r], &base_states, &base_stats, &meta, n_players]()
             {
                 RunResult result;
                 result.run_seed = s;
@@ -141,7 +144,7 @@ public:
 
                 for (size_t p = 0; p < n_players; ++p) {
                     ProgressionResult res =
-                        strategy_.progress_player(base_states[p], run_rng, s);
+                        strategy_.progress_player(base_states[p], base_stats[p], run_rng, s);
 
                     result.final_ovrs.push_back(static_cast<double>(res.final_ovr));
                     result.progressed_attrs.push_back(res.final_state.attrs);
@@ -152,7 +155,7 @@ public:
                         result.god_progs.push_back(std::move(record));
                     }
                 }
-                
+
                 progress.tick();
                 return result;
             }));
@@ -162,7 +165,7 @@ public:
         for (int r = 0; r < runs; ++r) {
             all_results[r] = futures[r].get();
         }
-        
+
         progress.finish();
         return all_results;
     }

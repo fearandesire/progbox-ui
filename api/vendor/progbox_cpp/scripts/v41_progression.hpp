@@ -121,13 +121,14 @@ public:
     /// @param run_seed The seed of the simulation run.
     /// @return The final ProgressionResult.
     ProgressionResult progress_player(
-        const PlayerState& player, 
+        const PlayerState& player,
+        const PlayerStats& stats,
         std::mt19937& rng,
         int64_t run_seed
     ) const override {
         PlayerState out = player;
         std::optional<GodProgRecord> god_prog = std::nullopt;
-        
+
         int age = static_cast<int>(out.age);
         if (age < 26) {
             int ovr = calcovr_from_array(out.attrs);
@@ -135,7 +136,7 @@ public:
         }
 
         int ovr = calcovr_from_array(out.attrs);
-        auto [lo, hi] = get_prog_range(out.per, out.dws, out.ewa, ovr, age);
+        auto [lo, hi] = get_prog_range(stats.per, stats.dws, stats.ewa, ovr, age);
 
         std::uniform_real_distribution<double> r_dist(0.0, 1.0);
         if (age < 30 && ovr < 60 && r_dist(rng) < 0.02) {
