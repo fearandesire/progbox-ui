@@ -118,7 +118,7 @@
   <header>
     <p class="eyebrow">Progbox · progression peer review · 500 runs · seed 69</p>
     <h1>v4.1 vs v4.3 — is the new script actually better?</h1>
-    <p class="sub" style="margin-top:14px">Head-to-head on the same export, same seed, same run count — only the progression script changed. Verified, not eyeballed: a shared scorecard, a defender spot-check, and a pass/fail gate against seven pre-agreed targets.</p>
+    <p class="sub" style="margin-top:14px">Head-to-head on the same export, same seed, same run count — only the progression script changed. Verified, not eyeballed: a shared scorecard, a named-defender spot-check, and a pass/fail gate against seven targets agreed up front.</p>
   </header>
 
   <section class="verdict">
@@ -150,7 +150,7 @@
 
   <section>
     <h2>The age curve is exactly the shape you asked for</h2>
-    <p class="sub" style="margin:6px 0 4px">v4.3 mean ΔOVR by age band — rise, plateau, then an accelerating falloff. v4.1 had no curve at all in this cohort (pure decline). The sim progresses age 25+; BBGM handles younger players natively.</p>
+    <p class="sub" style="margin:6px 0 4px">v4.3 mean ΔOVR by age band — rise, plateau, then an accelerating falloff. v4.1 has no curve at all in this cohort, just steady decline. The sim progresses age 25+; BBGM handles younger players natively.</p>
     <div class="curve">
       <div class="cbar"><span class="age">AGE 25–27</span><div class="track"><span class="val pos">+1.45</span></div><span class="age">rising</span></div>
       <div class="cbar"><span class="age">AGE 28–30</span><div class="track"><span class="val flat">−0.06</span></div><span class="age">plateau · peak ~29</span></div>
@@ -161,7 +161,7 @@
 
   <section>
     <h2>Scorecard</h2>
-    <p class="sub" style="margin:6px 0 16px">Ash's <span style="font-family:var(--ff-mono)">analysis.py</span> comparison mode, distilled to one number per script.</p>
+    <p class="sub" style="margin:6px 0 16px">The <span style="font-family:var(--ff-mono)">analysis.py</span> comparison mode, distilled to a single number per script.</p>
     <div class="tblwrap"><table>
       <thead><tr><th>KPI</th><th>v4.1</th><th>v4.3</th><th>Verdict</th><th>Read</th></tr></thead>
       <tbody>
@@ -209,7 +209,7 @@
 
   <section style="display:flex;flex-direction:column;gap:14px">
     <h2>The one honest caveat</h2>
-    <div class="cav"><h3>v4.3 trades a slice of determinism for its noise knob</h3><p>ICC 0.984 → 0.940, Kendall W 0.980 → 0.933. Still strongly identity-dominated (94% of outcome is <em>who the player is</em>), but deliberately noisier — a per-player common-shock that makes breakouts and busts possible. Your call to make: is 94% acceptable? If you want it tighter, ask Ash to lower <span style="font-family:var(--ff-mono)">commonNoise</span> / <span style="font-family:var(--ff-mono)">noiseAmp</span> in the v4.3 config.</p></div>
+    <div class="cav"><h3>v4.3 trades a slice of determinism for its noise knob</h3><p>ICC 0.984 → 0.940, Kendall W 0.980 → 0.933. Still firmly identity-dominated (94% of the outcome is <em>who the player is</em>), but deliberately noisier — a per-player common-shock that keeps breakouts and busts on the table. The call is whether 94% is tight enough; if not, it's a one-line fix — lower <span style="font-family:var(--ff-mono)">commonNoise</span> / <span style="font-family:var(--ff-mono)">noiseAmp</span> in the v4.3 config.</p></div>
   </section>
 
   <section>
