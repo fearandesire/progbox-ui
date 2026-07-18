@@ -435,10 +435,11 @@ export async function registerSimsRoutes(
   fastify.get<{ Querystring: { builds?: string } }>(
     "/api/sims/compare",
     async (request, reply) => {
-      const builds = (request.query.builds ?? "")
+      const rawBuilds = (request.query.builds ?? "")
         .split(",")
         .map((b) => b.trim())
         .filter((b) => b.length > 0);
+      const builds = [...new Set(rawBuilds)];
 
       if (builds.length < 2) {
         return badRequest(reply, 400, "Provide at least 2 build ids to compare");

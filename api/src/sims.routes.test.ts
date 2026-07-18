@@ -465,6 +465,19 @@ describe("sims routes", () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it("compare rejects duplicate build ids", async () => {
+    const build = "20260101120000";
+    makeRunDir(build);
+    const spy = vi.spyOn(analysisPython, "runPythonComparison");
+    const app = await buildTestApp();
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/sims/compare?builds=${build},${build}`,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   it("compare rejects an invalid build id", async () => {
     makeRunDir("20260101120000");
     const app = await buildTestApp();

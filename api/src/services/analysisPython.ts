@@ -19,6 +19,10 @@ function pythonCandidates(): string[] {
 
 type SpawnOutcome = { code: number; stderr: string } | "enoent";
 
+// analysis.py emits comparison files into runDirs[0], so comparisons must not
+// overlap until those files have been relocated into their cache directory.
+let comparisonLock: Promise<void> = Promise.resolve();
+
 function trySpawn(cmd: string, args: string[]): Promise<SpawnOutcome> {
   return new Promise((resolve, reject) => {
     const proc = spawn(cmd, args, { stdio: ["ignore", "ignore", "pipe"] });
@@ -64,25 +68,39 @@ export async function runPythonSingle(runDir: string): Promise<void> {
  * comparison_dashboard.html + comparison_scorecard.csv into run_dirs[0]; we
  * relocate both into cacheDir.
  * ponytail: relocate emitted files rather than patch the 4.9k-line vendored
- * analysis.py — keeps upstream re-vendoring clean. Ceiling: two comparisons
- * sharing run_dirs[0] concurrently could race; results are cache-keyed so
- * repeats skip, add a per-key lock if it ever matters.
+ * analysis.py — keeps upstream re-vendoring clean. A global lock is sufficient
+ * for rare user-triggered comparisons; upgrade to per-first-dir locks if
+ * comparison throughput ever matters.
  */
 export async function runPythonComparison(runDirs: string[], cacheDir: string): Promise<void> {
-  const resolved = runDirs.map((d) => path.resolve(d));
-  await runAnalysisPy(resolved);
-  await fsp.mkdir(cacheDir, { recursive: true });
-  const firstDir = resolved[0]!;
-  for (const name of ["comparison_dashboard.html", "comparison_scorecard.csv"]) {
-    const src = path.join(firstDir, name);
-    if (!fs.existsSync(src)) continue;
-    const dst = path.join(cacheDir, name);
-    try {
-      await fsp.rename(src, dst);
-    } catch {
-      await fsp.copyFile(src, dst);
-      await fsp.rm(src, { force: true });
+  const previous = comparisonLock;
+  let release!: () => void;
+  comparisonLock = new Promise((resolve) => {
+    release = resolve;
+  });
+
+  await previous;
+  try {
+    const dashboardPath = path.join(cacheDir, "comparison_dashboard.html");
+    if (fs.existsSync(dashboardPath)) return;
+
+    const resolved = runDirs.map((d) => path.resolve(d));
+    await runAnalysisPy(resolved);
+    await fsp.mkdir(cacheDir, { recursive: true });
+    const firstDir = resolved[0]!;
+    for (const name of ["comparison_dashboard.html", "comparison_scorecard.csv"]) {
+      const src = path.join(firstDir, name);
+      if (!fs.existsSync(src)) continue;
+      const dst = path.join(cacheDir, name);
+      try {
+        await fsp.rename(src, dst);
+      } catch {
+        await fsp.copyFile(src, dst);
+        await fsp.rm(src, { force: true });
+      }
     }
+  } finally {
+    release();
   }
 }
 
