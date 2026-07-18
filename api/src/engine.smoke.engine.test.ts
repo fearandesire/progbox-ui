@@ -8,7 +8,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parse } from "csv-parse/sync";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { resolveBinary } from "./services/cppAdapter.js";
 import { runPythonComparison } from "./services/analysisPython.js";
 import { PROGRESS, runSimulationJob } from "./services/runner.js";
@@ -104,15 +104,14 @@ function readMeta(runDir: string): Record<string, unknown> {
   >;
 }
 
+// Resolve at collection time — describe.skipIf() is evaluated before beforeAll runs.
 let hasBinary = false;
-beforeAll(() => {
-  try {
-    resolveBinary();
-    hasBinary = true;
-  } catch {
-    hasBinary = false;
-  }
-});
+try {
+  resolveBinary();
+  hasBinary = true;
+} catch {
+  hasBinary = false;
+}
 
 const ORIGINAL_PROGBOX_OUTPUTS = process.env.PROGBOX_OUTPUTS_DIR;
 const ORIGINAL_PROGBOX_PYTHON = process.env.PROGBOX_PYTHON;
@@ -176,7 +175,7 @@ describe.skipIf(!hasBinary)("C++ engine smoke", () => {
     } finally {
       await fsp.rm(root, { recursive: true, force: true });
     }
-  });
+  }, 120_000);
 
   it("filters to BOS when teams=['BOS']", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "progbox-engine-bos-"));
@@ -197,7 +196,7 @@ describe.skipIf(!hasBinary)("C++ engine smoke", () => {
     } finally {
       await fsp.rm(root, { recursive: true, force: true });
     }
-  });
+  }, 120_000);
 
   it("degrades to the stub table when Python is unavailable", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "progbox-engine-fallback-"));
@@ -216,7 +215,7 @@ describe.skipIf(!hasBinary)("C++ engine smoke", () => {
     } finally {
       await fsp.rm(root, { recursive: true, force: true });
     }
-  });
+  }, 120_000);
 
   it("produces a comparison scorecard across two runs", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "progbox-engine-compare-"));
@@ -237,5 +236,5 @@ describe.skipIf(!hasBinary)("C++ engine smoke", () => {
     } finally {
       await fsp.rm(root, { recursive: true, force: true });
     }
-  });
+  }, 120_000);
 });
