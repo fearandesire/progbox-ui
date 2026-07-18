@@ -254,6 +254,44 @@ describe("RunDetailView", () => {
     expect(wrapper.find('[data-test="godprog-list"]').exists()).toBe(true);
   });
 
+  it("renders sibling and comparison links for a paired run", async () => {
+    vi.mocked(fetchSim).mockResolvedValueOnce({
+      build: "20260101120000",
+      status: "complete",
+      teams: [],
+      script_version: "v4.3.0",
+      pair_id: "pair-1",
+      pair_role: "primary",
+      paired_with: "20260101120001",
+    } as RunMetadata);
+
+    const router = createRouterForBuild();
+    await router.push("/runs/20260101120000");
+    await router.isReady();
+
+    const wrapper = mount(RunDetailView, {
+      global: { plugins: [router], stubs: { RouterLink: RouterLinkStub } },
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Paired run");
+
+    const tos = wrapper
+      .findAllComponents(RouterLinkStub)
+      .map((link) => link.props("to"));
+
+    // Sibling run link.
+    expect(tos).toContain("/runs/20260101120001");
+
+    // Comparison link with both build ids.
+    const compareLink = tos.find(
+      (t): t is { path: string; query: { builds: string } } =>
+        typeof t === "object" && t !== null && (t as { path?: string }).path === "/compare",
+    );
+    expect(compareLink).toBeTruthy();
+    expect(compareLink!.query.builds).toBe("20260101120000,20260101120001");
+  });
+
   it("deletes a run after confirmation and returns to the dashboard", async () => {
     vi.mocked(fetchSim).mockResolvedValueOnce({
       build: "20260101120000",

@@ -1,14 +1,17 @@
 /**
- * Full C++ pipeline smoke — requires `pnpm build:engine` or `PROGBOX_CPP_BINARY`,
- * plus a Python env with the analysis deps for the real dashboard assertions.
+ * Full C++ pipeline smoke — requires `pnpm build:engine` or `PROGBOX_CPP_BINARY`.
+ * Single-run analysis may use Python or the TypeScript fallback; comparison dashboards
+ * still go through the existing Python path when available.
  * Excluded from default `pnpm test`; run via `pnpm test:api:engine`.
  */
+import FormData from "form-data";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parse } from "csv-parse/sync";
 import { afterEach, describe, expect, it } from "vitest";
+import { buildApp } from "./app.js";
 import { resolveBinary } from "./services/cppAdapter.js";
 import { runPythonComparison } from "./services/analysisPython.js";
 import { PROGRESS, runSimulationJob } from "./services/runner.js";
@@ -237,4 +240,91 @@ describe.skipIf(!hasBinary)("C++ engine smoke", () => {
       await fsp.rm(root, { recursive: true, force: true });
     }
   }, 120_000);
+
+  it("public POST /api/sims paired path schedules both versions and serves compare GET", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "progbox-engine-pair-api-"));
+    const outputsDir = path.join(root, "outputs");
+    process.env.PROGBOX_OUTPUTS_DIR = outputsDir;
+
+    const pending: Promise<unknown>[] = [];
+    const app = await buildApp({
+      scheduleBackground: (task) => {
+        pending.push(Promise.resolve(task()));
+      },
+    });
+
+    try {
+      const form = new FormData();
+      form.append("export", Buffer.from(JSON.stringify(sampleExport())), {
+        filename: "export.json",
+        contentType: "application/json",
+      });
+      form.append("teaminfo", Buffer.from(JSON.stringify(sampleTeaminfo())), {
+        filename: "teaminfo.json",
+        contentType: "application/json",
+      });
+      form.append(
+        "config",
+        JSON.stringify({
+          teams: [],
+          seed: 42,
+          runs: 2,
+          n_workers: 1,
+          version: "v43",
+          compare: true,
+        }),
+      );
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/sims",
+        payload: form.getBuffer() as Buffer,
+        headers: form.getHeaders() as Record<string, string>,
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as {
+        build: string;
+        compare_build: string;
+        pair_id: string;
+      };
+      expect(body.build).toHaveLength(14);
+      expect(body.compare_build).toHaveLength(14);
+      expect(body.compare_build).not.toBe(body.build);
+      expect(body.pair_id).toBe(body.build);
+
+      await Promise.all(pending);
+
+      const primaryMeta = readMeta(path.join(outputsDir, body.build));
+      const baselineMeta = readMeta(path.join(outputsDir, body.compare_build));
+      expect(primaryMeta.status).toBe("complete");
+      expect(baselineMeta.status).toBe("complete");
+      expect(primaryMeta.pair_id).toBe(body.pair_id);
+      expect(baselineMeta.pair_id).toBe(body.pair_id);
+      expect(primaryMeta.pair_role).toBe("primary");
+      expect(baselineMeta.pair_role).toBe("baseline");
+      expect(primaryMeta.paired_with).toBe(body.compare_build);
+      expect(baselineMeta.paired_with).toBe(body.build);
+      expect(primaryMeta.requested_version).toBe("v43");
+      expect(baselineMeta.requested_version).toBe("v41");
+      // Analysis may be Python or the TS fallback — do not require Python for pairing.
+      expect(["python", "fallback"]).toContain(primaryMeta.analysis_engine);
+      expect(["python", "fallback"]).toContain(baselineMeta.analysis_engine);
+
+      const compare = await app.inject({
+        method: "GET",
+        url: `/api/sims/compare?builds=${body.build},${body.compare_build}`,
+      });
+      if (compare.statusCode === 200) {
+        expect(compare.headers["content-type"]).toMatch(/^text\/html/);
+        expect(compare.body.length).toBeGreaterThan(0);
+      } else {
+        // Comparison dashboard still uses the Python tooling; pairing itself already passed.
+        expect(compare.statusCode).toBe(500);
+        expect(String(compare.body)).toMatch(/Comparison generation failed|Python/i);
+      }
+    } finally {
+      await app.close();
+      await fsp.rm(root, { recursive: true, force: true });
+    }
+  }, 180_000);
 });
