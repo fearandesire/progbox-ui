@@ -52,4 +52,15 @@ describe("ChartGallery", () => {
     const legacy = mount(ChartGallery, { props: { build: "20260101120000" } });
     expect(legacy.find(".fallback-notice").exists()).toBe(false);
   });
+
+  it("requests fullscreen on the iframe when the button is clicked", async () => {
+    const wrapper = mount(ChartGallery, { props: { build: "20260101120000" } });
+    const iframe = wrapper.get("iframe").element as HTMLIFrameElement;
+    const requestFullscreen = vi.fn();
+    iframe.requestFullscreen = requestFullscreen;
+
+    await wrapper.get('[aria-label="View dashboard fullscreen"]').trigger("click");
+
+    expect(requestFullscreen).toHaveBeenCalledTimes(1);
+  });
 });

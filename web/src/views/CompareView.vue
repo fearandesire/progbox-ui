@@ -6,6 +6,17 @@ import VersionChip from "../components/VersionChip.vue";
 import { compareUrl, fetchSims } from "../lib/api";
 import type { RunMetadata } from "../lib/types";
 
+const frameEl = ref<HTMLIFrameElement | null>(null);
+function toggleFullscreen() {
+  const el = frameEl.value;
+  if (!el) return;
+  if (document.fullscreenElement) {
+    void document.exitFullscreen();
+  } else {
+    void el.requestFullscreen?.();
+  }
+}
+
 const route = useRoute();
 
 const builds = computed<string[]>(() => {
@@ -81,13 +92,37 @@ onMounted(async () => {
           />
           <span class="compare-runs__id">{{ b }}</span>
         </span>
+        <button
+          class="compare-fs"
+          type="button"
+          title="View the comparison fullscreen (Esc to exit)"
+          aria-label="View comparison fullscreen"
+          @click="toggleFullscreen"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+          </svg>
+          Fullscreen
+        </button>
       </div>
 
       <iframe
+        ref="frameEl"
         :src="compareSrc"
         class="compare-frame"
         title="Comparison Dashboard"
         sandbox="allow-scripts allow-same-origin allow-downloads"
+        allowfullscreen
       />
     </template>
   </div>
@@ -109,6 +144,29 @@ onMounted(async () => {
   font-family: var(--mono, monospace);
   font-size: 12.5px;
   color: var(--fg-soft);
+}
+.compare-fs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md, 8px);
+  background: var(--surface);
+  color: var(--fg-soft, inherit);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.compare-fs:hover {
+  border-color: var(--accent, #10b981);
+  color: var(--accent-text, inherit);
+}
+.compare-frame:fullscreen {
+  height: 100vh;
+  border: 0;
+  border-radius: 0;
 }
 .compare-frame {
   width: 100%;
