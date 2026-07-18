@@ -1,3 +1,5 @@
 
-## 04:58 | agent/v4-3-ui-dashboard-7d84b6
-Explored v4.3 UI integration spec via 3 parallel agents (version-threading seam in sims.ts/runner.ts/cppAdapter.ts, run metadata/tests, analysis dashboard pipeline) to plan wiring v4.3 progression version selector, swapping TS stub for vendored Python analysis.py Plotly dashboard, and true engine metadata — plan not yet written to file.
+## 05:24 | feat/v43-ui-integration
+Verified peer review artifact for NET v4.3 against `docs/benchmarks/v41-vs-v43.md` (all metrics matched, minor rounding nit only), corrected the "less severe regressions past 28+" framing to "no more league-wide fade," and wrote the noob-friendly announcement to `M:\code\projects\progbox-ui\docs\benchmarks\v43-announcement.md` in the user's voice, no emojis.
+## 05:31 | agent/v4-3-ui-dashboard-7d84b6
+Explored v4.3 UI integration spec (version threading, metadata, Charts dashboard) via 3 parallel Explore agents, then wrote full plan to `C:\Users\FENIX\.claude\plans\spec-v4-3-full-ui-curried-babbage.md` covering wiring `version` field through sims.ts→runner.ts→cppAdapter.ts, merging engine's `engine_metadata.json` into canonical metadata, swapping TS stub (`analysisGenerate.ts`) for vendored Python `analysis.py` dashboard, and adding a comparison mode; user confirmed full WSL e2e verification before merge to `dev` + draft PR to `main`.
