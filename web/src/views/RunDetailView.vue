@@ -9,6 +9,7 @@ import LeagueExportPill from "../components/LeagueExportPill.vue";
 import PlayerTable from "../components/PlayerTable.vue";
 import SimProgressPanel from "../components/SimProgressPanel.vue";
 import StatusBadge from "../components/StatusBadge.vue";
+import VersionChip from "../components/VersionChip.vue";
 import { useRunStats } from "../composables/useRunStats";
 import { deleteSim, downloadUrl, fetchSim } from "../lib/api";
 import { duration, signed } from "../lib/format";
@@ -238,7 +239,14 @@ async function removeRun() {
               <dt>Workers</dt><dd>{{ run.n_workers ?? "auto" }}</dd>
             </div>
             <div class="meta-row">
-              <dt>Script</dt><dd>{{ run.script_version ?? "—" }}</dd>
+              <dt>Script</dt>
+              <dd style="display: flex; align-items: center; gap: 8px">
+                <VersionChip :version="run.script_version ?? run.requested_version" />
+                <span
+                  v-if="run.script_version && run.script_version !== 'v4.3' && run.script_version !== 'v4.1'"
+                  style="font-size: 12px; color: var(--fg-mute)"
+                >{{ run.script_version }}</span>
+              </dd>
             </div>
             <div class="meta-row">
               <dt>Teams</dt><dd>{{ run.teams?.length ? run.teams.join(", ") : "all" }}</dd>
@@ -440,6 +448,7 @@ async function removeRun() {
       <ChartGallery
         v-else-if="tab === 'charts'"
         :build="run.build"
+        :analysis-engine="run.analysis_engine"
       />
       <PlayerTable
         v-else-if="tab === 'players'"

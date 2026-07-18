@@ -130,4 +130,38 @@ describe("DashboardView", () => {
     expect(deleteSim).toHaveBeenCalledWith("20260101120000");
     expect(mockSimsStore.load).toHaveBeenCalledTimes(2);
   });
+
+  it("enables Compare only at 2+ selected runs and navigates to the comparison", async () => {
+    mockSimsStore.runs = [
+      { build: "20260101120000", status: "complete", teams: [], requested_version: "v43" },
+      { build: "20260102120000", status: "complete", teams: [], requested_version: "v41" },
+    ];
+
+    const wrapper = mount(DashboardView, {
+      global: { stubs: { RouterLink: RouterLinkStub } },
+    });
+    await flushPromises();
+
+    const compareBtn = wrapper.get('[aria-label="Compare selected runs"]');
+    expect(compareBtn.attributes("disabled")).toBeDefined();
+
+    const checkboxes = wrapper.findAll("input.run-row__select");
+    expect(checkboxes.length).toBe(2);
+
+    await checkboxes[0]!.setValue(true);
+    expect(compareBtn.attributes("disabled")).toBeDefined();
+
+    await checkboxes[1]!.setValue(true);
+    expect(compareBtn.attributes("disabled")).toBeUndefined();
+
+    await compareBtn.trigger("click");
+    expect(mockRouterPush).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "/compare" }),
+    );
+    const arg = mockRouterPush.mock.calls.at(-1)![0] as { query: { builds: string } };
+    expect(arg.query.builds.split(",").sort()).toEqual([
+      "20260101120000",
+      "20260102120000",
+    ]);
+  });
 });

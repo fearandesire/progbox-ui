@@ -16,6 +16,7 @@ const teamsCsv = ref("");
 const seed = ref(69);
 const runs = ref(500);
 const nWorkers = ref<number | null>(null);
+const version = ref<"v41" | "v43">("v43");
 
 const state = ref<CreateState>("idle");
 const error = ref<string | null>(null);
@@ -91,6 +92,7 @@ async function submit() {
         seed: seed.value,
         runs: runs.value,
         n_workers: nWorkers.value,
+        version: version.value,
       },
       teaminfoFile.value,
     );
@@ -147,6 +149,23 @@ async function submit() {
           v-if="exportFile"
           class="hint"
         >{{ exportFile.name }}</span>
+      </div>
+
+      <div class="field">
+        <label for="sim-version">Progression script</label>
+        <select
+          id="sim-version"
+          v-model="version"
+          class="input"
+        >
+          <option value="v43">
+            v4.3 — adopted engine (recommended)
+          </option>
+          <option value="v41">
+            v4.1 — legacy
+          </option>
+        </select>
+        <span class="hint">v4.3 fixes league-wide OVR deflation and the age curve. Pick v4.1 only to compare.</span>
       </div>
 
       <div class="field-row">

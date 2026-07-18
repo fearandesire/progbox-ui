@@ -34,4 +34,22 @@ describe("ChartGallery", () => {
       "http://127.0.0.1:8000/api/sims/2026%2001%2F01/analysis",
     );
   });
+
+  it("shows a fallback notice when the analysis engine fell back", () => {
+    const wrapper = mount(ChartGallery, {
+      props: { build: "20260101120000", analysisEngine: "fallback" },
+    });
+    expect(wrapper.find(".fallback-notice").exists()).toBe(true);
+    expect(wrapper.text()).toContain("Full interactive dashboard unavailable");
+  });
+
+  it("shows no notice for a real Python dashboard or legacy runs", () => {
+    const python = mount(ChartGallery, {
+      props: { build: "20260101120000", analysisEngine: "python" },
+    });
+    expect(python.find(".fallback-notice").exists()).toBe(false);
+
+    const legacy = mount(ChartGallery, { props: { build: "20260101120000" } });
+    expect(legacy.find(".fallback-notice").exists()).toBe(false);
+  });
 });

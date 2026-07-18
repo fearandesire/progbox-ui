@@ -1,11 +1,16 @@
 export interface RunMetadata {
   build: string;
   script_version?: string | null;
+  requested_version?: string | null;
+  progression?: { id: string | null; name: string | null } | null;
+  engine_build?: string | null;
+  analysis_engine?: "python" | "fallback" | null;
   status: string;
   teams: string[];
   seed?: number | null;
   runs?: number | null;
   n_workers?: number | null;
+  year?: number | null;
   export_file?: string | null;
   export_title?: string | null;
   teaminfo_file?: string | null;
