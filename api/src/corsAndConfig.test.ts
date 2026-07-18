@@ -13,15 +13,14 @@ describe("cors", () => {
 });
 
 describe("config route", () => {
-  it("returns script_version and config", async () => {
+  it("returns the engine build and available progression versions", async () => {
     const app = await buildApp();
     try {
       const res = await app.inject({ method: "GET", url: "/api/config" });
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body) as Record<string, unknown>;
-      expect(body.script_version).toBeDefined();
-      expect(body.config).toBeDefined();
-      expect((body.config as Record<string, unknown>).ovr_hard_cap).toBe(80);
+      expect(typeof body.engine_build).toBe("string");
+      expect(body.versions).toEqual(["v41", "v43"]);
     } finally {
       await app.close();
     }

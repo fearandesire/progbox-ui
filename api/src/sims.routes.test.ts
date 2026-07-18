@@ -6,6 +6,7 @@ import type { FastifyInstance } from "fastify";
 import { buildApp } from "./app.js";
 import { PROGRESS } from "./services/progress.js";
 import * as runner from "./services/runner.js";
+import * as analysisPython from "./services/analysisPython.js";
 import { useIsolatedOutputs, makeRunDir, isolatedOutputsPath } from "./testUtils.js";
 
 useIsolatedOutputs();
@@ -335,6 +336,59 @@ describe("sims routes", () => {
     spy.mockRestore();
   });
 
+  it("post sim defaults progression version to v43", async () => {
+    const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
+    const app = await buildTestApp();
+    const res = await multipartPost(
+      app,
+      { players: [{ stats: [], tid: 0 }] },
+      { teams: [], seed: 1, runs: 10, n_workers: 1 },
+      { "0": "BOS" },
+    );
+    expect(res.statusCode).toBe(200);
+    const build = (JSON.parse(res.body) as { build: string }).build;
+    expect(spy.mock.calls[0]![7]).toBe("v43");
+    const meta = JSON.parse(
+      fs.readFileSync(path.join(isolatedOutputsPath(), build, "metadata.json"), "utf8"),
+    );
+    expect(meta.requested_version).toBe("v43");
+    expect(meta.script_version).toBe("v4.3");
+    spy.mockRestore();
+  });
+
+  it("post sim accepts an explicit v41 version", async () => {
+    const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
+    const app = await buildTestApp();
+    const res = await multipartPost(
+      app,
+      { players: [{ stats: [], tid: 0 }] },
+      { teams: [], seed: 1, runs: 10, n_workers: 1, version: "v41" },
+      { "0": "BOS" },
+    );
+    expect(res.statusCode).toBe(200);
+    const build = (JSON.parse(res.body) as { build: string }).build;
+    expect(spy.mock.calls[0]![7]).toBe("v41");
+    const meta = JSON.parse(
+      fs.readFileSync(path.join(isolatedOutputsPath(), build, "metadata.json"), "utf8"),
+    );
+    expect(meta.requested_version).toBe("v41");
+    spy.mockRestore();
+  });
+
+  it("post sim rejects an invalid version", async () => {
+    const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
+    const app = await buildTestApp();
+    const res = await multipartPost(
+      app,
+      { players: [{ stats: [], tid: 0 }] },
+      { teams: [], seed: 1, runs: 10, n_workers: 1, version: "v99" },
+      { "0": "BOS" },
+    );
+    expect(res.statusCode).toBe(422);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   it("post validation", async () => {
     const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
     const app = await buildTestApp();
@@ -399,6 +453,70 @@ describe("sims routes", () => {
     const app = await buildTestApp();
     const res = await app.inject({ method: "GET", url: `/api/sims/${build}/analysis` });
     expect(res.statusCode).toBe(404);
+  });
+
+  it("compare rejects fewer than two builds", async () => {
+    makeRunDir("20260101120000");
+    const app = await buildTestApp();
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/sims/compare?builds=20260101120000",
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("compare rejects an invalid build id", async () => {
+    makeRunDir("20260101120000");
+    const app = await buildTestApp();
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/sims/compare?builds=20260101120000,not-a-build",
+    });
+    expect(res.statusCode).toBe(422);
+  });
+
+  it("compare 404s an unknown build", async () => {
+    makeRunDir("20260101120000");
+    const app = await buildTestApp();
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/sims/compare?builds=20260101120000,20990101120000",
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("compare 409s an incomplete run", async () => {
+    makeRunDir("20260101120000");
+    makeRunDir("20260102120000", { metadata: { status: "running" } });
+    const app = await buildTestApp();
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/sims/compare?builds=20260101120000,20260102120000",
+    });
+    expect(res.statusCode).toBe(409);
+  });
+
+  it("compare serves generated HTML then the cache on repeat", async () => {
+    makeRunDir("20260101120000");
+    makeRunDir("20260102120000");
+    const spy = vi
+      .spyOn(analysisPython, "runPythonComparison")
+      .mockImplementation(async (_dirs: string[], cacheDir: string) => {
+        fs.mkdirSync(cacheDir, { recursive: true });
+        fs.writeFileSync(path.join(cacheDir, "comparison_dashboard.html"), "<html>cmp</html>");
+      });
+    const app = await buildTestApp();
+    const url = "/api/sims/compare?builds=20260101120000,20260102120000";
+
+    const r1 = await app.inject({ method: "GET", url });
+    expect(r1.statusCode).toBe(200);
+    expect(r1.headers["content-type"]).toMatch(/^text\/html/);
+    expect(r1.body).toBe("<html>cmp</html>");
+
+    const r2 = await app.inject({ method: "GET", url });
+    expect(r2.statusCode).toBe(200);
+    expect(r2.body).toBe("<html>cmp</html>");
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it("post bad teaminfo returns 400", async () => {

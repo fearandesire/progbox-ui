@@ -1,5 +1,6 @@
 /**
- * Full C++ pipeline smoke — requires `pnpm build:engine` or `PROGBOX_CPP_BINARY`.
+ * Full C++ pipeline smoke — requires `pnpm build:engine` or `PROGBOX_CPP_BINARY`,
+ * plus a Python env with the analysis deps for the real dashboard assertions.
  * Excluded from default `pnpm test`; run via `pnpm test:api:engine`.
  */
 import fs from "node:fs";
@@ -9,9 +10,10 @@ import path from "node:path";
 import { parse } from "csv-parse/sync";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { resolveBinary } from "./services/cppAdapter.js";
-import * as engineAdapter from "./services/engineAdapter.js";
-import { PROGRESS } from "./services/runner.js";
-import { runSimulationJob } from "./services/runner.js";
+import { runPythonComparison } from "./services/analysisPython.js";
+import { PROGRESS, runSimulationJob } from "./services/runner.js";
+
+const STUB_MARKER = "Monte Carlo outputs (sample)";
 
 function sampleTeaminfo(): Record<string, string> {
   return { "0": "BOS", "1": "NYK", "2": "GSW", "3": "SAC" };
@@ -73,6 +75,35 @@ function sampleExport(): Record<string, unknown> {
   };
 }
 
+/** Seed a run dir with export/teaminfo/metadata and drive the full pipeline. */
+async function driveRun(
+  outputsDir: string,
+  build: string,
+  teams: string[],
+  seed: number,
+): Promise<string> {
+  const runDir = path.join(outputsDir, build);
+  fs.mkdirSync(runDir, { recursive: true });
+  const exportPath = path.join(runDir, "export.json");
+  const teaminfoPath = path.join(runDir, "teaminfo.json");
+  await fsp.writeFile(exportPath, JSON.stringify(sampleExport(), null, 2), "utf8");
+  await fsp.writeFile(teaminfoPath, JSON.stringify(sampleTeaminfo(), null, 2), "utf8");
+  await fsp.writeFile(
+    path.join(runDir, "metadata.json"),
+    JSON.stringify({ build, status: "running", teams }),
+    "utf8",
+  );
+  await runSimulationJob(build, exportPath, teaminfoPath, teams, seed, 2, 1);
+  return runDir;
+}
+
+function readMeta(runDir: string): Record<string, unknown> {
+  return JSON.parse(fs.readFileSync(path.join(runDir, "metadata.json"), "utf8")) as Record<
+    string,
+    unknown
+  >;
+}
+
 let hasBinary = false;
 beforeAll(() => {
   try {
@@ -84,136 +115,127 @@ beforeAll(() => {
 });
 
 const ORIGINAL_PROGBOX_OUTPUTS = process.env.PROGBOX_OUTPUTS_DIR;
+const ORIGINAL_PROGBOX_PYTHON = process.env.PROGBOX_PYTHON;
 
 describe.skipIf(!hasBinary)("C++ engine smoke", () => {
-  let prevOutputs: string | undefined;
-
   afterEach(() => {
-    if (prevOutputs !== undefined) {
-      process.env.PROGBOX_OUTPUTS_DIR = prevOutputs;
-    } else if (ORIGINAL_PROGBOX_OUTPUTS !== undefined) {
+    if (ORIGINAL_PROGBOX_OUTPUTS !== undefined) {
       process.env.PROGBOX_OUTPUTS_DIR = ORIGINAL_PROGBOX_OUTPUTS;
     } else {
       delete process.env.PROGBOX_OUTPUTS_DIR;
     }
+    if (ORIGINAL_PROGBOX_PYTHON !== undefined) {
+      process.env.PROGBOX_PYTHON = ORIGINAL_PROGBOX_PYTHON;
+    } else {
+      delete process.env.PROGBOX_PYTHON;
+    }
     PROGRESS.clear();
   });
 
-  it("runs full pipeline", async () => {
+  it("runs a real v4.3 run and produces the interactive Plotly dashboard", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "progbox-engine-"));
-    prevOutputs = process.env.PROGBOX_OUTPUTS_DIR;
     const outputsDir = path.join(root, "outputs");
     process.env.PROGBOX_OUTPUTS_DIR = outputsDir;
-
     const build = "20260101120000";
-    const runDir = path.join(outputsDir, build);
-    fs.mkdirSync(runDir, { recursive: true });
-
-    const exportPayload = sampleExport();
-    const exportPath = path.join(runDir, "export.json");
-    const teaminfoPath = path.join(runDir, "teaminfo.json");
 
     try {
-      await fsp.writeFile(exportPath, JSON.stringify(exportPayload, null, 2), "utf8");
-      await fsp.writeFile(teaminfoPath, JSON.stringify(sampleTeaminfo(), null, 2), "utf8");
-      await fsp.writeFile(
-        path.join(runDir, "metadata.json"),
-        JSON.stringify({
-          build,
-          status: "running",
-          script_version: engineAdapter.scriptVersion(),
-          teams: [],
-        }),
-        "utf8",
-      );
+      const runDir = await driveRun(outputsDir, build, [], 69);
+      const metadata = readMeta(runDir);
 
-      await runSimulationJob(build, exportPath, teaminfoPath, [], 69, 2, 1);
-
-      const metadata = JSON.parse(
-        await fsp.readFile(path.join(runDir, "metadata.json"), "utf8"),
-      ) as Record<string, unknown>;
       expect(metadata.build).toBe(build);
       expect(metadata.status).toBe("complete");
-      expect(metadata.script_version).toBe(engineAdapter.scriptVersion());
-      expect(metadata.player_count).toBe((exportPayload.players as unknown[]).length);
       expect(metadata.error).toBeNull();
+      expect(metadata.player_count).toBe(6);
+
+      // Executed truth patched from the engine's own metadata (default version = v4.3).
+      expect((metadata.progression as { id?: string } | undefined)?.id).toBe("v43");
+      expect(typeof metadata.script_version).toBe("string");
+
+      // The real Python dashboard, not the TS stub table.
+      expect(metadata.analysis_engine).toBe("python");
+      const dashboardHtml = path.join(runDir, "analysis_dashboard.html");
+      const html = await fsp.readFile(dashboardHtml, "utf8");
+      expect(html.length).toBeGreaterThan(0);
+      expect(html).not.toContain(STUB_MARKER);
+      expect(html.toLowerCase()).toContain("plotly");
+
+      const analysisXlsx = path.join(runDir, "analysis.xlsx");
+      expect(fs.statSync(analysisXlsx).size).toBeGreaterThan(0);
 
       const outputsCsv = path.join(runDir, "raw", "outputs.csv");
-      const analysisXlsx = path.join(runDir, "analysis.xlsx");
-      const dashboardHtml = path.join(runDir, "analysis_dashboard.html");
-      expect(fs.statSync(outputsCsv).size).toBeGreaterThan(0);
-      expect(fs.statSync(analysisXlsx).size).toBeGreaterThan(0);
-      expect(fs.statSync(dashboardHtml).size).toBeGreaterThan(0);
-
-      const csvText = await fsp.readFile(outputsCsv, "utf8");
-      const rows = parse(csvText, { columns: true, skip_empty_lines: true }) as Record<
-        string,
-        string
-      >[];
+      const rows = parse(await fsp.readFile(outputsCsv, "utf8"), {
+        columns: true,
+        skip_empty_lines: true,
+      }) as Record<string, string>[];
       const cols = Object.keys(rows[0] ?? {});
       expect(cols.some((c) => c.startsWith("Unnamed"))).toBe(false);
       expect(cols).toContain("Run");
-      const runs = new Set(rows.map((r) => r.Run));
-      expect(runs.size).toBe(2);
-      const pids = new Set(rows.map((r) => r.PlayerID));
-      expect(pids.size).toBe((exportPayload.players as unknown[]).length);
-      expect(rows.length).toBe(2 * (exportPayload.players as unknown[]).length);
+      expect(new Set(rows.map((r) => r.Run)).size).toBe(2);
+      expect(new Set(rows.map((r) => r.PlayerID)).size).toBe(6);
+      expect(rows.length).toBe(12);
     } finally {
       await fsp.rm(root, { recursive: true, force: true });
-      if (prevOutputs !== undefined) {
-        process.env.PROGBOX_OUTPUTS_DIR = prevOutputs;
-      }
     }
   });
 
   it("filters to BOS when teams=['BOS']", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "progbox-engine-bos-"));
-    prevOutputs = process.env.PROGBOX_OUTPUTS_DIR;
     const outputsDir = path.join(root, "outputs");
     process.env.PROGBOX_OUTPUTS_DIR = outputsDir;
 
-    const build = "20260201120000";
-    const runDir = path.join(outputsDir, build);
-    fs.mkdirSync(runDir, { recursive: true });
-
-    const exportPayload = sampleExport();
-    const exportPath = path.join(runDir, "export.json");
-    const teaminfoPath = path.join(runDir, "teaminfo.json");
-
     try {
-      await fsp.writeFile(exportPath, JSON.stringify(exportPayload, null, 2), "utf8");
-      await fsp.writeFile(teaminfoPath, JSON.stringify(sampleTeaminfo(), null, 2), "utf8");
-      await fsp.writeFile(
-        path.join(runDir, "metadata.json"),
-        JSON.stringify({
-          build,
-          status: "running",
-          script_version: engineAdapter.scriptVersion(),
-          teams: ["BOS"],
-        }),
-        "utf8",
-      );
-
-      await runSimulationJob(build, exportPath, teaminfoPath, ["BOS"], 99, 2, 1);
-
-      const metadata = JSON.parse(
-        await fsp.readFile(path.join(runDir, "metadata.json"), "utf8"),
-      ) as Record<string, unknown>;
+      const runDir = await driveRun(outputsDir, "20260201120000", ["BOS"], 99);
+      const metadata = readMeta(runDir);
       expect(metadata.status).toBe("complete");
       expect(metadata.error).toBeNull();
 
-      const csvText = await fsp.readFile(path.join(runDir, "raw", "outputs.csv"), "utf8");
-      const rows = parse(csvText, { columns: true, skip_empty_lines: true }) as Record<
-        string,
-        string
-      >[];
-      const teams = new Set(rows.map((r) => r.Team));
-      expect(teams).toEqual(new Set(["BOS"]));
+      const rows = parse(await fsp.readFile(path.join(runDir, "raw", "outputs.csv"), "utf8"), {
+        columns: true,
+        skip_empty_lines: true,
+      }) as Record<string, string>[];
+      expect(new Set(rows.map((r) => r.Team))).toEqual(new Set(["BOS"]));
     } finally {
       await fsp.rm(root, { recursive: true, force: true });
-      if (prevOutputs !== undefined) {
-        process.env.PROGBOX_OUTPUTS_DIR = prevOutputs;
-      }
+    }
+  });
+
+  it("degrades to the stub table when Python is unavailable", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "progbox-engine-fallback-"));
+    const outputsDir = path.join(root, "outputs");
+    process.env.PROGBOX_OUTPUTS_DIR = outputsDir;
+    process.env.PROGBOX_PYTHON = path.join(root, "no-such-python");
+
+    try {
+      const runDir = await driveRun(outputsDir, "20260301120000", [], 69);
+      const metadata = readMeta(runDir);
+      expect(metadata.status).toBe("complete");
+      expect(metadata.analysis_engine).toBe("fallback");
+
+      const html = await fsp.readFile(path.join(runDir, "analysis_dashboard.html"), "utf8");
+      expect(html).toContain(STUB_MARKER);
+    } finally {
+      await fsp.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("produces a comparison scorecard across two runs", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "progbox-engine-compare-"));
+    const outputsDir = path.join(root, "outputs");
+    process.env.PROGBOX_OUTPUTS_DIR = outputsDir;
+
+    try {
+      const dirA = await driveRun(outputsDir, "20260401120000", [], 69);
+      const dirB = await driveRun(outputsDir, "20260401130000", [], 70);
+      const cacheDir = path.join(outputsDir, "comparisons", "20260401120000_20260401130000");
+
+      await runPythonComparison([dirA, dirB], cacheDir);
+
+      const html = path.join(cacheDir, "comparison_dashboard.html");
+      expect(fs.statSync(html).size).toBeGreaterThan(0);
+      expect(fs.existsSync(path.join(cacheDir, "comparison_scorecard.csv"))).toBe(true);
+      expect((await fsp.readFile(html, "utf8")).toLowerCase()).toContain("plotly");
+    } finally {
+      await fsp.rm(root, { recursive: true, force: true });
     }
   });
 });

@@ -7,7 +7,7 @@ import path from "node:path";
 import { vendorCppDir } from "../paths.js";
 import { normalizeSeason } from "../utils/normalizeSeason.js";
 import { buildInputRows, rowsToCsv } from "./exportCleaner.js";
-import { generateAnalysis } from "./analysisGenerate.js";
+import { runAnalysis } from "./analysisPython.js";
 
 const VENDOR_DIR = vendorCppDir();
 const _BINARY_CANDIDATES = [
@@ -133,7 +133,12 @@ export interface RunCppOptions {
   version?: string;
 }
 
-export async function runCppSimulation(opts: RunCppOptions): Promise<number> {
+export interface RunCppResult {
+  playerCount: number;
+  analysisEngine: "python" | "fallback";
+}
+
+export async function runCppSimulation(opts: RunCppOptions): Promise<RunCppResult> {
   const emitStage = (name: string, message: string) => {
     opts.stageCallback?.(name, message);
   };
@@ -214,14 +219,10 @@ export async function runCppSimulation(opts: RunCppOptions): Promise<number> {
 
       emitStage("artifacts_copied", "Copied artifacts.");
       emitStage("analyzing", "Generating analysis…");
-      try {
-        await generateAnalysis(canonicalRunDir);
-      } catch (e) {
-        console.error("Warning: generateAnalysis failed for", canonicalRunDir, e);
-      }
+      const analysisEngine = await runAnalysis(canonicalRunDir);
       emitStage("analysis_done", "Analysis complete.");
 
-      return playerCount;
+      return { playerCount, analysisEngine };
     } finally {
       await fsp.rm(workspace, { recursive: true, force: true }).catch(() => {});
     }

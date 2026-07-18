@@ -27,6 +27,33 @@ async function mergeMetadata(build: string, updates: Record<string, unknown>): P
   await fsp.writeFile(metaPath, JSON.stringify(existing, null, 2), "utf8");
 }
 
+/**
+ * Patch canonical metadata from the engine's own `engine_metadata.json` — the
+ * source of truth for what actually ran (progression id/name + sim params).
+ * No-op if the engine file is missing/unreadable.
+ */
+async function patchFromEngineMetadata(build: string, runDir: string): Promise<void> {
+  const enginePath = path.join(runDir, "engine_metadata.json");
+  let engine: Record<string, unknown>;
+  try {
+    engine = JSON.parse(await fsp.readFile(enginePath, "utf8")) as Record<string, unknown>;
+  } catch {
+    return;
+  }
+  const prog = (engine.progression ?? {}) as Record<string, unknown>;
+  const sim = (engine.simulation ?? {}) as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  const progId = typeof prog.id === "string" ? prog.id : undefined;
+  const progName = typeof prog.name === "string" ? prog.name : undefined;
+  if (progId || progName) updates.progression = { id: progId ?? null, name: progName ?? null };
+  if (progName || progId) updates.script_version = progName ?? progId;
+  if (typeof sim.seed === "number") updates.seed = sim.seed;
+  if (typeof sim.runs === "number") updates.runs = sim.runs;
+  if (typeof sim.workers === "number") updates.n_workers = sim.workers;
+  if (typeof sim.year === "number") updates.year = sim.year;
+  if (Object.keys(updates).length > 0) await mergeMetadata(build, updates);
+}
+
 export async function runSimulationJob(
   build: string,
   exportPath: string,
@@ -35,6 +62,7 @@ export async function runSimulationJob(
   seed: number,
   runs: number,
   n_workers: number,
+  version = "v43",
 ): Promise<void> {
   const canonicalRunDir = path.join(outputsRoot(), build);
   await fsp.mkdir(canonicalRunDir, { recursive: true });
@@ -64,7 +92,7 @@ export async function runSimulationJob(
       setProgress(build, phase, pct, message || defaultMsg);
     };
 
-    const playerCount = await cppAdapter.runCppSimulation({
+    const { playerCount, analysisEngine } = await cppAdapter.runCppSimulation({
       exportPath,
       teaminfoPath,
       teams,
@@ -72,15 +100,18 @@ export async function runSimulationJob(
       runs,
       n_workers,
       canonicalRunDir,
+      version,
       progressCallback: onCppProgress,
       stageCallback: onPostSimStage,
     });
 
     setProgress(build, "finalizing", 99, "Writing metadata…");
+    await patchFromEngineMetadata(build, canonicalRunDir);
     await mergeMetadata(build, {
       status: "complete",
       completed_at: utcNowIso(),
       player_count: playerCount,
+      analysis_engine: analysisEngine,
       error: null,
     });
     setProgress(build, "complete", 100, "Done.", true);

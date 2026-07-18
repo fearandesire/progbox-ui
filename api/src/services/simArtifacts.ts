@@ -233,3 +233,12 @@ export function rawOutputsCsvPath(build: string): string {
 export function analysisDashboardPath(build: string): string {
   return path.join(outputsRoot(), build, "analysis_dashboard.html");
 }
+
+/** Cache dir for a comparison, keyed by the sorted build-id set (e.g. "a_b_c"). */
+export function comparisonCacheDir(key: string): string {
+  return path.join(outputsRoot(), "comparisons", key);
+}
+
+export function comparisonDashboardPath(key: string): string {
+  return path.join(comparisonCacheDir(key), "comparison_dashboard.html");
+}
