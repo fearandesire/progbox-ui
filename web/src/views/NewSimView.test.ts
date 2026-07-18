@@ -163,6 +163,40 @@ describe("NewSimView", () => {
     );
   });
 
+  it("cancels the pending compare redirect when the user submits again", async () => {
+    vi.useFakeTimers();
+    const primary = progressStub();
+    const baseline = progressStub();
+    useProgress(primary, baseline);
+
+    const { wrapper, router } = mountView();
+    await submitPaired(wrapper);
+
+    primary.done.value = true;
+    primary.phase.value = "complete";
+    baseline.done.value = true;
+    baseline.phase.value = "complete";
+    await flushPromises();
+
+    expect(wrapper.text()).toContain(
+      "Both runs saved to your dashboard. Opening the comparison results...",
+    );
+
+    // Resubmit before the 1.5s redirect fires — must not navigate to the old pair.
+    vi.mocked(createSim).mockResolvedValue({
+      build: "20260101130000",
+      compare_build: "20260101130001",
+      pair_id: "pair-2",
+    } as never);
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+
+    vi.advanceTimersByTime(2000);
+    await flushPromises();
+
+    expect(router.currentRoute.value.path).not.toBe("/compare");
+  });
+
   it("does not toast or navigate when primary fails and baseline completes", async () => {
     vi.useFakeTimers();
     const primary = progressStub();
