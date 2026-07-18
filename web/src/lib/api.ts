@@ -30,10 +30,16 @@ export interface CreateSimInput {
   runs: number;
   n_workers: number | null;
   version: "v41" | "v43";
+  /** When true (default server-side), also run the other version and pair them. */
+  compare?: boolean;
 }
 
 export interface CreateSimResponse {
   build: string;
+  /** Baseline (other-version) run id when the submission created a pair. */
+  compare_build?: string;
+  /** Shared id linking the two runs of an auto-comparison pair. */
+  pair_id?: string;
 }
 
 export async function createSim(

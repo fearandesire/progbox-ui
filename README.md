@@ -170,6 +170,10 @@ The API runner orchestrates three stages:
 
 Progression-script identity and sim parameters for each run come from the engine's own `engine_metadata.json` (patched into the run's `metadata.json` post-run), not a hardcoded mirror. The vendored `VERSION` file records the engine **build** — separate from the per-run progression version.
 
+### Auto-comparison runs
+
+The New-sim form has an "also run the other version and compare" toggle, **on by default**. When on, one submission creates **two linked runs** — the selected version (primary) and the other version (baseline) — with identical export, seed, iterations, and workers, so the only difference is the progression script. Each run is a normal, individually-viewable run; they share a `pair_id` and record `pair_role` / `paired_with` in their metadata. Once both finish, the web app opens the head-to-head comparison automatically. Untick the toggle for a single run (the previous behaviour). The manual dashboard "select 2+ runs → Compare" flow is unchanged.
+
 ### Python analysis dependencies
 
 The post-processor needs `plotly`, `pandas`, `scipy`, `numpy`, and `openpyxl`, pinned in [`api/vendor/progbox_cpp/tools/requirements.txt`](api/vendor/progbox_cpp/tools/requirements.txt). Install them into your (WSL) Python env with `pip install -r api/vendor/progbox_cpp/tools/requirements.txt`. Set `PROGBOX_PYTHON` to point at a specific interpreter (e.g. a venv's `python`) if the default `python3`/`python` on `PATH` isn't the right one. CI installs these in the engine test job.
@@ -195,7 +199,7 @@ Run `pnpm verify` after updating to validate the integration.
 
 | Method | Endpoint                        | Description                         |
 | ------ | ------------------------------- | ----------------------------------- |
-| POST   | `/api/sims`                     | Upload export + config, start a run |
+| POST   | `/api/sims`                     | Upload export + config, start a run. Config takes `version` (`v41`/`v43`) and `compare` (default **true**); when `compare` is on it also runs the other version with identical inputs and links them as a pair, returning `{ build, compare_build, pair_id }` |
 | GET    | `/api/sims`                     | List all runs                       |
 | GET    | `/api/sims/{build}`             | Run metadata                        |
 | GET    | `/api/sims/{build}/progress`    | SSE progress stream                 |

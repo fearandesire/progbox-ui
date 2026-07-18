@@ -131,6 +131,28 @@ describe("DashboardView", () => {
     expect(mockSimsStore.load).toHaveBeenCalledTimes(2);
   });
 
+  it("marks paired runs in the run list", async () => {
+    mockSimsStore.runs = [
+      {
+        build: "20260101120000",
+        status: "complete",
+        teams: [],
+        requested_version: "v43",
+        pair_id: "pair-1",
+      } as RunMetadata,
+      { build: "20260102120000", status: "complete", teams: [], requested_version: "v41" },
+    ];
+
+    const wrapper = mount(DashboardView, {
+      global: { stubs: { RouterLink: RouterLinkStub } },
+    });
+    await flushPromises();
+
+    const paired = wrapper.findAll(".run-row__paired");
+    expect(paired.length).toBe(1);
+    expect(paired[0]!.text()).toBe("paired");
+  });
+
   it("enables Compare only at 2+ selected runs and navigates to the comparison", async () => {
     mockSimsStore.runs = [
       { build: "20260101120000", status: "complete", teams: [], requested_version: "v43" },

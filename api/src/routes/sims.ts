@@ -45,12 +45,64 @@ function utcNowIso(): string {
   return new Date().toISOString().replace(/\+00:00$/, "Z");
 }
 
-function newBuildId(): string {
-  const d = new Date();
+function formatBuildId(d: Date): string {
   const p = (n: number, w = 2) => String(n).padStart(w, "0");
   return (
     `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}` +
     `${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}`
+  );
+}
+
+function newBuildId(): string {
+  return formatBuildId(new Date());
+}
+
+/** Parse a second-precision CalVer build id back into a UTC Date. */
+function buildIdToDate(build: string): Date {
+  return new Date(
+    Date.UTC(
+      Number(build.slice(0, 4)),
+      Number(build.slice(4, 6)) - 1,
+      Number(build.slice(6, 8)),
+      Number(build.slice(8, 10)),
+      Number(build.slice(10, 12)),
+      Number(build.slice(12, 14)),
+    ),
+  );
+}
+
+/** Nudge a build id forward by one second, keeping it a valid CalVer id. */
+function bumpBuildId(build: string): string {
+  const d = buildIdToDate(build);
+  d.setUTCSeconds(d.getUTCSeconds() + 1);
+  return formatBuildId(d);
+}
+
+/**
+ * Reserve a unique run directory with an exclusive mkdir (no recursive create).
+ * Retries by bumping the CalVer id when the candidate already exists — prevents
+ * two concurrent POSTs from sharing the same second-precision build dir.
+ */
+async function allocateBuildDir(startFrom?: string): Promise<{ build: string; out: string }> {
+  await fsp.mkdir(outputsRoot(), { recursive: true });
+  let candidate = startFrom ?? newBuildId();
+  for (let attempt = 0; attempt < 32; attempt++) {
+    const out = path.join(outputsRoot(), candidate);
+    try {
+      await fsp.mkdir(out);
+      return { build: candidate, out };
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code !== "EEXIST") throw e;
+      candidate = bumpBuildId(candidate);
+    }
+  }
+  throw new Error("Could not allocate a unique build id");
+}
+
+async function removeRunDirs(...dirs: readonly string[]): Promise<void> {
+  await Promise.all(
+    dirs.map((dir) => fsp.rm(dir, { recursive: true, force: true }).catch(() => {})),
   );
 }
 
@@ -77,7 +129,13 @@ const SimCreateBodySchema = z.object({
   runs: z.number().int().positive().default(500),
   n_workers: z.number().int().positive().nullable().optional(),
   version: z.enum(PROGRESSION_VERSIONS).default("v43"),
+  compare: z.boolean().default(true),
 });
+
+/** The progression version that isn't the selected one (binary enum today). */
+function otherVersion(version: ProgressionVersion): ProgressionVersion {
+  return PROGRESSION_VERSIONS.find((v) => v !== version) ?? version;
+}
 
 type SimCreateBody = z.infer<typeof SimCreateBodySchema>;
 
@@ -88,6 +146,16 @@ function parseSimCreateBody(json: string): SimCreateBody {
 
 function badRequest(reply: FastifyReply, status: number, detail: string) {
   return reply.status(status).send({ detail });
+}
+
+async function rejectAndCleanup(
+  reply: FastifyReply,
+  dirs: readonly string[],
+  status: number,
+  detail: string,
+) {
+  await removeRunDirs(...dirs);
+  return badRequest(reply, status, detail);
 }
 
 async function validateBuildIdHandler(
@@ -116,9 +184,8 @@ export async function registerSimsRoutes(
     let teaminfoPath: string | null = null;
     let configStr = "";
 
-    const build = newBuildId();
-    const out = path.join(outputsRoot(), build);
-    await fsp.mkdir(out, { recursive: true });
+    const { build, out } = await allocateBuildDir();
+    const allocatedDirs: string[] = [out];
 
     const tempFiles: string[] = [];
     try {
@@ -147,24 +214,29 @@ export async function registerSimsRoutes(
       }
 
       if (!exportPath) {
-        return badRequest(reply, 422, "export file is empty");
+        return rejectAndCleanup(reply, allocatedDirs, 422, "export file is empty");
       }
 
       const exportStat = await fsp.stat(exportPath);
       if (exportStat.size === 0) {
-        return badRequest(reply, 422, "export file is empty");
+        return rejectAndCleanup(reply, allocatedDirs, 422, "export file is empty");
       }
 
       let body: SimCreateBody;
       try {
         body = parseSimCreateBody(configStr);
       } catch (e) {
-        return badRequest(reply, 422, `config is not valid JSON: ${String(e)}`);
+        return rejectAndCleanup(
+          reply,
+          allocatedDirs,
+          422,
+          `config is not valid JSON: ${String(e)}`,
+        );
       }
 
       const n_workers = defaultNWorkers(body.n_workers);
       if (n_workers < 1) {
-        return badRequest(reply, 422, "n_workers must be >= 1");
+        return rejectAndCleanup(reply, allocatedDirs, 422, "n_workers must be >= 1");
       }
 
       let exportData: Record<string, unknown>;
@@ -173,7 +245,7 @@ export async function registerSimsRoutes(
         exportData = JSON.parse(exportBuf) as Record<string, unknown>;
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        return badRequest(reply, 422, `export is not valid JSON: ${msg}`);
+        return rejectAndCleanup(reply, allocatedDirs, 422, `export is not valid JSON: ${msg}`);
       }
 
       let teaminfoSource: "generated" | "user";
@@ -182,7 +254,7 @@ export async function registerSimsRoutes(
       if (teaminfoPath != null) {
         const teaminfoStat = await fsp.stat(teaminfoPath);
         if (teaminfoStat.size === 0) {
-          return badRequest(reply, 422, "teaminfo file is empty");
+          return rejectAndCleanup(reply, allocatedDirs, 422, "teaminfo file is empty");
         }
         try {
           const teaminfoBuf = await fsp.readFile(teaminfoPath, "utf8");
@@ -190,10 +262,15 @@ export async function registerSimsRoutes(
           teaminfoMap = validateTeaminfo(rawTeaminfo);
         } catch (e) {
           if (e instanceof InvalidTeaminfoError) {
-            return badRequest(reply, 400, e.message);
+            return rejectAndCleanup(reply, allocatedDirs, 400, e.message);
           }
           if (e instanceof SyntaxError) {
-            return badRequest(reply, 400, `teaminfo.json is not valid JSON: ${e.message}`);
+            return rejectAndCleanup(
+              reply,
+              allocatedDirs,
+              400,
+              `teaminfo.json is not valid JSON: ${e.message}`,
+            );
           }
           throw e;
         }
@@ -215,45 +292,135 @@ export async function registerSimsRoutes(
       const exportMeta = exportData.meta as Record<string, unknown> | undefined;
       const exportTitle = typeof exportMeta?.title === "string" ? exportMeta.title : null;
 
-      const meta = {
-        build,
-        // Requested version recorded now; runner patches script_version + progression
-        // from the engine's own metadata post-run (executed truth).
-        requested_version: body.version,
-        script_version: versionLabel(body.version),
-        engine_build: engineAdapter.engineBuildVersion(),
-        teams: body.teams,
-        seed: body.seed,
-        runs: body.runs,
-        n_workers,
-        export_file: `outputs/${build}/export.json`,
-        export_title: exportTitle,
-        teaminfo_file: `outputs/${build}/teaminfo.json`,
-        teaminfo_source: teaminfoSource,
-        status: "running",
-        started_at: utcNowIso(),
-        completed_at: null,
-        player_count: null,
-        analysis_engine: null,
-        error: null,
-      };
-      await fsp.writeFile(path.join(out, "metadata.json"), JSON.stringify(meta, null, 2), "utf8");
+      interface PairFields {
+        pair_id: string;
+        pair_role: "primary" | "baseline";
+        paired_with: string;
+      }
 
-      opts.scheduleBackground(() =>
-        runSimulationJob(
-          build,
-          exportPath!,
-          teaminfoPath!,
-          body.teams,
-          body.seed,
-          body.runs,
+      function buildMeta(
+        runBuild: string,
+        version: ProgressionVersion,
+        pair: PairFields | null,
+      ): Record<string, unknown> {
+        return {
+          build: runBuild,
+          // Requested version recorded now; runner patches script_version + progression
+          // from the engine's own metadata post-run (executed truth).
+          requested_version: version,
+          script_version: versionLabel(version),
+          engine_build: engineAdapter.engineBuildVersion(),
+          teams: body.teams,
+          seed: body.seed,
+          runs: body.runs,
           n_workers,
-          body.version,
-        ),
-      );
+          export_file: `outputs/${runBuild}/export.json`,
+          export_title: exportTitle,
+          teaminfo_file: `outputs/${runBuild}/teaminfo.json`,
+          teaminfo_source: teaminfoSource,
+          status: "running",
+          started_at: utcNowIso(),
+          completed_at: null,
+          player_count: null,
+          analysis_engine: null,
+          error: null,
+          ...(pair ?? {}),
+        };
+      }
+
+      function scheduleRun(
+        runBuild: string,
+        runExportPath: string,
+        runTeaminfoPath: string,
+        version: ProgressionVersion,
+      ) {
+        opts.scheduleBackground(() =>
+          runSimulationJob(
+            runBuild,
+            runExportPath,
+            runTeaminfoPath,
+            body.teams,
+            body.seed,
+            body.runs,
+            n_workers,
+            version,
+          ),
+        );
+      }
+
+      if (body.compare) {
+        // Auto-comparison: a second run with the OTHER version, same inputs, its own
+        // run dir. The selected version is primary; the other is the baseline.
+        const baselineVersion = otherVersion(body.version);
+        // Start from the next second so we never reuse the primary id; exclusive mkdir
+        // then retries further if that slot is already taken by another request.
+        const { build: baselineBuild, out: baselineOut } = await allocateBuildDir(
+          bumpBuildId(build),
+        );
+        allocatedDirs.push(baselineOut);
+        const pairId = build;
+
+        const baselineExportPath = path.join(baselineOut, "export.json");
+        const baselineTeaminfoPath = path.join(baselineOut, "teaminfo.json");
+        await fsp.copyFile(exportPath, baselineExportPath);
+        await fsp.copyFile(teaminfoPath, baselineTeaminfoPath);
+
+        const primaryMeta = buildMeta(build, body.version, {
+          pair_id: pairId,
+          pair_role: "primary",
+          paired_with: baselineBuild,
+        });
+        const baselineMeta = buildMeta(baselineBuild, baselineVersion, {
+          pair_id: pairId,
+          pair_role: "baseline",
+          paired_with: build,
+        });
+        try {
+          await fsp.writeFile(
+            path.join(out, "metadata.json"),
+            JSON.stringify(primaryMeta, null, 2),
+            "utf8",
+          );
+          await fsp.writeFile(
+            path.join(baselineOut, "metadata.json"),
+            JSON.stringify(baselineMeta, null, 2),
+            "utf8",
+          );
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          return rejectAndCleanup(
+            reply,
+            allocatedDirs,
+            500,
+            `Failed to write run metadata: ${msg}`,
+          );
+        }
+
+        // Primary first so callers/tests see the selected version as the first job.
+        scheduleRun(build, exportPath, teaminfoPath, body.version);
+        scheduleRun(baselineBuild, baselineExportPath, baselineTeaminfoPath, baselineVersion);
+
+        return reply.send({ build, compare_build: baselineBuild, pair_id: pairId });
+      }
+
+      const meta = buildMeta(build, body.version, null);
+      try {
+        await fsp.writeFile(path.join(out, "metadata.json"), JSON.stringify(meta, null, 2), "utf8");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return rejectAndCleanup(
+          reply,
+          allocatedDirs,
+          500,
+          `Failed to write run metadata: ${msg}`,
+        );
+      }
+
+      scheduleRun(build, exportPath, teaminfoPath, body.version);
 
       return reply.send({ build });
     } catch (err) {
+      await removeRunDirs(...allocatedDirs);
       // Clean up temp files on error
       for (const tmpFile of tempFiles) {
         await fsp.rm(tmpFile, { force: true }).catch(() => {});
