@@ -117,6 +117,28 @@ describe("RunDetailView", () => {
     expect(wrapper.find('[data-test="progress-panel"]').exists()).toBe(false);
   });
 
+  it("renders a v4.3 version chip from run metadata", async () => {
+    vi.mocked(fetchSim).mockResolvedValueOnce({
+      build: "20260101120000",
+      status: "complete",
+      teams: [],
+      requested_version: "v43",
+    });
+
+    const router = createRouterForBuild();
+    await router.push("/runs/20260101120000");
+    await router.isReady();
+
+    const wrapper = mount(RunDetailView, {
+      global: { plugins: [router], stubs: { RouterLink: RouterLinkStub } },
+    });
+    await flushPromises();
+
+    const chip = wrapper.find(".version-chip");
+    expect(chip.exists()).toBe(true);
+    expect(chip.text()).toBe("v4.3");
+  });
+
   it("shows not found when metadata is missing", async () => {
     vi.mocked(fetchSim).mockRejectedValueOnce({ status: 404 });
 

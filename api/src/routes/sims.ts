@@ -21,6 +21,8 @@ import {
   analysisXlsxPath,
   ArtifactNotFoundError,
   chartPath,
+  comparisonCacheDir,
+  comparisonDashboardPath,
   godprogsRecords,
   InvalidChartNameError,
   listChartFilenames,
@@ -28,6 +30,7 @@ import {
   playerSummaries,
   rawOutputsCsvPath,
 } from "../services/simArtifacts.js";
+import { runPythonComparison } from "../services/analysisPython.js";
 import type { SimProgressPayload } from "../types.js";
 
 export interface SimsRouteOptions {
@@ -59,11 +62,21 @@ function defaultNWorkers(requested: number | null | undefined): number {
   return Math.max(cpu - 1, 1);
 }
 
+/** Progression-script versions the engine can run. Default is the adopted v4.3. */
+export const PROGRESSION_VERSIONS = ["v41", "v43"] as const;
+export type ProgressionVersion = (typeof PROGRESSION_VERSIONS)[number];
+
+/** Human display label for a progression version id. */
+function versionLabel(version: string): string {
+  return version === "v43" ? "v4.3" : version === "v41" ? "v4.1" : version;
+}
+
 const SimCreateBodySchema = z.object({
   teams: z.array(z.string()).default([]),
   seed: z.number().int().default(69),
   runs: z.number().int().positive().default(500),
   n_workers: z.number().int().positive().nullable().optional(),
+  version: z.enum(PROGRESSION_VERSIONS).default("v43"),
 });
 
 type SimCreateBody = z.infer<typeof SimCreateBodySchema>;
@@ -204,7 +217,11 @@ export async function registerSimsRoutes(
 
       const meta = {
         build,
-        script_version: engineAdapter.scriptVersion(),
+        // Requested version recorded now; runner patches script_version + progression
+        // from the engine's own metadata post-run (executed truth).
+        requested_version: body.version,
+        script_version: versionLabel(body.version),
+        engine_build: engineAdapter.engineBuildVersion(),
         teams: body.teams,
         seed: body.seed,
         runs: body.runs,
@@ -217,7 +234,7 @@ export async function registerSimsRoutes(
         started_at: utcNowIso(),
         completed_at: null,
         player_count: null,
-        config_snapshot: engineAdapter.configSnapshot(),
+        analysis_engine: null,
         error: null,
       };
       await fsp.writeFile(path.join(out, "metadata.json"), JSON.stringify(meta, null, 2), "utf8");
@@ -231,6 +248,7 @@ export async function registerSimsRoutes(
           body.seed,
           body.runs,
           n_workers,
+          body.version,
         ),
       );
 
@@ -413,6 +431,52 @@ export async function registerSimsRoutes(
     }
     return reply.type("text/html").send(fs.createReadStream(htmlPath));
   });
+
+  fastify.get<{ Querystring: { builds?: string } }>(
+    "/api/sims/compare",
+    async (request, reply) => {
+      const rawBuilds = (request.query.builds ?? "")
+        .split(",")
+        .map((b) => b.trim())
+        .filter((b) => b.length > 0);
+      const builds = [...new Set(rawBuilds)];
+
+      if (builds.length < 2) {
+        return badRequest(reply, 400, "Provide at least 2 build ids to compare");
+      }
+      for (const b of builds) {
+        if (!isValidBuildId(b)) {
+          return badRequest(reply, 422, `Invalid build id: ${b}`);
+        }
+      }
+      for (const b of builds) {
+        const run = storage.getRun(b);
+        if (run == null) {
+          return reply.status(404).send({ detail: `Run not found: ${b}` });
+        }
+        if (run.status !== "complete") {
+          return reply.status(409).send({ detail: `Run not complete: ${b}` });
+        }
+      }
+
+      // Cache keyed by the sorted build-id set: order-independent, reused on repeat.
+      const key = [...builds].sort().join("_");
+      const htmlPath = comparisonDashboardPath(key);
+      if (!fs.existsSync(htmlPath)) {
+        const runDirs = builds.map((b) => path.join(outputsRoot(), b));
+        try {
+          await runPythonComparison(runDirs, comparisonCacheDir(key));
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          return reply.status(500).send({ detail: `Comparison generation failed: ${msg}` });
+        }
+        if (!fs.existsSync(htmlPath)) {
+          return reply.status(500).send({ detail: "Comparison dashboard was not produced" });
+        }
+      }
+      return reply.type("text/html").send(fs.createReadStream(htmlPath));
+    },
+  );
 
   fastify.get("/api/sims/:build", { preHandler: validateBuildIdHandler }, async (request, reply) => {
     const { build } = request.params as { build: string };

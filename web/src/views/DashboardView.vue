@@ -5,6 +5,7 @@ import DeIcon from "../components/DeIcon.vue";
 import InfoTip from "../components/InfoTip.vue";
 import LeagueExportPill from "../components/LeagueExportPill.vue";
 import StatusBadge from "../components/StatusBadge.vue";
+import VersionChip from "../components/VersionChip.vue";
 import { useRunStats } from "../composables/useRunStats";
 import { deleteSim } from "../lib/api";
 import { duration, signed, timeAgo } from "../lib/format";
@@ -178,10 +179,26 @@ async function removeRun(build: string, e: Event) {
   try {
     await deleteSim(build);
     await sims.load();
+    selected.value = selected.value.filter((b) => b !== build);
   } catch (err) {
     console.error(err);
     window.alert("Failed to delete run. Please try again.");
   }
+}
+
+// Comparison: pick 2+ completed runs, open the head-to-head dashboard.
+const selected = ref<string[]>([]);
+const canCompare = computed(() => selected.value.length >= 2);
+
+function toggleSelect(build: string) {
+  const i = selected.value.indexOf(build);
+  if (i >= 0) selected.value.splice(i, 1);
+  else selected.value.push(build);
+}
+
+function openCompare() {
+  if (!canCompare.value) return;
+  void router.push({ path: "/compare", query: { builds: selected.value.join(",") } });
 }
 </script>
 
@@ -386,6 +403,16 @@ async function removeRun(build: string, e: Event) {
             @input="onSearch"
           >
         </div>
+        <button
+          class="btn ghost compare-btn"
+          type="button"
+          :disabled="!canCompare"
+          :title="canCompare ? 'Compare selected runs' : 'Select 2 or more completed runs to compare'"
+          aria-label="Compare selected runs"
+          @click="openCompare"
+        >
+          Compare<span v-if="selected.length"> ({{ selected.length }})</span>
+        </button>
       </div>
 
       <div
@@ -411,8 +438,18 @@ async function removeRun(build: string, e: Event) {
           @keydown.space.prevent="openRun(r.build)"
         >
           <div class="run-row__main">
+            <input
+              v-if="r.status === 'complete'"
+              class="run-row__select"
+              type="checkbox"
+              :checked="selected.includes(r.build)"
+              :aria-label="`Select run ${r.build} for comparison`"
+              @click.stop
+              @change="toggleSelect(r.build)"
+            >
             <span class="run-row__id">{{ r.build }}</span>
             <StatusBadge :status="r.status" />
+            <VersionChip :version="r.requested_version ?? r.script_version" />
             <div class="run-row__meta">
               <span><b>{{ r.runs ?? "—" }}</b> iter</span>
               <span><b>{{ r.player_count ?? "—" }}</b> players</span>

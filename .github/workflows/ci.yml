@@ -72,6 +72,14 @@ jobs:
       - name: Build C++ engine
         run: pnpm run build:engine
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install analysis dependencies
+        run: pip install -r api/vendor/progbox_cpp/tools/requirements.txt
+
       - name: Engine smoke test
         run: pnpm run test:api:engine
 

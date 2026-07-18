@@ -22,6 +22,7 @@ export function vendorCppDir(): string {
   return path.join(repoRoot(), "api", "vendor", "progbox_cpp");
 }
 
+/** Engine binary build id from the vendored `VERSION` file (NOT the progression-script version). */
 export function readCppVersion(): string {
   const versionFile = path.join(vendorCppDir(), "VERSION");
   try {
@@ -31,5 +32,5 @@ export function readCppVersion(): string {
   } catch {
     /* ignore */
   }
-  return "v4.1";
+  return "unknown";
 }

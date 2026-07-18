@@ -165,10 +165,14 @@ The active simulation backend is the vendored C++ engine source at `api/vendor/p
 The API runner orchestrates three stages:
 
 1. **Clean** — TypeScript export cleaner (`api/src/services/exportCleaner.ts`) validates the uploaded export and writes `input.csv` for the engine
-2. **Simulate** — the C++ `progbox` binary runs the Monte Carlo simulation
-3. **Analyze** — TypeScript (`api/src/services/analysisGenerate.ts`) writes `analysis.xlsx` and `analysis_dashboard.html` from `raw/outputs.csv`
+2. **Simulate** — the C++ `progbox` binary runs the Monte Carlo simulation. The progression script (`v41` / `v43`, default **`v43`**) is chosen per run on the New-sim form and passed to the engine via `-v`.
+3. **Analyze** — the vendored Python post-processor (`api/vendor/progbox_cpp/tools/analysis.py`) writes the interactive Plotly `analysis_dashboard.html` and `analysis.xlsx`. If Python (or its deps) is unavailable the run still completes: analysis degrades to the TypeScript stub table (`api/src/services/analysisGenerate.ts`) and `metadata.analysis_engine` is recorded as `"fallback"` (else `"python"`), which the Charts tab surfaces as a notice.
 
-Static engine config for the UI is mirrored in [`api/src/services/engineAdapter.ts`](api/src/services/engineAdapter.ts).
+Progression-script identity and sim parameters for each run come from the engine's own `engine_metadata.json` (patched into the run's `metadata.json` post-run), not a hardcoded mirror. The vendored `VERSION` file records the engine **build** — separate from the per-run progression version.
+
+### Python analysis dependencies
+
+The post-processor needs `plotly`, `pandas`, `scipy`, `numpy`, and `openpyxl`, pinned in [`api/vendor/progbox_cpp/tools/requirements.txt`](api/vendor/progbox_cpp/tools/requirements.txt). Install them into your (WSL) Python env with `pip install -r api/vendor/progbox_cpp/tools/requirements.txt`. Set `PROGBOX_PYTHON` to point at a specific interpreter (e.g. a venv's `python`) if the default `python3`/`python` on `PATH` isn't the right one. CI installs these in the engine test job.
 
 ### `teaminfo.json` is auto-generated
 
@@ -201,8 +205,9 @@ Run `pnpm verify` after updating to validate the integration.
 | GET    | `/api/sims/{build}/players`     | Player table                        |
 | GET    | `/api/sims/{build}/godprogs`    | God-prog events                     |
 | GET    | `/api/sims/{build}/download`    | Download analysis or CSV            |
+| GET    | `/api/sims/compare?builds=a,b`  | Head-to-head comparison dashboard for 2+ completed runs (cached) |
 | DELETE | `/api/sims/{build}`             | Delete a run                        |
-| GET    | `/api/config`                   | Engine config snapshot              |
+| GET    | `/api/config`                   | Engine build id + available progression versions |
 
 Build IDs follow **CalVer** format: `YYYYMMDDHHmmss`.
 

@@ -34,4 +34,33 @@ describe("ChartGallery", () => {
       "http://127.0.0.1:8000/api/sims/2026%2001%2F01/analysis",
     );
   });
+
+  it("shows a fallback notice when the analysis engine fell back", () => {
+    const wrapper = mount(ChartGallery, {
+      props: { build: "20260101120000", analysisEngine: "fallback" },
+    });
+    expect(wrapper.find(".fallback-notice").exists()).toBe(true);
+    expect(wrapper.text()).toContain("Full interactive dashboard unavailable");
+  });
+
+  it("shows no notice for a real Python dashboard or legacy runs", () => {
+    const python = mount(ChartGallery, {
+      props: { build: "20260101120000", analysisEngine: "python" },
+    });
+    expect(python.find(".fallback-notice").exists()).toBe(false);
+
+    const legacy = mount(ChartGallery, { props: { build: "20260101120000" } });
+    expect(legacy.find(".fallback-notice").exists()).toBe(false);
+  });
+
+  it("requests fullscreen on the iframe when the button is clicked", async () => {
+    const wrapper = mount(ChartGallery, { props: { build: "20260101120000" } });
+    const iframe = wrapper.get("iframe").element as HTMLIFrameElement;
+    const requestFullscreen = vi.fn();
+    iframe.requestFullscreen = requestFullscreen;
+
+    await wrapper.get('[aria-label="View dashboard fullscreen"]').trigger("click");
+
+    expect(requestFullscreen).toHaveBeenCalledTimes(1);
+  });
 });

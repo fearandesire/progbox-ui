@@ -29,6 +29,7 @@ export interface CreateSimInput {
   seed: number;
   runs: number;
   n_workers: number | null;
+  version: "v41" | "v43";
 }
 
 export interface CreateSimResponse {
@@ -85,4 +86,9 @@ export async function deleteSim(build: string): Promise<{ ok: boolean }> {
 
 export function downloadUrl(build: string, artifact: "analysis" | "csv"): string {
   return `${getApiBaseUrl()}/sims/${encodeURIComponent(build)}/download?artifact=${artifact}`;
+}
+
+export function compareUrl(builds: string[]): string {
+  const q = encodeURIComponent(builds.join(","));
+  return `${getApiBaseUrl()}/sims/compare?builds=${q}`;
 }

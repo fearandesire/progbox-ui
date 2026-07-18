@@ -1,0 +1,16 @@
+{
+  "_comment": "Every key is optional; built-in defaults < this file < command-line arguments",
+
+  "export_path": "data/export.json",
+  "teaminfo_path": "data/teaminfo.json",
+  "output_dir": "outputs",
+
+  "version": "v43",
+  "runs": 500,
+  "year": 2021,
+  "workers": 0,
+  "seed": 69,
+
+  "run_analysis": true,
+  "analysis_script": "tools/analysis.py"
+}

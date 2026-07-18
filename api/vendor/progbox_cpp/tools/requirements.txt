@@ -1,0 +1,8 @@
+# Python dependencies for tools/analysis.py (the interactive dashboard + workbook
+# post-processor). Installed in CI's engine job and for local WSL dashboard runs.
+# The API shells out to this script; a missing/broken env degrades to the TS stub.
+numpy==2.1.3
+pandas==2.2.3
+scipy==1.14.1
+plotly==5.24.1
+openpyxl==3.1.5

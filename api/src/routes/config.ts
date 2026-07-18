@@ -1,9 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { configSnapshot, scriptVersion } from "../services/engineAdapter.js";
+import { engineBuildVersion } from "../services/engineAdapter.js";
+import { PROGRESSION_VERSIONS } from "./sims.js";
 
 export async function registerConfigRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get("/api/config", async () => ({
-    script_version: scriptVersion(),
-    config: configSnapshot(),
+    engine_build: engineBuildVersion(),
+    versions: PROGRESSION_VERSIONS,
   }));
 }
