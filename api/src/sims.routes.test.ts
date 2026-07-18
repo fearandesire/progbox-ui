@@ -512,6 +512,42 @@ describe("sims routes", () => {
     spy.mockRestore();
   });
 
+  it("post sim bumps past an occupied CalVer build directory", async () => {
+    const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
+    const pad = (n: number, w = 2) => String(n).padStart(w, "0");
+    const d = new Date();
+    const taken =
+      `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}` +
+      `${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}`;
+    // Occupy the current second and the next so allocation must advance further.
+    const takenNext = (() => {
+      const n = new Date(d.getTime());
+      n.setUTCSeconds(n.getUTCSeconds() + 1);
+      return (
+        `${n.getUTCFullYear()}${pad(n.getUTCMonth() + 1)}${pad(n.getUTCDate())}` +
+        `${pad(n.getUTCHours())}${pad(n.getUTCMinutes())}${pad(n.getUTCSeconds())}`
+      );
+    })();
+    fs.mkdirSync(path.join(isolatedOutputsPath(), taken));
+    fs.mkdirSync(path.join(isolatedOutputsPath(), takenNext));
+
+    const app = await buildTestApp();
+    const res = await multipartPost(
+      app,
+      { players: [{ stats: [], tid: 0 }] },
+      { teams: [], seed: 1, runs: 10, n_workers: 1, compare: false },
+      { "0": "BOS" },
+    );
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { build: string };
+    expect(body.build).not.toBe(taken);
+    expect(body.build).not.toBe(takenNext);
+    expect(
+      fs.existsSync(path.join(isolatedOutputsPath(), body.build, "metadata.json")),
+    ).toBe(true);
+    spy.mockRestore();
+  });
+
   it("post validation", async () => {
     const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
     const app = await buildTestApp();

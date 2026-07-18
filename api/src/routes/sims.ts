@@ -78,6 +78,28 @@ function bumpBuildId(build: string): string {
   return formatBuildId(d);
 }
 
+/**
+ * Reserve a unique run directory with an exclusive mkdir (no recursive create).
+ * Retries by bumping the CalVer id when the candidate already exists — prevents
+ * two concurrent POSTs from sharing the same second-precision build dir.
+ */
+async function allocateBuildDir(startFrom?: string): Promise<{ build: string; out: string }> {
+  await fsp.mkdir(outputsRoot(), { recursive: true });
+  let candidate = startFrom ?? newBuildId();
+  for (let attempt = 0; attempt < 32; attempt++) {
+    const out = path.join(outputsRoot(), candidate);
+    try {
+      await fsp.mkdir(out);
+      return { build: candidate, out };
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code !== "EEXIST") throw e;
+      candidate = bumpBuildId(candidate);
+    }
+  }
+  throw new Error("Could not allocate a unique build id");
+}
+
 function defaultNWorkers(requested: number | null | undefined): number {
   if (requested != null) return requested;
   // Requires Node.js >= 18.14.0 for os.availableParallelism
@@ -146,9 +168,7 @@ export async function registerSimsRoutes(
     let teaminfoPath: string | null = null;
     let configStr = "";
 
-    const build = newBuildId();
-    const out = path.join(outputsRoot(), build);
-    await fsp.mkdir(out, { recursive: true });
+    const { build, out } = await allocateBuildDir();
 
     const tempFiles: string[] = [];
     try {
@@ -305,15 +325,13 @@ export async function registerSimsRoutes(
         // Auto-comparison: a second run with the OTHER version, same inputs, its own
         // run dir. The selected version is primary; the other is the baseline.
         const baselineVersion = otherVersion(body.version);
-        let baselineBuild = newBuildId();
-        // Second-precision CalVer ids can collide within one request; guarantee two distinct ids.
-        if (baselineBuild === build) {
-          baselineBuild = bumpBuildId(build);
-        }
+        // Start from the next second so we never reuse the primary id; exclusive mkdir
+        // then retries further if that slot is already taken by another request.
+        const { build: baselineBuild, out: baselineOut } = await allocateBuildDir(
+          bumpBuildId(build),
+        );
         const pairId = build;
 
-        const baselineOut = path.join(outputsRoot(), baselineBuild);
-        await fsp.mkdir(baselineOut, { recursive: true });
         const baselineExportPath = path.join(baselineOut, "export.json");
         const baselineTeaminfoPath = path.join(baselineOut, "teaminfo.json");
         await fsp.copyFile(exportPath, baselineExportPath);

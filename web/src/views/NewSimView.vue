@@ -6,7 +6,7 @@ export const PAIR_COMPLETE_TOAST =
 </script>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import DeIcon from "../components/DeIcon.vue";
 import SimProgressPanel from "../components/SimProgressPanel.vue";
@@ -36,6 +36,17 @@ const paired = ref(false);
 const finalizing = ref(false);
 const showToast = ref(false);
 const pairComparisonBlocked = ref<string | null>(null);
+/** Pending compare-redirect timer — cleared on resubmit / unmount. */
+let compareRedirectTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearCompareRedirectTimer() {
+  if (compareRedirectTimer !== null) {
+    clearTimeout(compareRedirectTimer);
+    compareRedirectTimer = null;
+  }
+}
+
+onUnmounted(clearCompareRedirectTimer);
 
 // Label the toggle with the OTHER version's v4.x display label.
 const otherVersionLabel = computed(() => (version.value === "v43" ? "v4.1" : "v4.3"));
@@ -132,7 +143,9 @@ watch(
     state.value = "idle";
     showToast.value = true;
     const builds = `${activeBuild.value},${compareBuild.value}`;
-    setTimeout(() => {
+    clearCompareRedirectTimer();
+    compareRedirectTimer = setTimeout(() => {
+      compareRedirectTimer = null;
       void router.push({ path: "/compare", query: { builds } });
     }, 1500);
   },
@@ -180,6 +193,7 @@ async function submit() {
   compareBuild.value = null;
   paired.value = false;
   pairComparisonBlocked.value = null;
+  clearCompareRedirectTimer();
   try {
     const response = (await createSim(
       exportFile.value,
