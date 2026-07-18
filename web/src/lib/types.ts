@@ -20,6 +20,9 @@ export interface RunMetadata {
   player_count?: number | null;
   config_snapshot?: Record<string, unknown> | null;
   error?: string | null;
+  pair_id?: string | null;
+  pair_role?: "primary" | "baseline" | null;
+  paired_with?: string | null;
 }
 
 export interface PlayerSummary {

@@ -12,6 +12,10 @@ import { duration, signed, timeAgo } from "../lib/format";
 import type { RunMetadata } from "../lib/types";
 import { useSimsStore } from "../stores/sims";
 
+// Local forward-compatible augmentation for pairing metadata (owned by lib).
+type PairedRun = RunMetadata & { pair_id?: string | null };
+const isPaired = (r: RunMetadata): boolean => (r as PairedRun).pair_id != null;
+
 const router = useRouter();
 const sims = useSimsStore();
 
@@ -450,6 +454,11 @@ function openCompare() {
             <span class="run-row__id">{{ r.build }}</span>
             <StatusBadge :status="r.status" />
             <VersionChip :version="r.requested_version ?? r.script_version" />
+            <span
+              v-if="isPaired(r)"
+              class="run-row__paired"
+              title="Part of an auto-comparison pair"
+            >paired</span>
             <div class="run-row__meta">
               <span><b>{{ r.runs ?? "—" }}</b> iter</span>
               <span><b>{{ r.player_count ?? "—" }}</b> players</span>
@@ -508,3 +517,19 @@ function openCompare() {
     </template>
   </div>
 </template>
+
+<style scoped>
+.run-row__paired {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent, #10b981) 12%, transparent);
+  color: var(--accent-text, inherit);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+</style>

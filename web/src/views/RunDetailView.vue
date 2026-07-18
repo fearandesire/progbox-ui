@@ -17,6 +17,13 @@ import type { RunMetadata } from "../lib/types";
 
 type Tab = "overview" | "charts" | "players" | "godprogs";
 
+// Local forward-compatible augmentation for pairing metadata (owned by lib).
+type PairedRun = RunMetadata & {
+  pair_id?: string | null;
+  pair_role?: "primary" | "baseline" | null;
+  paired_with?: string | null;
+};
+
 const route = useRoute();
 const router = useRouter();
 const build = computed(() => String(route.params.build ?? ""));
@@ -114,6 +121,17 @@ const kpis = computed(() => {
       label: "Best-case projection produced for any player.",
     },
   ];
+});
+
+// Pairing: a run created via auto-comparison links to its sibling + the comparison.
+const pairing = computed(() => {
+  const r = run.value as PairedRun | null;
+  if (!r || !r.paired_with) return null;
+  return {
+    sibling: r.paired_with,
+    role: r.pair_role ?? null,
+    compareBuilds: `${r.build},${r.paired_with}`,
+  };
 });
 
 const TABS: { id: Tab; label: string }[] = [
@@ -269,6 +287,37 @@ async function removeRun() {
           >
             <span class="lbl">Teaminfo</span>
             <span class="teaminfo-tag">{{ run.teaminfo_source }}</span>
+          </div>
+
+          <div
+            v-if="pairing"
+            class="paired-box"
+          >
+            <span class="paired-box__tag">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+              Paired run<template v-if="pairing.role"> · {{ pairing.role }}</template>
+            </span>
+            <div class="paired-box__links">
+              <RouterLink :to="`/runs/${pairing.sibling}`">
+                Sibling run
+              </RouterLink>
+              <RouterLink :to="{ path: '/compare', query: { builds: pairing.compareBuilds } }">
+                View comparison
+              </RouterLink>
+            </div>
           </div>
 
           <div class="actions">
@@ -461,3 +510,37 @@ async function removeRun() {
     </template>
   </div>
 </template>
+
+<style scoped>
+.paired-box {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md, 8px);
+  background: var(--surface);
+}
+.paired-box__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--fg-mute);
+}
+.paired-box__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 13px;
+}
+.paired-box__links a {
+  color: var(--accent-text, inherit);
+  text-decoration: none;
+}
+.paired-box__links a:hover {
+  text-decoration: underline;
+}
+</style>

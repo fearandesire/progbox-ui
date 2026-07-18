@@ -45,13 +45,37 @@ function utcNowIso(): string {
   return new Date().toISOString().replace(/\+00:00$/, "Z");
 }
 
-function newBuildId(): string {
-  const d = new Date();
+function formatBuildId(d: Date): string {
   const p = (n: number, w = 2) => String(n).padStart(w, "0");
   return (
     `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}` +
     `${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}`
   );
+}
+
+function newBuildId(): string {
+  return formatBuildId(new Date());
+}
+
+/** Parse a second-precision CalVer build id back into a UTC Date. */
+function buildIdToDate(build: string): Date {
+  return new Date(
+    Date.UTC(
+      Number(build.slice(0, 4)),
+      Number(build.slice(4, 6)) - 1,
+      Number(build.slice(6, 8)),
+      Number(build.slice(8, 10)),
+      Number(build.slice(10, 12)),
+      Number(build.slice(12, 14)),
+    ),
+  );
+}
+
+/** Nudge a build id forward by one second, keeping it a valid CalVer id. */
+function bumpBuildId(build: string): string {
+  const d = buildIdToDate(build);
+  d.setUTCSeconds(d.getUTCSeconds() + 1);
+  return formatBuildId(d);
 }
 
 function defaultNWorkers(requested: number | null | undefined): number {
@@ -77,7 +101,13 @@ const SimCreateBodySchema = z.object({
   runs: z.number().int().positive().default(500),
   n_workers: z.number().int().positive().nullable().optional(),
   version: z.enum(PROGRESSION_VERSIONS).default("v43"),
+  compare: z.boolean().default(true),
 });
+
+/** The progression version that isn't the selected one (binary enum today). */
+function otherVersion(version: ProgressionVersion): ProgressionVersion {
+  return PROGRESSION_VERSIONS.find((v) => v !== version) ?? version;
+}
 
 type SimCreateBody = z.infer<typeof SimCreateBodySchema>;
 
@@ -215,42 +245,112 @@ export async function registerSimsRoutes(
       const exportMeta = exportData.meta as Record<string, unknown> | undefined;
       const exportTitle = typeof exportMeta?.title === "string" ? exportMeta.title : null;
 
-      const meta = {
-        build,
-        // Requested version recorded now; runner patches script_version + progression
-        // from the engine's own metadata post-run (executed truth).
-        requested_version: body.version,
-        script_version: versionLabel(body.version),
-        engine_build: engineAdapter.engineBuildVersion(),
-        teams: body.teams,
-        seed: body.seed,
-        runs: body.runs,
-        n_workers,
-        export_file: `outputs/${build}/export.json`,
-        export_title: exportTitle,
-        teaminfo_file: `outputs/${build}/teaminfo.json`,
-        teaminfo_source: teaminfoSource,
-        status: "running",
-        started_at: utcNowIso(),
-        completed_at: null,
-        player_count: null,
-        analysis_engine: null,
-        error: null,
-      };
+      interface PairFields {
+        pair_id: string;
+        pair_role: "primary" | "baseline";
+        paired_with: string;
+      }
+
+      function buildMeta(
+        runBuild: string,
+        version: ProgressionVersion,
+        pair: PairFields | null,
+      ): Record<string, unknown> {
+        return {
+          build: runBuild,
+          // Requested version recorded now; runner patches script_version + progression
+          // from the engine's own metadata post-run (executed truth).
+          requested_version: version,
+          script_version: versionLabel(version),
+          engine_build: engineAdapter.engineBuildVersion(),
+          teams: body.teams,
+          seed: body.seed,
+          runs: body.runs,
+          n_workers,
+          export_file: `outputs/${runBuild}/export.json`,
+          export_title: exportTitle,
+          teaminfo_file: `outputs/${runBuild}/teaminfo.json`,
+          teaminfo_source: teaminfoSource,
+          status: "running",
+          started_at: utcNowIso(),
+          completed_at: null,
+          player_count: null,
+          analysis_engine: null,
+          error: null,
+          ...(pair ?? {}),
+        };
+      }
+
+      function scheduleRun(
+        runBuild: string,
+        runExportPath: string,
+        runTeaminfoPath: string,
+        version: ProgressionVersion,
+      ) {
+        opts.scheduleBackground(() =>
+          runSimulationJob(
+            runBuild,
+            runExportPath,
+            runTeaminfoPath,
+            body.teams,
+            body.seed,
+            body.runs,
+            n_workers,
+            version,
+          ),
+        );
+      }
+
+      if (body.compare) {
+        // Auto-comparison: a second run with the OTHER version, same inputs, its own
+        // run dir. The selected version is primary; the other is the baseline.
+        const baselineVersion = otherVersion(body.version);
+        let baselineBuild = newBuildId();
+        // Second-precision CalVer ids can collide within one request; guarantee two distinct ids.
+        if (baselineBuild === build) {
+          baselineBuild = bumpBuildId(build);
+        }
+        const pairId = build;
+
+        const baselineOut = path.join(outputsRoot(), baselineBuild);
+        await fsp.mkdir(baselineOut, { recursive: true });
+        const baselineExportPath = path.join(baselineOut, "export.json");
+        const baselineTeaminfoPath = path.join(baselineOut, "teaminfo.json");
+        await fsp.copyFile(exportPath, baselineExportPath);
+        await fsp.copyFile(teaminfoPath, baselineTeaminfoPath);
+
+        const primaryMeta = buildMeta(build, body.version, {
+          pair_id: pairId,
+          pair_role: "primary",
+          paired_with: baselineBuild,
+        });
+        const baselineMeta = buildMeta(baselineBuild, baselineVersion, {
+          pair_id: pairId,
+          pair_role: "baseline",
+          paired_with: build,
+        });
+        await fsp.writeFile(
+          path.join(out, "metadata.json"),
+          JSON.stringify(primaryMeta, null, 2),
+          "utf8",
+        );
+        await fsp.writeFile(
+          path.join(baselineOut, "metadata.json"),
+          JSON.stringify(baselineMeta, null, 2),
+          "utf8",
+        );
+
+        // Primary first so callers/tests see the selected version as the first job.
+        scheduleRun(build, exportPath, teaminfoPath, body.version);
+        scheduleRun(baselineBuild, baselineExportPath, baselineTeaminfoPath, baselineVersion);
+
+        return reply.send({ build, compare_build: baselineBuild, pair_id: pairId });
+      }
+
+      const meta = buildMeta(build, body.version, null);
       await fsp.writeFile(path.join(out, "metadata.json"), JSON.stringify(meta, null, 2), "utf8");
 
-      opts.scheduleBackground(() =>
-        runSimulationJob(
-          build,
-          exportPath!,
-          teaminfoPath!,
-          body.teams,
-          body.seed,
-          body.runs,
-          n_workers,
-          body.version,
-        ),
-      );
+      scheduleRun(build, exportPath, teaminfoPath, body.version);
 
       return reply.send({ build });
     } catch (err) {

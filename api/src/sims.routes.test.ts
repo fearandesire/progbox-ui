@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "./app.js";
+import { isValidBuildId } from "./buildId.js";
 import { PROGRESS } from "./services/progress.js";
 import * as runner from "./services/runner.js";
 import * as analysisPython from "./services/analysisPython.js";
@@ -318,7 +319,7 @@ describe("sims routes", () => {
     const res = await multipartPost(
       app,
       { players: [{ stats: [], tid: 0 }] },
-      { teams: [], seed: 1, runs: 10, n_workers: 1 },
+      { teams: [], seed: 1, runs: 10, n_workers: 1, compare: false },
       { "0": "BOS" },
     );
     expect(res.statusCode).toBe(200);
@@ -386,6 +387,128 @@ describe("sims routes", () => {
     );
     expect(res.statusCode).toBe(422);
     expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("post sim defaults compare to true and schedules a paired run", async () => {
+    const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
+    const app = await buildTestApp();
+    const res = await multipartPost(
+      app,
+      { players: [{ stats: [], tid: 0 }] },
+      { teams: ["BOS"], seed: 7, runs: 12, n_workers: 3, version: "v43" },
+      { "0": "BOS" },
+    );
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as {
+      build: string;
+      compare_build: string;
+      pair_id: string;
+    };
+    expect(body.build).toHaveLength(14);
+    expect(body.compare_build).toHaveLength(14);
+    expect(body.pair_id).toBe(body.build);
+
+    // Two jobs, one per version, same inputs, distinct valid build dirs.
+    expect(spy).toHaveBeenCalledTimes(2);
+    const [primary, baseline] = spy.mock.calls;
+    expect(primary![7]).toBe("v43");
+    expect(baseline![7]).toBe("v41");
+    // Same seed / teams / n_workers across both runs.
+    expect(primary![3]).toEqual(baseline![3]);
+    expect(primary![3]).toEqual(["BOS"]);
+    expect(primary![4]).toBe(baseline![4]);
+    expect(primary![4]).toBe(7);
+    expect(primary![5]).toBe(baseline![5]);
+    expect(primary![5]).toBe(12);
+    expect(primary![6]).toBe(baseline![6]);
+    expect(primary![6]).toBe(3);
+    // Each run points at its own build dir; basenames match, dirnames differ.
+    const primaryDir = path.dirname(primary![1] as string);
+    const baselineDir = path.dirname(baseline![1] as string);
+    expect(path.basename(primary![1] as string)).toBe("export.json");
+    expect(path.basename(baseline![1] as string)).toBe("export.json");
+    expect(primaryDir).not.toBe(baselineDir);
+    expect(path.dirname(primary![2] as string)).toBe(primaryDir);
+    expect(path.dirname(baseline![2] as string)).toBe(baselineDir);
+    expect(isValidBuildId(path.basename(primaryDir))).toBe(true);
+    expect(isValidBuildId(path.basename(baselineDir))).toBe(true);
+    expect(primary![0]).toBe(body.build);
+    expect(baseline![0]).toBe(body.compare_build);
+    spy.mockRestore();
+  });
+
+  it("post sim records consistent pair metadata for both runs", async () => {
+    const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
+    const app = await buildTestApp();
+    const res = await multipartPost(
+      app,
+      { players: [{ stats: [], tid: 0 }] },
+      { teams: [], seed: 1, runs: 10, n_workers: 1, version: "v43" },
+      { "0": "BOS" },
+    );
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as {
+      build: string;
+      compare_build: string;
+      pair_id: string;
+    };
+
+    const primaryMeta = JSON.parse(
+      fs.readFileSync(path.join(isolatedOutputsPath(), body.build, "metadata.json"), "utf8"),
+    );
+    const baselineMeta = JSON.parse(
+      fs.readFileSync(
+        path.join(isolatedOutputsPath(), body.compare_build, "metadata.json"),
+        "utf8",
+      ),
+    );
+
+    expect(primaryMeta.pair_id).toBe(body.pair_id);
+    expect(baselineMeta.pair_id).toBe(body.pair_id);
+    expect(primaryMeta.pair_role).toBe("primary");
+    expect(baselineMeta.pair_role).toBe("baseline");
+    expect(primaryMeta.paired_with).toBe(body.compare_build);
+    expect(baselineMeta.paired_with).toBe(body.build);
+    // Each run reflects its own version.
+    expect(primaryMeta.requested_version).toBe("v43");
+    expect(primaryMeta.script_version).toBe("v4.3");
+    expect(baselineMeta.requested_version).toBe("v41");
+    expect(baselineMeta.script_version).toBe("v4.1");
+    // Each paired run is self-contained with its own export + teaminfo copy.
+    expect(
+      fs.existsSync(path.join(isolatedOutputsPath(), body.compare_build, "export.json")),
+    ).toBe(true);
+    expect(
+      fs.existsSync(path.join(isolatedOutputsPath(), body.compare_build, "teaminfo.json")),
+    ).toBe(true);
+    spy.mockRestore();
+  });
+
+  it("post sim compare false returns a single build with no pair fields", async () => {
+    const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
+    const app = await buildTestApp();
+    const res = await multipartPost(
+      app,
+      { players: [{ stats: [], tid: 0 }] },
+      { teams: [], seed: 1, runs: 10, n_workers: 1, compare: false },
+      { "0": "BOS" },
+    );
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as Record<string, unknown>;
+    expect(typeof body.build).toBe("string");
+    expect(body.compare_build).toBeUndefined();
+    expect(body.pair_id).toBeUndefined();
+    expect(spy).toHaveBeenCalledTimes(1);
+    const meta = JSON.parse(
+      fs.readFileSync(
+        path.join(isolatedOutputsPath(), body.build as string, "metadata.json"),
+        "utf8",
+      ),
+    );
+    expect(meta.pair_id).toBeUndefined();
+    expect(meta.pair_role).toBeUndefined();
+    expect(meta.paired_with).toBeUndefined();
     spy.mockRestore();
   });
 
@@ -571,7 +694,7 @@ describe("sims routes", () => {
       filename: "export.json",
       contentType: "application/json",
     });
-    form.append("config", JSON.stringify({ teams: [], seed: 2, runs: 5 }));
+    form.append("config", JSON.stringify({ teams: [], seed: 2, runs: 5, compare: false }));
     const res = await app.inject({
       method: "POST",
       url: "/api/sims",

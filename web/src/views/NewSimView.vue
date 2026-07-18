@@ -1,9 +1,18 @@
+<script lang="ts">
+/* Exact copy for the paired-completion toast — shared by the template and the
+   test so the two can't drift. */
+export const PAIR_COMPLETE_TOAST =
+  "Both runs saved to your dashboard. Opening the comparison results...";
+</script>
+
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import DeIcon from "../components/DeIcon.vue";
 import SimProgressPanel from "../components/SimProgressPanel.vue";
+import Toast from "../components/Toast.vue";
 import { createSim } from "../lib/api";
+import type { CreateSimInput, CreateSimResponse } from "../lib/api";
 import { useSimProgress } from "../composables/useSimProgress";
 
 type CreateState = "idle" | "uploading" | "running" | "failed";
@@ -17,10 +26,27 @@ const seed = ref(69);
 const runs = ref(500);
 const nWorkers = ref<number | null>(null);
 const version = ref<"v41" | "v43">("v43");
+const compare = ref(true);
 
 const state = ref<CreateState>("idle");
 const error = ref<string | null>(null);
 const activeBuild = ref<string | null>(null);
+const compareBuild = ref<string | null>(null);
+const paired = ref(false);
+const finalizing = ref(false);
+const showToast = ref(false);
+const pairComparisonBlocked = ref<string | null>(null);
+
+// Label the toggle with the OTHER version's v4.x display label.
+const otherVersionLabel = computed(() => (version.value === "v43" ? "v4.1" : "v4.3"));
+
+const primaryVersionLabel = computed(() => (version.value === "v43" ? "v4.3" : "v4.1"));
+
+const pairComparisonBlockedMessage = computed(() =>
+  pairComparisonBlocked.value
+    ? `Comparison unavailable because the ${pairComparisonBlocked.value} run failed. You can still open either run from the links below.`
+    : null,
+);
 
 const teaminfoExample = `{
   "0": "BOS",
@@ -34,16 +60,81 @@ const showTeaminfoDetails = ref(false);
 const showAdvanced = ref(false);
 
 const canSubmit = computed(
-  () => !!exportFile.value && (state.value === "idle" || state.value === "failed"),
+  () =>
+    !!exportFile.value &&
+    (state.value === "idle" ||
+      state.value === "failed" ||
+      // Paired failure keeps panels mounted (state stays "running"); still allow retry.
+      !!pairComparisonBlocked.value),
+);
+/** Progress panels stay up while a run is in flight, or after a paired failure. */
+const showProgress = computed(
+  () =>
+    !!activeBuild.value &&
+    (state.value === "running" || !!pairComparisonBlocked.value),
 );
 const simProgress = useSimProgress(activeBuild);
+const compareProgress = useSimProgress(compareBuild);
+
+// Single run (compare off): land on that run's detail once it completes.
+watch(
+  () => [simProgress.done.value, simProgress.phase.value] as const,
+  ([done, phase]) => {
+    if (!done || !activeBuild.value || paired.value) return;
+    if (phase === "complete") {
+      state.value = "idle";
+      void router.push(`/runs/${activeBuild.value}`);
+      return;
+    }
+    if (phase === "failed") {
+      state.value = "failed";
+      error.value = simProgress.message.value ?? "Simulation failed";
+    }
+  },
+);
+
+// Paired run: record the first failed version so we suppress compare redirect.
+watch(
+  () => [simProgress.done.value, simProgress.phase.value] as const,
+  ([done, phase]) => {
+    if (!paired.value || !done || phase !== "failed") return;
+    if (!pairComparisonBlocked.value) {
+      pairComparisonBlocked.value = primaryVersionLabel.value;
+    }
+  },
+);
 
 watch(
-  () => simProgress.done.value,
-  (done) => {
-    if (!done || !activeBuild.value) return;
+  () => [compareProgress.done.value, compareProgress.phase.value] as const,
+  ([done, phase]) => {
+    if (!paired.value || !done || phase !== "failed") return;
+    if (!pairComparisonBlocked.value) {
+      pairComparisonBlocked.value = otherVersionLabel.value;
+    }
+  },
+);
+
+// Paired run: once BOTH complete, show the toast then open the comparison.
+watch(
+  () =>
+    [
+      simProgress.done.value,
+      simProgress.phase.value,
+      compareProgress.done.value,
+      compareProgress.phase.value,
+    ] as const,
+  ([primaryDone, primaryPhase, baselineDone, baselinePhase]) => {
+    if (!paired.value || finalizing.value || pairComparisonBlocked.value) return;
+    if (!primaryDone || !baselineDone) return;
+    if (primaryPhase !== "complete" || baselinePhase !== "complete") return;
+    if (!activeBuild.value || !compareBuild.value) return;
+    finalizing.value = true;
     state.value = "idle";
-    void router.push(`/runs/${activeBuild.value}`);
+    showToast.value = true;
+    const builds = `${activeBuild.value},${compareBuild.value}`;
+    setTimeout(() => {
+      void router.push({ path: "/compare", query: { builds } });
+    }, 1500);
   },
 );
 
@@ -84,8 +175,13 @@ async function submit() {
   }
   error.value = null;
   state.value = "uploading";
+  finalizing.value = false;
+  showToast.value = false;
+  compareBuild.value = null;
+  paired.value = false;
+  pairComparisonBlocked.value = null;
   try {
-    const response = await createSim(
+    const response = (await createSim(
       exportFile.value,
       {
         teams: parseTeams(teamsCsv.value),
@@ -93,10 +189,15 @@ async function submit() {
         runs: runs.value,
         n_workers: nWorkers.value,
         version: version.value,
-      },
+        compare: compare.value,
+      } as CreateSimInput,
       teaminfoFile.value,
-    );
+    )) as CreateSimResponse & { compare_build?: string; pair_id?: string };
     activeBuild.value = response.build;
+    if (compare.value && response.compare_build) {
+      compareBuild.value = response.compare_build;
+      paired.value = true;
+    }
     state.value = "running";
   } catch (e: unknown) {
     error.value = httpErrorMessage(e);
@@ -166,6 +267,20 @@ async function submit() {
           </option>
         </select>
         <span class="hint">v4.3 fixes league-wide OVR deflation and the age curve. Pick v4.1 only to compare.</span>
+      </div>
+
+      <div class="field">
+        <label class="compare-toggle">
+          <input
+            v-model="compare"
+            type="checkbox"
+          >
+          <span>Also run {{ otherVersionLabel }} and compare</span>
+        </label>
+        <span class="hint">
+          Runs the simulation twice from one submission — your selected version and
+          {{ otherVersionLabel }} — with identical inputs, then opens the head-to-head comparison.
+        </span>
       </div>
 
       <div class="field-row">
@@ -330,21 +445,66 @@ async function submit() {
     </form>
 
     <div
-      v-if="state === 'running' && activeBuild"
-      style="margin-top: 20px"
+      v-if="showProgress && activeBuild"
+      style="margin-top: 20px; display: grid; gap: 18px"
     >
       <p
-        style="font-family: var(--mono); font-size: 11.5px; color: var(--fg-mute); letter-spacing: 0.04em; margin: 0 0 10px"
+        v-if="pairComparisonBlockedMessage"
+        role="alert"
+        style="color: var(--rd-600); font-size: 13px; margin: 0"
       >
-        run started ·
-        <RouterLink
-          :to="`/runs/${activeBuild}`"
-          style="color: var(--accent-text)"
-        >
-          {{ activeBuild }}
-        </RouterLink>
+        {{ pairComparisonBlockedMessage }}
       </p>
-      <SimProgressPanel :build="activeBuild" />
+      <div>
+        <p
+          style="font-family: var(--mono); font-size: 11.5px; color: var(--fg-mute); letter-spacing: 0.04em; margin: 0 0 10px"
+        >
+          run started ·
+          <RouterLink
+            :to="`/runs/${activeBuild}`"
+            style="color: var(--accent-text)"
+          >
+            {{ activeBuild }}
+          </RouterLink>
+        </p>
+        <SimProgressPanel :build="activeBuild" />
+      </div>
+      <div v-if="paired && compareBuild">
+        <p
+          style="font-family: var(--mono); font-size: 11.5px; color: var(--fg-mute); letter-spacing: 0.04em; margin: 0 0 10px"
+        >
+          paired run ({{ otherVersionLabel }}) ·
+          <RouterLink
+            :to="`/runs/${compareBuild}`"
+            style="color: var(--accent-text)"
+          >
+            {{ compareBuild }}
+          </RouterLink>
+        </p>
+        <SimProgressPanel :build="compareBuild" />
+      </div>
     </div>
+
+    <Toast
+      :show="showToast"
+      :message="PAIR_COMPLETE_TOAST"
+      @close="showToast = false"
+    />
   </div>
 </template>
+
+<style scoped>
+.compare-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  font-weight: 500;
+}
+.compare-toggle input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent, #10b981);
+  cursor: pointer;
+}
+</style>

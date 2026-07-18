@@ -29,6 +29,12 @@ export interface RunMetadata {
   config_snapshot?: Record<string, unknown> | null;
   error?: string | null;
   error_detail?: string | null;
+  /** Shared id linking the two runs of an auto-comparison pair. */
+  pair_id?: string | null;
+  /** This run's role within its auto-comparison pair. */
+  pair_role?: "primary" | "baseline" | null;
+  /** The sibling run's build id within the pair. */
+  paired_with?: string | null;
 }
 
 export interface SimProgressPayload {
