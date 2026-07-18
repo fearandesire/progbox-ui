@@ -1,3 +1,3 @@
 
-## 15:53 | agent/v4-3-ui-dashboard-7d84b6
-Wrote auto-comparison-runs spec (dual-run pairing, toast-then-redirect UX) to temp scratchpad, then dispatched via fnx-orchestrate: Package A (API, `api/src/routes/sims.ts`+types+tests, `web/src/lib`) done — 56/56 tests pass, lint clean, added `compare` flag, pair_id/pair_role/paired_with metadata, distinct build-id bumping; Package B (web views/components incl. new Toast.vue, NewSimView.vue) still running.
+## 16:33 | agent/v4-3-ui-dashboard-7d84b6
+Completed PR#25 auto-comparison feature (dual-run compare toggle, Toast.vue, paired indicators, docs), verified live via WSL; fnx-pr-shepherd subagent found CI all-green but blocked merge on 2 Greptile P1s (analysisPython.ts:74 race, sims.ts:438-443 dup-build self-compare) — now planning fix.
