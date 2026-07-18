@@ -387,6 +387,59 @@ describe("sims routes", () => {
     );
     expect(res.statusCode).toBe(422);
     expect(spy).not.toHaveBeenCalled();
+    expect(fs.readdirSync(isolatedOutputsPath())).toEqual([]);
+    spy.mockRestore();
+  });
+
+  it("post sim cleans up reserved dirs when config validation fails", async () => {
+    const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
+    const app = await buildTestApp();
+    const form = new FormData();
+    form.append("export", Buffer.from(JSON.stringify({ players: [{ stats: [], tid: 0 }] })), {
+      filename: "export.json",
+      contentType: "application/json",
+    });
+    form.append("config", "{not-json");
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/sims",
+      payload: form.getBuffer() as Buffer,
+      headers: form.getHeaders() as Record<string, string>,
+    });
+    expect(res.statusCode).toBe(422);
+    expect(spy).not.toHaveBeenCalled();
+    expect(fs.readdirSync(isolatedOutputsPath())).toEqual([]);
+    spy.mockRestore();
+  });
+
+  it("post sim cleans up both pair dirs when baseline metadata write fails", async () => {
+    const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
+    let metadataWrites = 0;
+    const originalWriteFile = fs.promises.writeFile.bind(fs.promises);
+    const writeSpy = vi.spyOn(fs.promises, "writeFile").mockImplementation(
+      async (filePath, data, options) => {
+        if (String(filePath).replace(/\\/g, "/").endsWith("/metadata.json")) {
+          metadataWrites += 1;
+          if (metadataWrites >= 2) {
+            throw new Error("ENOSPC");
+          }
+        }
+        return originalWriteFile(filePath, data as never, options as never);
+      },
+    );
+
+    const app = await buildTestApp();
+    const res = await multipartPost(
+      app,
+      { players: [{ stats: [], tid: 0 }] },
+      { teams: [], seed: 1, runs: 10, n_workers: 1, version: "v43" },
+      { "0": "BOS" },
+    );
+    expect(res.statusCode).toBe(500);
+    expect(spy).not.toHaveBeenCalled();
+    expect(fs.readdirSync(isolatedOutputsPath())).toEqual([]);
+
+    writeSpy.mockRestore();
     spy.mockRestore();
   });
 

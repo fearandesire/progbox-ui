@@ -100,6 +100,12 @@ async function allocateBuildDir(startFrom?: string): Promise<{ build: string; ou
   throw new Error("Could not allocate a unique build id");
 }
 
+async function removeRunDirs(...dirs: readonly string[]): Promise<void> {
+  await Promise.all(
+    dirs.map((dir) => fsp.rm(dir, { recursive: true, force: true }).catch(() => {})),
+  );
+}
+
 function defaultNWorkers(requested: number | null | undefined): number {
   if (requested != null) return requested;
   // Requires Node.js >= 18.14.0 for os.availableParallelism
@@ -142,6 +148,16 @@ function badRequest(reply: FastifyReply, status: number, detail: string) {
   return reply.status(status).send({ detail });
 }
 
+async function rejectAndCleanup(
+  reply: FastifyReply,
+  dirs: readonly string[],
+  status: number,
+  detail: string,
+) {
+  await removeRunDirs(...dirs);
+  return badRequest(reply, status, detail);
+}
+
 async function validateBuildIdHandler(
   request: { params: unknown },
   reply: FastifyReply,
@@ -169,6 +185,7 @@ export async function registerSimsRoutes(
     let configStr = "";
 
     const { build, out } = await allocateBuildDir();
+    const allocatedDirs: string[] = [out];
 
     const tempFiles: string[] = [];
     try {
@@ -197,24 +214,29 @@ export async function registerSimsRoutes(
       }
 
       if (!exportPath) {
-        return badRequest(reply, 422, "export file is empty");
+        return rejectAndCleanup(reply, allocatedDirs, 422, "export file is empty");
       }
 
       const exportStat = await fsp.stat(exportPath);
       if (exportStat.size === 0) {
-        return badRequest(reply, 422, "export file is empty");
+        return rejectAndCleanup(reply, allocatedDirs, 422, "export file is empty");
       }
 
       let body: SimCreateBody;
       try {
         body = parseSimCreateBody(configStr);
       } catch (e) {
-        return badRequest(reply, 422, `config is not valid JSON: ${String(e)}`);
+        return rejectAndCleanup(
+          reply,
+          allocatedDirs,
+          422,
+          `config is not valid JSON: ${String(e)}`,
+        );
       }
 
       const n_workers = defaultNWorkers(body.n_workers);
       if (n_workers < 1) {
-        return badRequest(reply, 422, "n_workers must be >= 1");
+        return rejectAndCleanup(reply, allocatedDirs, 422, "n_workers must be >= 1");
       }
 
       let exportData: Record<string, unknown>;
@@ -223,7 +245,7 @@ export async function registerSimsRoutes(
         exportData = JSON.parse(exportBuf) as Record<string, unknown>;
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        return badRequest(reply, 422, `export is not valid JSON: ${msg}`);
+        return rejectAndCleanup(reply, allocatedDirs, 422, `export is not valid JSON: ${msg}`);
       }
 
       let teaminfoSource: "generated" | "user";
@@ -232,7 +254,7 @@ export async function registerSimsRoutes(
       if (teaminfoPath != null) {
         const teaminfoStat = await fsp.stat(teaminfoPath);
         if (teaminfoStat.size === 0) {
-          return badRequest(reply, 422, "teaminfo file is empty");
+          return rejectAndCleanup(reply, allocatedDirs, 422, "teaminfo file is empty");
         }
         try {
           const teaminfoBuf = await fsp.readFile(teaminfoPath, "utf8");
@@ -240,10 +262,15 @@ export async function registerSimsRoutes(
           teaminfoMap = validateTeaminfo(rawTeaminfo);
         } catch (e) {
           if (e instanceof InvalidTeaminfoError) {
-            return badRequest(reply, 400, e.message);
+            return rejectAndCleanup(reply, allocatedDirs, 400, e.message);
           }
           if (e instanceof SyntaxError) {
-            return badRequest(reply, 400, `teaminfo.json is not valid JSON: ${e.message}`);
+            return rejectAndCleanup(
+              reply,
+              allocatedDirs,
+              400,
+              `teaminfo.json is not valid JSON: ${e.message}`,
+            );
           }
           throw e;
         }
@@ -330,6 +357,7 @@ export async function registerSimsRoutes(
         const { build: baselineBuild, out: baselineOut } = await allocateBuildDir(
           bumpBuildId(build),
         );
+        allocatedDirs.push(baselineOut);
         const pairId = build;
 
         const baselineExportPath = path.join(baselineOut, "export.json");
@@ -347,16 +375,26 @@ export async function registerSimsRoutes(
           pair_role: "baseline",
           paired_with: build,
         });
-        await fsp.writeFile(
-          path.join(out, "metadata.json"),
-          JSON.stringify(primaryMeta, null, 2),
-          "utf8",
-        );
-        await fsp.writeFile(
-          path.join(baselineOut, "metadata.json"),
-          JSON.stringify(baselineMeta, null, 2),
-          "utf8",
-        );
+        try {
+          await fsp.writeFile(
+            path.join(out, "metadata.json"),
+            JSON.stringify(primaryMeta, null, 2),
+            "utf8",
+          );
+          await fsp.writeFile(
+            path.join(baselineOut, "metadata.json"),
+            JSON.stringify(baselineMeta, null, 2),
+            "utf8",
+          );
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          return rejectAndCleanup(
+            reply,
+            allocatedDirs,
+            500,
+            `Failed to write run metadata: ${msg}`,
+          );
+        }
 
         // Primary first so callers/tests see the selected version as the first job.
         scheduleRun(build, exportPath, teaminfoPath, body.version);
@@ -366,12 +404,23 @@ export async function registerSimsRoutes(
       }
 
       const meta = buildMeta(build, body.version, null);
-      await fsp.writeFile(path.join(out, "metadata.json"), JSON.stringify(meta, null, 2), "utf8");
+      try {
+        await fsp.writeFile(path.join(out, "metadata.json"), JSON.stringify(meta, null, 2), "utf8");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return rejectAndCleanup(
+          reply,
+          allocatedDirs,
+          500,
+          `Failed to write run metadata: ${msg}`,
+        );
+      }
 
       scheduleRun(build, exportPath, teaminfoPath, body.version);
 
       return reply.send({ build });
     } catch (err) {
+      await removeRunDirs(...allocatedDirs);
       // Clean up temp files on error
       for (const tmpFile of tempFiles) {
         await fsp.rm(tmpFile, { force: true }).catch(() => {});
