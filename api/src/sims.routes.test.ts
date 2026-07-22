@@ -340,6 +340,39 @@ describe("sims routes", () => {
     expect(meta.status).toBe("complete");
   });
 
+  it("delete clears pair metadata when the baseline member is deleted", async () => {
+    const primary = "20260101120000";
+    const baseline = "20260101120001";
+    makeRunDir(primary, {
+      metadata: {
+        pair_id: primary,
+        pair_role: "primary",
+        paired_with: baseline,
+      },
+    });
+    makeRunDir(baseline, {
+      metadata: {
+        pair_id: primary,
+        pair_role: "baseline",
+        paired_with: primary,
+      },
+    });
+    const app = await buildTestApp();
+    const res = await app.inject({ method: "DELETE", url: `/api/sims/${baseline}` });
+    expect(res.statusCode).toBe(200);
+
+    const sibling = await app.inject({ method: "GET", url: `/api/sims/${primary}` });
+    expect(sibling.statusCode).toBe(200);
+    const meta = JSON.parse(sibling.body) as {
+      pair_id?: string;
+      pair_role?: string;
+      paired_with?: string;
+    };
+    expect(meta.pair_id).toBeUndefined();
+    expect(meta.pair_role).toBeUndefined();
+    expect(meta.paired_with).toBeUndefined();
+  });
+
   it("nested progress not captured as build", async () => {
     const build = "20260101120000";
     makeRunDir(build, { metadata: { status: "complete", teams: [] } });

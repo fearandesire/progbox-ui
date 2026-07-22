@@ -65,19 +65,40 @@ function clearPairFields(meta: RunMetadata): RunMetadata {
   return next;
 }
 
-function unlinkPairedSibling(build: string, meta: RunMetadata | null): void {
-  const siblingBuild = meta?.paired_with;
-  if (!siblingBuild || !isValidBuildId(siblingBuild)) return;
-
-  const sibling = getRun(siblingBuild);
-  // Only clear when the sibling still points back at the run being deleted.
-  if (!sibling || sibling.paired_with !== build) return;
-
+function writeClearedPairMetadata(siblingBuild: string, sibling: RunMetadata): void {
   const p = metadataPath(siblingBuild);
   try {
     fs.writeFileSync(p, JSON.stringify(clearPairFields(sibling), null, 2), "utf8");
   } catch {
-    // Best-effort: deletion of `build` still proceeds.
+    // Best-effort: deletion of the target run still proceeds.
+  }
+}
+
+/**
+ * When one member of an auto-comparison pair is deleted, strip pair metadata from
+ * any surviving sibling so UI nav/compare links do not point at a missing build.
+ */
+function unlinkPairedSiblings(build: string, meta: RunMetadata | null): void {
+  const siblingBuilds = new Set<string>();
+  if (meta?.paired_with && isValidBuildId(meta.paired_with)) {
+    siblingBuilds.add(meta.paired_with);
+  }
+  // Also catch one-sided links (corrupt/partial metadata on the deleted run).
+  for (const run of listRuns()) {
+    if (run.build !== build && run.paired_with === build) {
+      siblingBuilds.add(run.build);
+    }
+  }
+
+  for (const siblingBuild of siblingBuilds) {
+    const sibling = getRun(siblingBuild);
+    if (!sibling) continue;
+    // Only clear when the sibling still references this run, or shares the same pair_id.
+    const linksToDeleted = sibling.paired_with === build;
+    const samePair =
+      meta?.pair_id != null && sibling.pair_id != null && sibling.pair_id === meta.pair_id;
+    if (!linksToDeleted && !samePair) continue;
+    writeClearedPairMetadata(siblingBuild, sibling);
   }
 }
 
@@ -87,8 +108,8 @@ export function deleteRun(build: string): boolean {
   if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
     return false;
   }
-  // Read pair metadata before the directory goes away, then drop the sibling link.
-  unlinkPairedSibling(build, getRun(build));
+  // Read pair metadata before the directory goes away, then drop sibling links.
+  unlinkPairedSiblings(build, getRun(build));
   fs.rmSync(target, { recursive: true, force: true });
   return true;
 }

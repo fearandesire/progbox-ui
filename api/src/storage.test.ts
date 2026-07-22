@@ -60,6 +60,54 @@ describe("storage", () => {
     expect(surviving?.status).toBe("complete");
   });
 
+  it("deleteRun clears pair metadata when the baseline member is deleted", () => {
+    const primary = "20260101120000";
+    const baseline = "20260101120001";
+    makeRunDir(primary, {
+      metadata: {
+        pair_id: primary,
+        pair_role: "primary",
+        paired_with: baseline,
+      },
+    });
+    makeRunDir(baseline, {
+      metadata: {
+        pair_id: primary,
+        pair_role: "baseline",
+        paired_with: primary,
+      },
+    });
+
+    expect(storage.deleteRun(baseline)).toBe(true);
+    expect(storage.getRun(baseline)).toBeNull();
+
+    const surviving = storage.getRun(primary);
+    expect(surviving?.pair_id).toBeUndefined();
+    expect(surviving?.pair_role).toBeUndefined();
+    expect(surviving?.paired_with).toBeUndefined();
+  });
+
+  it("deleteRun clears one-sided pair links when deleted run metadata is incomplete", () => {
+    const primary = "20260101120000";
+    const baseline = "20260101120001";
+    // Primary has no pair fields (corrupt/partial), but baseline still points at it.
+    makeRunDir(primary, { metadata: { status: "complete" } });
+    makeRunDir(baseline, {
+      metadata: {
+        pair_id: primary,
+        pair_role: "baseline",
+        paired_with: primary,
+      },
+    });
+
+    expect(storage.deleteRun(primary)).toBe(true);
+
+    const surviving = storage.getRun(baseline);
+    expect(surviving?.pair_id).toBeUndefined();
+    expect(surviving?.pair_role).toBeUndefined();
+    expect(surviving?.paired_with).toBeUndefined();
+  });
+
   it("deleteRun leaves unrelated metadata alone when sibling is missing", () => {
     const primary = "20260101120000";
     makeRunDir(primary, {
