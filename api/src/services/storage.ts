@@ -56,12 +56,39 @@ export function getRun(build: string): RunMetadata | null {
   }
 }
 
+/** Drop pair fields so a surviving sibling no longer links to a deleted run. */
+function clearPairFields(meta: RunMetadata): RunMetadata {
+  const next = { ...meta };
+  delete next.pair_id;
+  delete next.pair_role;
+  delete next.paired_with;
+  return next;
+}
+
+function unlinkPairedSibling(build: string, meta: RunMetadata | null): void {
+  const siblingBuild = meta?.paired_with;
+  if (!siblingBuild || !isValidBuildId(siblingBuild)) return;
+
+  const sibling = getRun(siblingBuild);
+  // Only clear when the sibling still points back at the run being deleted.
+  if (!sibling || sibling.paired_with !== build) return;
+
+  const p = metadataPath(siblingBuild);
+  try {
+    fs.writeFileSync(p, JSON.stringify(clearPairFields(sibling), null, 2), "utf8");
+  } catch {
+    // Best-effort: deletion of `build` still proceeds.
+  }
+}
+
 export function deleteRun(build: string): boolean {
   if (!isValidBuildId(build)) return false;
   const target = path.join(outputsRoot(), build);
   if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
     return false;
   }
+  // Read pair metadata before the directory goes away, then drop the sibling link.
+  unlinkPairedSibling(build, getRun(build));
   fs.rmSync(target, { recursive: true, force: true });
   return true;
 }
