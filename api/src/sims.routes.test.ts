@@ -485,6 +485,38 @@ describe("sims routes", () => {
     spy.mockRestore();
   });
 
+  it("post sim bumps past an occupied CalVer build directory", async () => {
+    const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
+    const app = await buildTestApp();
+
+    // Occupy the id newBuildId() would produce in this second.
+    const p = (n: number, w = 2) => String(n).padStart(w, "0");
+    const d = new Date();
+    const occupied =
+      `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}` +
+      `${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}`;
+    makeRunDir(occupied);
+
+    const res = await multipartPost(
+      app,
+      { players: [{ stats: [], tid: 0 }] },
+      { teams: [], seed: 1, runs: 10, n_workers: 1, compare: false },
+      { "0": "BOS" },
+    );
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { build: string };
+    expect(body.build).not.toBe(occupied);
+    expect(isValidBuildId(body.build)).toBe(true);
+    expect(
+      fs.existsSync(path.join(isolatedOutputsPath(), body.build, "export.json")),
+    ).toBe(true);
+    // Must not reuse the occupied directory.
+    expect(
+      fs.existsSync(path.join(isolatedOutputsPath(), occupied, "export.json")),
+    ).toBe(false);
+    spy.mockRestore();
+  });
+
   it("post sim compare false returns a single build with no pair fields", async () => {
     const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
     const app = await buildTestApp();
