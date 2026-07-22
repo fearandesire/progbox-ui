@@ -78,18 +78,20 @@ function bumpBuildId(build: string): string {
   return formatBuildId(d);
 }
 
-/** Max consecutive CalVer seconds to probe when reserving a unique run dir. */
-const MAX_BUILD_ID_ALLOC_ATTEMPTS = 256;
-
 /**
  * Reserve a unique run directory with an exclusive mkdir (no recursive create).
  * Retries by bumping the CalVer id when the candidate already exists — prevents
  * two concurrent POSTs from sharing the same second-precision build dir.
+ * Keeps probing forward (no fixed attempt window) so a same-second burst never
+ * 500s while later second-precision IDs are free. Bound only by a wall-clock
+ * horizon so a pathological filled outputs/ cannot loop forever.
  */
 async function allocateBuildDir(startFrom?: string): Promise<{ build: string; out: string }> {
   await fsp.mkdir(outputsRoot(), { recursive: true });
   let candidate = startFrom ?? newBuildId();
-  for (let attempt = 0; attempt < MAX_BUILD_ID_ALLOC_ATTEMPTS; attempt++) {
+  // CalVer ids are zero-padded fixed-width, so lexicographic order == time order.
+  const horizon = formatBuildId(new Date(Date.now() + 60 * 60 * 1000));
+  while (candidate <= horizon) {
     const out = path.join(outputsRoot(), candidate);
     try {
       await fsp.mkdir(out);
