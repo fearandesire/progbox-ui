@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { availableParallelism } from "node:os";
 
 const apiRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const engineRoot = resolve(apiRoot, "vendor", "progbox_cpp");
@@ -74,7 +75,11 @@ function configureAndBuild(captureStderr = false) {
   if (configureResult.status !== 0) {
     return configureResult;
   }
-  return run("cmake", ["--build", ".", "--config", "Release"], buildDir, captureStderr);
+  // Without --parallel, CMake's Makefile generator compiles serially and the
+  // extra CI cores go unused. availableParallelism respects CPU affinity, so it
+  // reports the cores we can actually use rather than the host's total.
+  const jobs = Math.max(1, availableParallelism());
+  return run("cmake", ["--build", ".", "--config", "Release", "--parallel", String(jobs)], buildDir, captureStderr);
 }
 
 function isCacheMismatchError(stderr) {
