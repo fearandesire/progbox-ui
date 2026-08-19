@@ -18,7 +18,9 @@ concurrency:
 
 jobs:
   web:
-    runs-on: ubuntu-latest
+    # Lint/typecheck/build/vitest — nothing CPU-bound; smallest Ubicloud size.
+    runs-on: ubicloud-standard-2
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -49,7 +51,9 @@ jobs:
         run: pnpm --filter web test:coverage
 
   api:
-    runs-on: ubuntu-latest
+    # Compiles the C++ engine and pip-installs numpy/pandas/scipy.
+    runs-on: ubicloud-standard-4
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -84,7 +88,11 @@ jobs:
         run: pnpm run test:api:engine
 
   e2e-smoke:
-    runs-on: ubuntu-latest
+    # Runs a real Chromium alongside a Vite server; 2 vCPU gets flaky under contention.
+    runs-on: ubicloud-standard-4
+    # The browser-install step has wedged for 20m+ on GitHub runners (see runs
+    # 32271967860, 32274000045). Bound the damage instead of burning the 6h default.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -101,8 +109,27 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Browser binaries only — the apt libs from --with-deps are NOT in this path,
+      # so a cache hit still has to run install-deps below.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      # Split from the apt step below. Combining them (--with-deps) meant a wedge
+      # gave no signal about which half hung; separate steps + timeouts do.
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 5
+        run: npx playwright install chromium
+
+      # Always runs: the apt libs live outside ~/.cache/ms-playwright, so a cache
+      # hit still needs them or Chromium won't launch.
+      - name: Install Playwright system deps
+        timeout-minutes: 5
+        run: npx playwright install-deps chromium
 
       - name: Run Playwright smoke suite
         run: pnpm run test:e2e
