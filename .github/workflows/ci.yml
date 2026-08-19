@@ -18,8 +18,8 @@ concurrency:
 
 jobs:
   web:
-    # Lint/typecheck/build/vitest — nothing CPU-bound; smallest Ubicloud size.
-    runs-on: ubicloud-standard-2
+    # Spec parity with ubuntu-latest, which gives public repos 4 vCPU / 16GB.
+    runs-on: ubicloud-standard-4
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
