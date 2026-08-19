@@ -69,6 +69,9 @@ importers:
       pinia:
         specifier: ^3.0.4
         version: 3.0.4(typescript@5.9.3)(vue@3.5.34(typescript@5.9.3))
+      plotly.js-cartesian-dist-min:
+        specifier: ^3.7.0
+        version: 3.7.0
       vue:
         specifier: ^3.5.30
         version: 3.5.34(typescript@5.9.3)
@@ -88,6 +91,9 @@ importers:
       '@types/node':
         specifier: ^24.12.0
         version: 24.12.4
+      '@types/plotly.js':
+        specifier: ^3.0.13
+        version: 3.0.13
       '@vitejs/plugin-vue':
         specifier: ^6.0.5
         version: 6.0.6(vite@8.0.12(@types/node@24.12.4)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))(vue@3.5.34(typescript@5.9.3))
@@ -918,6 +924,9 @@ packages:
 
   '@types/node@24.12.4':
     resolution: {integrity: sha512-GUUEShf+PBCGW2KaXwcIt3Yk+e3pkKwWKb9GSyM9WQVE+ep2jzmHdGsHzu4wgcZy5fN9FBdVzjpBQsYlpfpgLA==}
+
+  '@types/plotly.js@3.0.13':
+    resolution: {integrity: sha512-mWI1NZRDHDoiFiPEvUjR0P12fv21kmT8XSLrEjfNwIDahELaXXkSz38n6o+5SYsq0YEGxkK3ANqqM0cRl8uZdg==}
 
   '@typescript-eslint/eslint-plugin@8.59.3':
     resolution: {integrity: sha512-PwFvSKsXGShKGW6n5bZOhGHEcCZXM8HofLK9fNsEwZXzFRjoY+XT1Vsf1zgyXdwTr0ZYz1/2tkZ0DBTT9jZjhw==}
@@ -2238,6 +2247,9 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
+  plotly.js-cartesian-dist-min@3.7.0:
+    resolution: {integrity: sha512-kfQjcAXXByRlskP8JsrlGYRPOvB+kOehZk/qBNewgr9SOMEnBN5nwEnUGOAQ0EEgYdQX51z3VZ81aBnDgSr9Bw==}
+
   postcss-selector-parser@7.1.1:
     resolution: {integrity: sha512-orRsuYpJVw8LdAwqqLykBj9ecS5/cRHlI5+nvTo8LcCKmzDmqVORXtOIYEEQuL9D4BxtA1lm5isAqzQZCoQ6Eg==}
     engines: {node: '>=4'}
@@ -3458,6 +3470,8 @@ snapshots:
   '@types/node@24.12.4':
     dependencies:
       undici-types: 7.16.0
+
+  '@types/plotly.js@3.0.13': {}
 
   '@typescript-eslint/eslint-plugin@8.59.3(@typescript-eslint/parser@8.59.3(eslint@10.3.0(jiti@2.7.0))(typescript@5.9.3))(eslint@10.3.0(jiti@2.7.0))(typescript@5.9.3)':
     dependencies:
@@ -4915,6 +4929,8 @@ snapshots:
       playwright-core: 1.60.0
     optionalDependencies:
       fsevents: 2.3.2
+
+  plotly.js-cartesian-dist-min@3.7.0: {}
 
   postcss-selector-parser@7.1.1:
     dependencies:
