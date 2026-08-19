@@ -101,11 +101,19 @@ describe("PlayerExplorer", () => {
     expect(attrs.marker.color).toEqual(["#f97316", "#dc2626"]);
   });
 
-  it("shows an empty note for a non-matching search", async () => {
+  it("keeps the current charts pinned while the query has no match", async () => {
     const wrapper = mount(PlayerExplorer, { props: { payload } });
     await flushPromises();
-    await wrapper.get("input").setValue("Nobody");
-    expect(wrapper.text()).toContain("No player matches that search.");
+    vi.mocked(plotly.purge).mockClear();
+
+    await wrapper.get("input").setValue("Beta Gu");
+    await flushPromises();
+
+    // Hint shown, but the selection (and both charts) stay put.
+    expect(wrapper.text()).toContain("No player matches");
+    expect(wrapper.findAll(".plotly-chart")).toHaveLength(2);
+    expect(plotly.purge).not.toHaveBeenCalled();
+    expect(wrapper.get('[data-testid="explorer-stats"]').text()).toContain("age 24");
   });
 
   it("includes the big-jump annotation only when pBig is meaningful", async () => {

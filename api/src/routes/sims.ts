@@ -679,12 +679,15 @@ export async function registerSimsRoutes(
       const key = await ensureComparison(request.query.builds, reply);
       if (key == null) return reply;
       try {
-        const data = getComparisonData(key);
+        const [data, scorecard] = await Promise.all([
+          getComparisonData(key),
+          getComparisonScorecard(key),
+        ]);
         return reply.send({
           ...data,
           engine: "python",
           builds: key.split("_"),
-          scorecard: getComparisonScorecard(key),
+          scorecard,
         });
       } catch (e) {
         if (e instanceof MarkersNotFoundError) {
@@ -715,7 +718,7 @@ export async function registerSimsRoutes(
         });
       }
       try {
-        const data = getAnalysisData(build);
+        const data = await getAnalysisData(build);
         return reply.send({ ...data, engine: "python", build });
       } catch (e) {
         if (e instanceof MarkersNotFoundError) {

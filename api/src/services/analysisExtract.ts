@@ -1,5 +1,6 @@
-import fs from "node:fs";
+import fsp from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { parse } from "csv-parse/sync";
 import {
   analysisDashboardPath,
@@ -184,33 +185,48 @@ export function comparisonScorecardPath(key: string): string {
   return path.join(comparisonCacheDir(key), "comparison_scorecard.csv");
 }
 
-function extractWithCache(htmlPath: string, cachePath: string): ExtractedDashboard {
-  const htmlStat = fs.statSync(htmlPath);
-  if (fs.existsSync(cachePath)) {
-    try {
-      const cacheStat = fs.statSync(cachePath);
-      if (cacheStat.mtimeMs >= htmlStat.mtimeMs) {
-        const cached = JSON.parse(fs.readFileSync(cachePath, "utf8")) as ExtractedDashboard;
-        if (cached.schemaVersion === SCHEMA_VERSION) return cached;
-      }
-    } catch {
-      // Corrupt/unreadable cache: fall through and re-extract.
+/**
+ * Dashboards are multi-MB, so every read/write here is async: a synchronous
+ * pass would stall the event loop long enough to stutter the SSE progress
+ * stream of any simulation running at the same time.
+ */
+async function extractWithCache(
+  htmlPath: string,
+  cachePath: string,
+): Promise<ExtractedDashboard> {
+  const htmlStat = await fsp.stat(htmlPath);
+  try {
+    const cacheStat = await fsp.stat(cachePath);
+    if (cacheStat.mtimeMs >= htmlStat.mtimeMs) {
+      const cached = JSON.parse(
+        await fsp.readFile(cachePath, "utf8"),
+      ) as ExtractedDashboard;
+      if (cached.schemaVersion === SCHEMA_VERSION) return cached;
     }
+  } catch {
+    // Missing/corrupt/unreadable cache: fall through and re-extract.
   }
-  const extracted = extractDashboard(fs.readFileSync(htmlPath, "utf8"));
-  const tmp = `${cachePath}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(extracted), "utf8");
-  fs.renameSync(tmp, cachePath);
+  const extracted = extractDashboard(await fsp.readFile(htmlPath, "utf8"));
+  // Unique temp name so concurrent extractions can't clobber each other's
+  // partial writes before the atomic rename.
+  const tmp = `${cachePath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await fsp.writeFile(tmp, JSON.stringify(extracted), "utf8");
+    await fsp.rename(tmp, cachePath);
+  } catch {
+    // Cache write is best-effort; the extraction result still stands.
+    await fsp.rm(tmp, { force: true }).catch(() => {});
+  }
   return extracted;
 }
 
 /** Extract (with on-disk cache) the single-run dashboard for a build. */
-export function getAnalysisData(build: string): ExtractedDashboard {
+export function getAnalysisData(build: string): Promise<ExtractedDashboard> {
   return extractWithCache(analysisDashboardPath(build), analysisPayloadsPath(build));
 }
 
 /** Extract (with on-disk cache) a cached comparison dashboard by cache key. */
-export function getComparisonData(key: string): ExtractedDashboard {
+export function getComparisonData(key: string): Promise<ExtractedDashboard> {
   return extractWithCache(comparisonDashboardPath(key), comparisonPayloadsPath(key));
 }
 
@@ -261,12 +277,13 @@ export function parseScorecardCsv(csvText: string): ParsedScorecard {
 }
 
 /** Read + parse the cached scorecard CSV for a comparison, or null if absent. */
-export function getComparisonScorecard(key: string): ParsedScorecard | null {
-  const p = comparisonScorecardPath(key);
-  if (!fs.existsSync(p)) return null;
+export async function getComparisonScorecard(
+  key: string,
+): Promise<ParsedScorecard | null> {
   try {
-    return parseScorecardCsv(fs.readFileSync(p, "utf8"));
+    return parseScorecardCsv(await fsp.readFile(comparisonScorecardPath(key), "utf8"));
   } catch {
+    // Missing or unparseable CSV: the client renders a notice instead.
     return null;
   }
 }

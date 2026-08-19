@@ -131,6 +131,36 @@ describe("ChartGallery", () => {
     expect(requestFullscreen).toHaveBeenCalledTimes(1);
   });
 
+  it("ignores a stale response for a previous build", async () => {
+    const first = sampleData();
+    first.hero.title = "STALE BUILD";
+    const second = sampleData();
+    second.hero.title = "CURRENT BUILD";
+
+    let resolveFirst!: (v: AnalysisDataResponse) => void;
+    vi.mocked(fetchAnalysisData)
+      .mockImplementationOnce(
+        () =>
+          new Promise<AnalysisDataResponse>((r) => {
+            resolveFirst = r;
+          }),
+      )
+      .mockResolvedValueOnce(second);
+
+    const wrapper = mount(ChartGallery, {
+      props: { build: "20260101120000", analysisEngine: "python" },
+    });
+    await wrapper.setProps({ build: "20260102120000" });
+    await flushPromises();
+
+    // The first build's request lands late; it must not clobber the current one.
+    resolveFirst(first);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("CURRENT BUILD");
+    expect(wrapper.text()).not.toContain("STALE BUILD");
+  });
+
   it("refetches when the build changes", async () => {
     vi.mocked(fetchAnalysisData).mockResolvedValue(sampleData());
     const wrapper = mount(ChartGallery, {

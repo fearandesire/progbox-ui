@@ -24,17 +24,25 @@ const useIframe = computed(
   () => isFallback.value || (loadError.value !== null && !loading.value),
 );
 
+// Monotonic token: a slow response for a previous build must never overwrite
+// the current one's dashboard.
+let requestId = 0;
+
 async function load() {
   if (isFallback.value) return;
+  const token = ++requestId;
   loading.value = true;
   loadError.value = null;
   data.value = null;
   try {
-    data.value = await fetchAnalysisData(props.build);
+    const result = await fetchAnalysisData(props.build);
+    if (token !== requestId) return;
+    data.value = result;
   } catch (e) {
+    if (token !== requestId) return;
     loadError.value = e instanceof Error ? e.message : String(e);
   } finally {
-    loading.value = false;
+    if (token === requestId) loading.value = false;
   }
 }
 

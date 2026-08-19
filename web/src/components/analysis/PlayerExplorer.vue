@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import type { ExplorerPayload, ExplorerPlayer, PlotlyFigureJson } from "../../lib/analysisTypes";
 import PlotlyChart from "./PlotlyChart.vue";
 
@@ -14,8 +14,32 @@ const props = defineProps<{
 
 const search = ref(props.payload.players[0]?.label ?? "");
 
-const player = computed<ExplorerPlayer | null>(
-  () => props.payload.players.find((p) => p.label === search.value) ?? null,
+// The selection is sticky: it only moves when the query resolves to a real
+// player. Mid-typing states keep the current charts on screen instead of
+// tearing both Plotly plots down on every keystroke (the generated widget
+// redrew on `change` for the same reason).
+const selected = ref<ExplorerPlayer | null>(props.payload.players[0] ?? null);
+
+watch(search, (q) => {
+  const match = props.payload.players.find((p) => p.label === q);
+  if (match) selected.value = match;
+});
+
+watch(
+  () => props.payload,
+  (next) => {
+    selected.value = next.players[0] ?? null;
+    search.value = next.players[0]?.label ?? "";
+  },
+);
+
+const player = computed<ExplorerPlayer | null>(() => selected.value);
+
+/** True while the typed query doesn't name a player (charts stay pinned). */
+const noMatch = computed(
+  () =>
+    search.value.length > 0 &&
+    !props.payload.players.some((p) => p.label === search.value),
 );
 
 const statsLine = computed(() => {
@@ -151,6 +175,10 @@ const attrsFigure = computed<PlotlyFigureJson | null>(() => {
         class="explorer__stats"
         data-testid="explorer-stats"
       >{{ statsLine }}</span>
+      <span
+        v-if="noMatch"
+        class="explorer__hint"
+      >No player matches “{{ search }}”</span>
     </div>
     <div
       v-if="player"
@@ -173,7 +201,7 @@ const attrsFigure = computed<PlotlyFigureJson | null>(() => {
       v-else
       class="explorer__empty"
     >
-      No player matches that search.
+      No player data available.
     </p>
   </div>
 </template>
@@ -221,6 +249,11 @@ const attrsFigure = computed<PlotlyFigureJson | null>(() => {
   .explorer__charts {
     grid-template-columns: 1fr;
   }
+}
+.explorer__hint {
+  color: var(--fg-mute);
+  font-size: 12.5px;
+  font-style: italic;
 }
 .explorer__empty {
   color: var(--fg-mute);

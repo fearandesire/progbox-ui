@@ -28,9 +28,14 @@ let plotlyPromise: Promise<PlotlyLike> | null = null;
 
 export function loadPlotly(): Promise<PlotlyLike> {
   if (!plotlyPromise) {
-    plotlyPromise = import("plotly.js-cartesian-dist-min").then(
-      (mod) => (mod.default ?? mod) as unknown as PlotlyLike,
-    );
+    plotlyPromise = import("plotly.js-cartesian-dist-min")
+      .then((mod) => (mod.default ?? mod) as unknown as PlotlyLike)
+      .catch((err) => {
+        // Don't memoize a failure: a transient chunk-load error would
+        // otherwise blank every chart for the rest of the session.
+        plotlyPromise = null;
+        throw err;
+      });
   }
   return plotlyPromise;
 }

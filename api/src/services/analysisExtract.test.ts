@@ -110,13 +110,13 @@ describe("extractDashboard", () => {
 describe("getAnalysisData cache", () => {
   useIsolatedOutputs();
 
-  it("extracts, writes the cache file, and reuses it", () => {
+  it("extracts, writes the cache file, and reuses it", async () => {
     const build = "20260101120000";
     makeRunDir(build, {
       extraFiles: { "analysis_dashboard.html": singleRunHtml },
     });
 
-    const first = getAnalysisData(build);
+    const first = await getAnalysisData(build);
     expect(first.sections).toHaveLength(2);
     const cachePath = analysisPayloadsPath(build);
     expect(fs.existsSync(cachePath)).toBe(true);
@@ -124,10 +124,10 @@ describe("getAnalysisData cache", () => {
     // Tamper with the cache; while it is newer than the HTML it wins.
     const tampered = { ...first, hero: { title: "FROM CACHE", subtitle: "" } };
     fs.writeFileSync(cachePath, JSON.stringify(tampered), "utf8");
-    expect(getAnalysisData(build).hero.title).toBe("FROM CACHE");
+    expect((await getAnalysisData(build)).hero.title).toBe("FROM CACHE");
   });
 
-  it("re-extracts when the dashboard HTML is newer than the cache", () => {
+  it("re-extracts when the dashboard HTML is newer than the cache", async () => {
     const build = "20260101120001";
     const runDir = makeRunDir(build, {
       extraFiles: { "analysis_dashboard.html": singleRunHtml },
@@ -135,23 +135,30 @@ describe("getAnalysisData cache", () => {
     const htmlPath = path.join(runDir, "analysis_dashboard.html");
     const cachePath = analysisPayloadsPath(build);
 
-    const stale = { ...getAnalysisData(build), hero: { title: "STALE", subtitle: "" } };
+    const stale = {
+      ...(await getAnalysisData(build)),
+      hero: { title: "STALE", subtitle: "" },
+    };
     fs.writeFileSync(cachePath, JSON.stringify(stale), "utf8");
     // Make the HTML strictly newer than the cache we just wrote.
     const future = Date.now() + 60_000;
     fs.utimesSync(htmlPath, new Date(future), new Date(future));
 
-    expect(getAnalysisData(build).hero.title).toBe("Monte Carlo Tuning Dashboard");
+    expect((await getAnalysisData(build)).hero.title).toBe(
+      "Monte Carlo Tuning Dashboard",
+    );
   });
 
-  it("re-extracts when the cached file is corrupt", () => {
+  it("re-extracts when the cached file is corrupt", async () => {
     const build = "20260101120002";
     makeRunDir(build, {
       extraFiles: { "analysis_dashboard.html": singleRunHtml },
     });
-    getAnalysisData(build);
+    await getAnalysisData(build);
     fs.writeFileSync(analysisPayloadsPath(build), "not json {", "utf8");
-    expect(getAnalysisData(build).hero.title).toBe("Monte Carlo Tuning Dashboard");
+    expect((await getAnalysisData(build)).hero.title).toBe(
+      "Monte Carlo Tuning Dashboard",
+    );
   });
 });
 

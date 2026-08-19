@@ -21,22 +21,39 @@ const plotConfig = computed<Record<string, unknown>>(() => ({
   ...(props.figure.config ?? {}),
 }));
 
+const renderError = ref(false);
+
 let plotly: PlotlyLike | null = null;
 let rendered = false;
+let rendering = false;
 let observer: IntersectionObserver | null = null;
 
 async function render() {
   const el = host.value;
-  if (!el || rendered) return;
-  rendered = true;
-  plotly = await loadPlotly();
-  if (!host.value) return; // unmounted while the bundle loaded
-  await plotly.newPlot(
-    el,
-    props.figure.data,
-    buildLayoutOverrides(theme.value, props.figure.layout ?? {}),
-    plotConfig.value,
-  );
+  if (!el || rendered || rendering) return;
+  rendering = true;
+  try {
+    plotly = await loadPlotly();
+    if (!host.value) return; // unmounted while the bundle loaded
+    await plotly.newPlot(
+      el,
+      props.figure.data,
+      buildLayoutOverrides(theme.value, props.figure.layout ?? {}),
+      plotConfig.value,
+    );
+    // Only latch `rendered` on success, so a failure stays retryable.
+    rendered = true;
+    renderError.value = false;
+  } catch {
+    renderError.value = true;
+  } finally {
+    rendering = false;
+  }
+}
+
+function retry() {
+  renderError.value = false;
+  void render();
 }
 
 onMounted(() => {
@@ -61,12 +78,16 @@ onMounted(() => {
 watch([theme, () => props.figure], async () => {
   const el = host.value;
   if (!el || !rendered || !plotly) return;
-  await plotly.react(
-    el,
-    props.figure.data,
-    buildLayoutOverrides(theme.value, props.figure.layout ?? {}),
-    plotConfig.value,
-  );
+  try {
+    await plotly.react(
+      el,
+      props.figure.data,
+      buildLayoutOverrides(theme.value, props.figure.layout ?? {}),
+      plotConfig.value,
+    );
+  } catch {
+    renderError.value = true;
+  }
 });
 
 onBeforeUnmount(() => {
@@ -79,15 +100,55 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    ref="host"
-    class="plotly-chart"
-    :style="{ minHeight: `${minHeight ?? 450}px` }"
-  />
+  <div class="plotly-chart-wrap">
+    <div
+      ref="host"
+      class="plotly-chart"
+      :style="{ minHeight: `${minHeight ?? 450}px` }"
+    />
+    <p
+      v-if="renderError"
+      class="plotly-chart__error"
+      role="status"
+    >
+      This chart failed to render.
+      <button
+        type="button"
+        class="plotly-chart__retry"
+        @click="retry"
+      >
+        Retry
+      </button>
+    </p>
+  </div>
 </template>
 
 <style scoped>
 .plotly-chart {
   width: 100%;
+}
+.plotly-chart__error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  margin: 0;
+  padding: 10px 0 2px;
+  color: var(--fg-mute);
+  font-size: 13px;
+}
+.plotly-chart__retry {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md, 8px);
+  background: var(--surface);
+  color: var(--fg-soft);
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.plotly-chart__retry:hover {
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 </style>

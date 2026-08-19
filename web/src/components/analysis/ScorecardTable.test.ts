@@ -17,6 +17,30 @@ const scorecard: ParsedScorecard = {
   ],
 };
 
+describe("AnalysisSection scorecard handling", () => {
+  it("shows a notice instead of the unrenderable table figure when data is missing", async () => {
+    const AnalysisSection = (await import("./AnalysisSection.vue")).default;
+    const wrapper = mount(AnalysisSection, {
+      props: {
+        section: {
+          id: "scorecard",
+          title: "§1 · Scorecard",
+          intro: "KPIs.",
+          // Upstream emits a go.Table figure here; the cartesian bundle
+          // cannot draw it, so it must never be handed to PlotlyChart.
+          charts: [{ kind: "figure" as const, payloadId: "payload-1", minHeight: 480 }],
+        },
+        figures: { "payload-1": { data: [{ type: "table" }], layout: {} } },
+        scorecard: null,
+      },
+      global: { stubs: { PlotlyChart: true } },
+    });
+
+    expect(wrapper.text()).toContain("Scorecard data unavailable");
+    expect(wrapper.findComponent({ name: "PlotlyChart" }).exists()).toBe(false);
+  });
+});
+
 describe("ScorecardTable", () => {
   it("renders one column per script with color chips", () => {
     const wrapper = mount(ScorecardTable, { props: { scorecard } });

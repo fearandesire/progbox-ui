@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type {
   ChartRef,
   ExplorerPayload,
@@ -18,7 +19,10 @@ const props = defineProps<{
   scorecard?: ParsedScorecard | null;
 }>();
 
-const isScorecardSection = props.section.id === "scorecard" && props.scorecard != null;
+// The comparison scorecard is a go.Table figure upstream, and the cartesian
+// Plotly bundle ships no table trace — so this section is always rendered as
+// a native table, and says so plainly when the CSV is unavailable.
+const isScorecardSection = computed(() => props.section.id === "scorecard");
 
 function figureFor(ref: ChartRef): PlotlyFigureJson | null {
   if (ref.kind !== "figure") return null;
@@ -40,7 +44,18 @@ function figureFor(ref: ChartRef): PlotlyFigureJson | null {
 
     <template v-if="isScorecardSection">
       <div class="a-section__card">
-        <ScorecardTable :scorecard="scorecard!" />
+        <ScorecardTable
+          v-if="scorecard"
+          :scorecard="scorecard"
+        />
+        <p
+          v-else
+          class="a-section__empty"
+          role="status"
+        >
+          Scorecard data unavailable for this comparison — open the original
+          dashboard to view the engine-rendered table.
+        </p>
       </div>
     </template>
     <template v-else>
@@ -95,5 +110,11 @@ function figureFor(ref: ChartRef): PlotlyFigureJson | null {
   border-radius: var(--r-lg, 12px);
   padding: 18px;
   margin-bottom: 16px;
+}
+.a-section__empty {
+  margin: 0;
+  color: var(--fg-mute);
+  font-size: 13px;
+  line-height: 1.6;
 }
 </style>

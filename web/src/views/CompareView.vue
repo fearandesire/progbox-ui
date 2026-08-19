@@ -29,17 +29,25 @@ const loadError = ref<string | null>(null);
 // Native comparison failed → embed the original engine-rendered HTML.
 const useIframe = computed(() => loadError.value !== null && !loading.value);
 
+// Monotonic token: an uncached comparison can take a minute, so a slow
+// response for a previous build set must never replace the current one.
+let requestId = 0;
+
 async function load() {
   if (!valid.value) return;
+  const token = ++requestId;
   loading.value = true;
   loadError.value = null;
   data.value = null;
   try {
-    data.value = await fetchCompareData(builds.value);
+    const result = await fetchCompareData(builds.value);
+    if (token !== requestId) return;
+    data.value = result;
   } catch (e) {
+    if (token !== requestId) return;
     loadError.value = e instanceof Error ? e.message : String(e);
   } finally {
-    loading.value = false;
+    if (token === requestId) loading.value = false;
   }
 }
 
@@ -225,6 +233,11 @@ function toggleFullscreen() {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+}
+.compare-runs__id {
+  font-family: var(--mono, monospace);
+  font-size: 12.5px;
+  color: var(--fg-soft);
 }
 .compare-runs__actions {
   display: inline-flex;

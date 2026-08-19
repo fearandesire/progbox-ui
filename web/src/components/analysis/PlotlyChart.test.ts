@@ -102,6 +102,22 @@ describe("PlotlyChart", () => {
     expect(plotly.react).not.toHaveBeenCalled();
   });
 
+  it("surfaces a retry when the first render fails, then recovers", async () => {
+    vi.mocked(plotly.newPlot)
+      .mockRejectedValueOnce(new Error("chunk load failed"))
+      .mockResolvedValueOnce(undefined);
+
+    const wrapper = mount(PlotlyChart, { props: { figure: FIGURE, eager: true } });
+    await flushPromises();
+    expect(wrapper.find(".plotly-chart__error").exists()).toBe(true);
+
+    await wrapper.get(".plotly-chart__retry").trigger("click");
+    await flushPromises();
+
+    expect(plotly.newPlot).toHaveBeenCalledTimes(2);
+    expect(wrapper.find(".plotly-chart__error").exists()).toBe(false);
+  });
+
   it("purges the plot on unmount", async () => {
     const wrapper = mount(PlotlyChart, { props: { figure: FIGURE, eager: true } });
     await flushPromises();
