@@ -77,6 +77,10 @@ New folder/
 outputs/*
 !outputs/.gitkeep
 
+# Extraction caches the API writes next to fixture dashboards during e2e runs
+e2e/fixtures/outputs/**/analysis_payloads.json
+e2e/fixtures/outputs/comparisons/
+
 # C++ engine build output (local only; never commit)
 api/vendor/progbox_cpp/build/
 

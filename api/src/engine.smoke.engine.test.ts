@@ -12,6 +12,7 @@ import path from "node:path";
 import { parse } from "csv-parse/sync";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
+import { extractDashboard } from "./services/analysisExtract.js";
 import { resolveBinary } from "./services/cppAdapter.js";
 import { runPythonComparison } from "./services/analysisPython.js";
 import { PROGRESS, runSimulationJob } from "./services/runner.js";
@@ -160,6 +161,16 @@ describe.skipIf(!hasBinary)("C++ engine smoke", () => {
       expect(html.length).toBeGreaterThan(0);
       expect(html).not.toContain(STUB_MARKER);
       expect(html.toLowerCase()).toContain("plotly");
+
+      // Drift guard: the native-dashboard extraction must keep parsing the
+      // real generated HTML. If upstream re-vendoring changes _render_html's
+      // markers, this fails before the app silently loses the native view.
+      const extracted = extractDashboard(html);
+      expect(extracted.sections.length).toBeGreaterThanOrEqual(8);
+      expect(Object.keys(extracted.figures).length).toBeGreaterThanOrEqual(20);
+      expect(extracted.playerExplorer).not.toBeNull();
+      expect(extracted.statCards).toHaveLength(5);
+      expect(extracted.hero.title).toContain("Dashboard");
 
       const analysisXlsx = path.join(runDir, "analysis.xlsx");
       expect(fs.statSync(analysisXlsx).size).toBeGreaterThan(0);
