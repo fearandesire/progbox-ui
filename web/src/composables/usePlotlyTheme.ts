@@ -63,6 +63,7 @@ const DARK_NEUTRAL_REMAP: Record<string, string> = {
   "#1e293b": "#cbd5e1",
   "#334155": "#94a3b8",
   "#475569": "#94a3b8",
+  "#64748b": "#94a3b8",
   "#e2e8f0": "#334155",
   "#cbd5e1": "#475569",
   "#f8fafc": "#1e293b",

@@ -1,23 +1,51 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { getApiBaseUrl } from "../lib/api";
+import { computed, onMounted, ref, watch } from "vue";
+import { analysisHtmlUrl, fetchAnalysisData } from "../lib/api";
+import type { AnalysisDataResponse } from "../lib/analysisTypes";
+import AnalysisDashboard from "./analysis/AnalysisDashboard.vue";
 
 const props = defineProps<{
   build: string;
   analysisEngine?: string | null;
 }>();
 
-// Direct URL to the engine-rendered interactive analysis dashboard.
-const analysisUrl = computed(
-  () => `${getApiBaseUrl()}/sims/${encodeURIComponent(props.build)}/analysis`,
-);
+// Direct URL to the engine-rendered dashboard HTML — used as the iframe
+// fallback and as the "Open original dashboard" escape hatch.
+const analysisUrl = computed(() => analysisHtmlUrl(props.build));
 
 const isFallback = computed(() => props.analysisEngine === "fallback");
 
+const data = ref<AnalysisDataResponse | null>(null);
+const loading = ref(false);
+const loadError = ref<string | null>(null);
+
+// Native dashboard failed or is unavailable → embed the original HTML.
+const useIframe = computed(
+  () => isFallback.value || (loadError.value !== null && !loading.value),
+);
+
+async function load() {
+  if (isFallback.value) return;
+  loading.value = true;
+  loadError.value = null;
+  data.value = null;
+  try {
+    data.value = await fetchAnalysisData(props.build);
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(load);
+watch(() => props.build, load);
+
+const containerEl = ref<HTMLElement | null>(null);
 const frameEl = ref<HTMLIFrameElement | null>(null);
 
 function toggleFullscreen() {
-  const el = frameEl.value;
+  const el = useIframe.value ? frameEl.value : containerEl.value;
   if (!el) return;
   if (document.fullscreenElement) {
     void document.exitFullscreen();
@@ -38,28 +66,52 @@ function toggleFullscreen() {
           Interactive league-health, age-curve, attribute-movement and player-outcome charts.
         </p>
       </div>
-      <button
-        class="chart-gallery__fs"
-        type="button"
-        title="View the dashboard fullscreen (Esc to exit)"
-        aria-label="View dashboard fullscreen"
-        @click="toggleFullscreen"
-      >
-        <svg
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
+      <div class="chart-gallery__actions">
+        <a
+          class="chart-gallery__fs"
+          :href="analysisUrl"
+          target="_blank"
+          rel="noopener"
+          title="Open the original engine-rendered dashboard in a new tab"
         >
-          <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
-        </svg>
-        Fullscreen
-      </button>
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3" />
+          </svg>
+          Original
+        </a>
+        <button
+          class="chart-gallery__fs"
+          type="button"
+          title="View the dashboard fullscreen (Esc to exit)"
+          aria-label="View dashboard fullscreen"
+          @click="toggleFullscreen"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+          </svg>
+          Fullscreen
+        </button>
+      </div>
     </div>
     <p
       v-if="isFallback"
@@ -70,7 +122,35 @@ function toggleFullscreen() {
       table instead. The Python analysis step failed (check the API logs and
       that the analysis dependencies are installed).
     </p>
+    <p
+      v-else-if="loadError && !loading"
+      class="fallback-notice"
+      role="status"
+    >
+      Native dashboard unavailable — showing the original engine-rendered
+      report instead.
+    </p>
+
+    <div
+      v-if="loading"
+      class="chart-gallery__loading"
+      role="status"
+    >
+      <span
+        class="chart-gallery__spinner"
+        aria-hidden="true"
+      />
+      Loading analysis data…
+    </div>
+    <div
+      v-else-if="!useIframe && data"
+      ref="containerEl"
+      class="chart-gallery__native"
+    >
+      <AnalysisDashboard :data="data" />
+    </div>
     <iframe
+      v-else-if="useIframe"
       ref="frameEl"
       :src="analysisUrl"
       class="chart-gallery__frame"
@@ -91,6 +171,11 @@ function toggleFullscreen() {
   justify-content: space-between;
   gap: 12px;
 }
+.chart-gallery__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .chart-gallery__fs {
   display: inline-flex;
   align-items: center;
@@ -104,10 +189,36 @@ function toggleFullscreen() {
   font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
+  text-decoration: none;
 }
 .chart-gallery__fs:hover {
   border-color: var(--accent, #10b981);
   color: var(--accent-text, inherit);
+}
+.chart-gallery__loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 48px 0;
+  justify-content: center;
+  color: var(--fg-mute);
+  font-size: 13px;
+}
+.chart-gallery__spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: cg-spin 0.8s linear infinite;
+}
+@keyframes cg-spin {
+  to { transform: rotate(360deg); }
+}
+.chart-gallery__native:fullscreen {
+  overflow-y: auto;
+  background: var(--bg);
+  padding: 24px;
 }
 .chart-gallery__frame {
   width: 100%;
