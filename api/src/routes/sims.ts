@@ -31,6 +31,12 @@ import {
   rawOutputsCsvPath,
 } from "../services/simArtifacts.js";
 import { runPythonComparison } from "../services/analysisPython.js";
+import {
+  MarkersNotFoundError,
+  getAnalysisData,
+  getComparisonData,
+  getComparisonScorecard,
+} from "../services/analysisExtract.js";
 import type { SimProgressPayload } from "../types.js";
 
 export interface SimsRouteOptions {
@@ -599,49 +605,129 @@ export async function registerSimsRoutes(
     return reply.type("text/html").send(fs.createReadStream(htmlPath));
   });
 
+  /**
+   * Shared validate + ensure-generated logic for the comparison routes.
+   * Sends the error response and returns null on failure; returns the
+   * comparison cache key once comparison_dashboard.html exists.
+   */
+  async function ensureComparison(
+    buildsQuery: string | undefined,
+    reply: FastifyReply,
+  ): Promise<string | null> {
+    const rawBuilds = (buildsQuery ?? "")
+      .split(",")
+      .map((b) => b.trim())
+      .filter((b) => b.length > 0);
+    const builds = [...new Set(rawBuilds)];
+
+    if (builds.length < 2) {
+      badRequest(reply, 400, "Provide at least 2 build ids to compare");
+      return null;
+    }
+    for (const b of builds) {
+      if (!isValidBuildId(b)) {
+        badRequest(reply, 422, `Invalid build id: ${b}`);
+        return null;
+      }
+    }
+    for (const b of builds) {
+      const run = storage.getRun(b);
+      if (run == null) {
+        reply.status(404).send({ detail: `Run not found: ${b}` });
+        return null;
+      }
+      if (run.status !== "complete") {
+        reply.status(409).send({ detail: `Run not complete: ${b}` });
+        return null;
+      }
+    }
+
+    // Cache keyed by the sorted build-id set: order-independent, reused on repeat.
+    const key = [...builds].sort().join("_");
+    const htmlPath = comparisonDashboardPath(key);
+    if (!fs.existsSync(htmlPath)) {
+      const runDirs = builds.map((b) => path.join(outputsRoot(), b));
+      try {
+        await runPythonComparison(runDirs, comparisonCacheDir(key));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        reply.status(500).send({ detail: `Comparison generation failed: ${msg}` });
+        return null;
+      }
+      if (!fs.existsSync(htmlPath)) {
+        reply.status(500).send({ detail: "Comparison dashboard was not produced" });
+        return null;
+      }
+    }
+    return key;
+  }
+
   fastify.get<{ Querystring: { builds?: string } }>(
     "/api/sims/compare",
     async (request, reply) => {
-      const rawBuilds = (request.query.builds ?? "")
-        .split(",")
-        .map((b) => b.trim())
-        .filter((b) => b.length > 0);
-      const builds = [...new Set(rawBuilds)];
+      const key = await ensureComparison(request.query.builds, reply);
+      if (key == null) return reply;
+      return reply
+        .type("text/html")
+        .send(fs.createReadStream(comparisonDashboardPath(key)));
+    },
+  );
 
-      if (builds.length < 2) {
-        return badRequest(reply, 400, "Provide at least 2 build ids to compare");
-      }
-      for (const b of builds) {
-        if (!isValidBuildId(b)) {
-          return badRequest(reply, 422, `Invalid build id: ${b}`);
+  fastify.get<{ Querystring: { builds?: string } }>(
+    "/api/sims/compare-data",
+    async (request, reply) => {
+      const key = await ensureComparison(request.query.builds, reply);
+      if (key == null) return reply;
+      try {
+        const [data, scorecard] = await Promise.all([
+          getComparisonData(key),
+          getComparisonScorecard(key),
+        ]);
+        return reply.send({
+          ...data,
+          engine: "python",
+          builds: key.split("_"),
+          scorecard,
+        });
+      } catch (e) {
+        if (e instanceof MarkersNotFoundError) {
+          return reply.status(409).send({
+            detail: "Native comparison unavailable: dashboard markers not found",
+          });
         }
+        throw e;
       }
-      for (const b of builds) {
-        const run = storage.getRun(b);
-        if (run == null) {
-          return reply.status(404).send({ detail: `Run not found: ${b}` });
-        }
-        if (run.status !== "complete") {
-          return reply.status(409).send({ detail: `Run not complete: ${b}` });
-        }
-      }
+    },
+  );
 
-      // Cache keyed by the sorted build-id set: order-independent, reused on repeat.
-      const key = [...builds].sort().join("_");
-      const htmlPath = comparisonDashboardPath(key);
+  fastify.get(
+    "/api/sims/:build/analysis-data",
+    { preHandler: validateBuildIdHandler },
+    async (request, reply) => {
+      const { build } = request.params as { build: string };
+      const htmlPath = analysisDashboardPath(build);
       if (!fs.existsSync(htmlPath)) {
-        const runDirs = builds.map((b) => path.join(outputsRoot(), b));
-        try {
-          await runPythonComparison(runDirs, comparisonCacheDir(key));
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          return reply.status(500).send({ detail: `Comparison generation failed: ${msg}` });
-        }
-        if (!fs.existsSync(htmlPath)) {
-          return reply.status(500).send({ detail: "Comparison dashboard was not produced" });
-        }
+        return reply
+          .status(404)
+          .send({ detail: "analysis_dashboard.html not found for this run" });
       }
-      return reply.type("text/html").send(fs.createReadStream(htmlPath));
+      const run = storage.getRun(build);
+      if (run?.analysis_engine === "fallback") {
+        return reply.status(409).send({
+          detail: "Native analysis unavailable: run used the fallback analysis engine",
+        });
+      }
+      try {
+        const data = await getAnalysisData(build);
+        return reply.send({ ...data, engine: "python", build });
+      } catch (e) {
+        if (e instanceof MarkersNotFoundError) {
+          return reply.status(409).send({
+            detail: "Native analysis unavailable: dashboard markers not found",
+          });
+        }
+        throw e;
+      }
     },
   );
 

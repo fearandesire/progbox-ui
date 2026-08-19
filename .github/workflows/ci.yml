@@ -85,6 +85,7 @@ jobs:
 
   e2e-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -101,8 +102,21 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      # ubuntu-latest images already ship Chromium's system libraries, so we skip
+      # --with-deps: its apt-get update has hung CI on flaky Azure mirrors before.
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 5
+        run: npx playwright install chromium
 
       - name: Run Playwright smoke suite
         run: pnpm run test:e2e

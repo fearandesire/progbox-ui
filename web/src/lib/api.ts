@@ -1,4 +1,5 @@
 import { ofetch } from "ofetch";
+import type { AnalysisDataResponse, CompareDataResponse } from "./analysisTypes";
 import type { GodProg, PlayerSummary, RunMetadata } from "./types";
 
 /** Base URL for API calls. Browser default `/api` (Vite proxy). Override with `VITE_API_BASE_URL`. */
@@ -97,4 +98,23 @@ export function downloadUrl(build: string, artifact: "analysis" | "csv"): string
 export function compareUrl(builds: string[]): string {
   const q = encodeURIComponent(builds.join(","));
   return `${getApiBaseUrl()}/sims/compare?builds=${q}`;
+}
+
+/** Raw engine-rendered dashboard HTML (the "Open original dashboard" escape hatch). */
+export function analysisHtmlUrl(build: string): string {
+  return `${getApiBaseUrl()}/sims/${encodeURIComponent(build)}/analysis`;
+}
+
+export async function fetchAnalysisData(build: string): Promise<AnalysisDataResponse> {
+  return ofetch<AnalysisDataResponse>(
+    `/sims/${encodeURIComponent(build)}/analysis-data`,
+    { baseURL: getApiBaseUrl() },
+  );
+}
+
+export async function fetchCompareData(builds: string[]): Promise<CompareDataResponse> {
+  const q = encodeURIComponent(builds.join(","));
+  return ofetch<CompareDataResponse>(`/sims/compare-data?builds=${q}`, {
+    baseURL: getApiBaseUrl(),
+  });
 }

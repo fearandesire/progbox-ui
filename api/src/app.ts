@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import Fastify from "fastify";
+import compress from "@fastify/compress";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import { validateCorsConfig, corsAllowCredentials, corsAllowOrigins } from "./cors.js";
@@ -28,6 +29,9 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   await fastify.register(multipart, {
     limits: { fileSize: 200 * 1024 * 1024 },
   });
+
+  // The extracted analysis payloads are multi-MB JSON but compress ~5-10x.
+  await fastify.register(compress, { threshold: 1024 });
 
   const schedule =
     opts.scheduleBackground ??
