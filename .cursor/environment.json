@@ -1,0 +1,20 @@
+{
+  "name": "progbox-ui",
+  "user": "ubuntu",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "install": "bash scripts/cloud-agent-install.sh",
+  "ports": [
+    { "name": "web", "port": 5173 },
+    { "name": "api", "port": 8000 }
+  ],
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "pnpm dev",
+      "description": "Vite web (:5173) + Fastify API (:8000)"
+    }
+  ]
+}

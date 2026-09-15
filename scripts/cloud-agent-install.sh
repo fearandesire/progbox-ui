@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$ROOT"
+
+corepack enable
+corepack prepare pnpm@10.8.0 --activate
+
+pnpm install --frozen-lockfile
+pnpm run build:engine
+
+python3 -m venv .venv
+.venv/bin/pip install --upgrade pip
+.venv/bin/pip install -r api/vendor/progbox_cpp/tools/requirements.txt
+
+npx playwright install chromium
+
+pnpm run doctor
