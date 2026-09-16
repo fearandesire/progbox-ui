@@ -5,11 +5,13 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$ROOT"
 
 ensure_python_venv() {
-  if python3 -m venv --help >/dev/null 2>&1; then
+  if python3 -m venv /tmp/progbox-venv-test 2>/dev/null; then
+    rm -rf /tmp/progbox-venv-test
     return 0
   fi
   sudo apt-get update
-  sudo apt-get install -y python3-venv python3-pip
+  sudo apt-get install -y python3.12-venv python3-pip
+  rm -rf /tmp/progbox-venv-test
 }
 
 ensure_cpp_toolchain() {
