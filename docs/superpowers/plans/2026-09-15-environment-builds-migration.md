@@ -25,9 +25,9 @@
 | Build | ID | Branch | Status | Role |
 | --- | --- | --- | --- | --- |
 | No-change baseline | [bld-20260915-57955204-86a0-4e35-a543-4b6b90fda0b4](https://cursor.com/dashboard/cloud-agents/builds/bld-20260915-57955204-86a0-4e35-a543-4b6b90fda0b4) | `main` (default) | **SUCCEEDED** | Promotable; proves existing DB config works with builds |
-| Improved repo config | [bld-20260915-80299fe7-4a7b-4592-967f-fc939069dc3b](https://cursor.com/dashboard/cloud-agents/builds/bld-20260915-80299fe7-4a7b-4592-967f-fc939069dc3b) | `agent/env-builds-migration-c6e5` | IN_PROGRESS at plan write | Tests Dockerfile + install script + terminals |
+| Improved install script | [bld-20260916-610d0391-a061-4ce4-98cb-fceb3f3e592e](https://cursor.com/dashboard/cloud-agents/builds/bld-20260916-610d0391-a061-4ce4-98cb-fceb3f3e592e) | `agent/env-builds-migration-c6e5` | **SUCCEEDED** | Validates full install: pnpm, build:engine, Python venv, Playwright, doctor |
 
-**Result:** Works out of the box with the existing saved configuration. Improved repo-managed configuration adds `build:engine`, Python venv, Playwright, and dev terminals.
+**Result:** Works out of the box with the existing saved configuration. Works with changes after fixing Linux C++ compiler selection (`build-engine.mjs`) and Python venv bootstrap in `scripts/cloud-agent-install.sh`.
 
 ---
 
@@ -87,61 +87,11 @@ Expected: pnpm install exit 0, Playwright Chromium downloaded, snapshot ready
 **Interfaces:**
 - Produces: idempotent install script invoked by `environment.json` `"install"` field
 
-- [x] **Step 1:** Create `.cursor/Dockerfile`
-
-```dockerfile
-FROM node:22-bookworm-slim
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        git \
-        curl \
-        ca-certificates \
-        cmake \
-        g++ \
-        make \
-        build-essential \
-        python3 \
-        python3-venv \
-        python3-pip \
-    && rm -rf /var/lib/apt/lists/* \
-    && corepack enable
-```
-
-- [x] **Step 2:** Create `scripts/cloud-agent-install.sh`
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-cd "$ROOT"
-
-corepack enable
-corepack prepare pnpm@10.8.0 --activate
-
-pnpm install --frozen-lockfile
-pnpm run build:engine
-
-python3 -m venv .venv
-.venv/bin/pip install --upgrade pip
-.venv/bin/pip install -r api/vendor/progbox_cpp/tools/requirements.txt
-
-npx playwright install chromium
-
-pnpm run doctor
-```
-
-- [x] **Step 3:** Create `.cursor/environment.json`
+- [x] **Step 1:** Create `.cursor/environment.json` (default base image, no custom Dockerfile)
 
 ```json
 {
   "name": "progbox-ui",
-  "user": "ubuntu",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": ".."
-  },
   "install": "bash scripts/cloud-agent-install.sh",
   "ports": [
     { "name": "web", "port": 5173 },
@@ -157,15 +107,11 @@ pnpm run doctor
 }
 ```
 
-- [x] **Step 4:** Commit on branch `agent/env-builds-migration-c6e5`
+- [x] **Step 2:** Fix Linux engine build in `api/scripts/build-engine.mjs` (force `g++`/`gcc` for CMake on Linux)
 
-```bash
-git checkout -b agent/env-builds-migration-c6e5
-chmod +x scripts/cloud-agent-install.sh
-git add .cursor/environment.json .cursor/Dockerfile scripts/cloud-agent-install.sh
-git commit -m "feat: add Cloud Agent environment config for environment builds"
-git push -u origin agent/env-builds-migration-c6e5
-```
+- [x] **Step 3:** Fix Python venv bootstrap in `scripts/cloud-agent-install.sh` (install `python3.12-venv` when test venv fails)
+
+- [x] **Step 4:** Commit on branch `agent/env-builds-migration-c6e5` and push
 
 ---
 
@@ -181,15 +127,13 @@ cursor-cloud-trigger-environment-build refs=[{repoUrl: "github.com/fearandesire/
 
 Expected: build ID `bld-20260915-80299fe7-4a7b-4592-967f-fc939069dc3b`
 
-- [ ] **Step 2:** Poll until terminal state (Docker build + install + snapshot)
+- [x] **Step 2:** Poll until terminal state
 
-```
-cursor-cloud-list-environment-builds
-```
+Expected: `bld-20260916-610d0391-a061-4ce4-98cb-fceb3f3e592e` → `SUCCEEDED`
 
-Expected: status `SUCCEEDED`; logs show `build:engine`, `doctor`, snapshot ready
+- [x] **Step 3:** Inspect build logs — `Built target progbox`, Playwright Chromium, `pnpm run doctor`, snapshot ready
 
-- [ ] **Step 3:** After merge to `main`, trigger promotable build (default refs, no `refs` override) to activate repo-managed config for production builds
+- [ ] **Step 4:** After merge to `main`, trigger promotable build (default refs, no `refs` override)
 
 ---
 
@@ -199,15 +143,12 @@ Expected: status `SUCCEEDED`; logs show `build:engine`, `doctor`, snapshot ready
 
 Only needed while environment remains DB-managed before PR merge.
 
-- [x] **Step 1:** Propose install script with validated baseline build ID
+- [x] **Step 1:** Propose install script (without buildId — branch builds are not promotable for Save)
 
 ```
 cursor-cloud-propose-environment-json
-  buildId: bld-20260915-57955204-86a0-4e35-a543-4b6b90fda0b4
   environmentJson.install: bash scripts/cloud-agent-install.sh
 ```
-
-- [ ] **Step 2:** After improved branch build succeeds, re-propose with that build ID if install script validation differs
 
 ---
 
@@ -238,8 +179,8 @@ curl -sf http://127.0.0.1:8000/api/config | head -c 200
 
 ## How environment builds work (progbox-ui)
 
-1. **Dockerfile** (`.cursor/Dockerfile`): Node 22 slim + CMake/g++/Python for engine and analysis tooling.
-2. **Install** (`scripts/cloud-agent-install.sh`): Runs once during build — pnpm deps, C++ engine, Python venv, Playwright Chromium, doctor.
+1. **Dockerfile** (removed): Custom `node:22-bookworm-slim` images failed pod bootstrap; use Cursor default base image instead.
+2. **Install** (`scripts/cloud-agent-install.sh`): Runs once during build — apt fixes for C++/Python if needed, pnpm deps, C++ engine, Python venv, Playwright Chromium, doctor.
 3. **Terminals** (`pnpm dev`): Started on each new pod — Vite + Fastify dev servers.
 4. **Ports**: 5173 (web), 8000 (api) exposed for browser/computer-use testing.
 
