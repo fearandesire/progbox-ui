@@ -4,15 +4,34 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$ROOT"
 
-if ! python3 -m venv --help >/dev/null 2>&1; then
+ensure_python_venv() {
+  if python3 -m venv --help >/dev/null 2>&1; then
+    return 0
+  fi
   sudo apt-get update
   sudo apt-get install -y python3-venv python3-pip
-fi
+}
+
+ensure_cpp_toolchain() {
+  if c++ -x c++ - -o /tmp/progbox-cxx-test 2>/dev/null <<< 'int main(){}'; then
+    rm -f /tmp/progbox-cxx-test
+    return 0
+  fi
+  sudo apt-get update
+  sudo apt-get install -y g++ libstdc++-12-dev build-essential
+  rm -f /tmp/progbox-cxx-test
+}
+
+ensure_python_venv
+ensure_cpp_toolchain
 
 corepack enable
 corepack prepare pnpm@10.8.0 --activate
 
 pnpm install --frozen-lockfile
+
+export CC=gcc
+export CXX=g++
 pnpm run build:engine
 
 python3 -m venv .venv
