@@ -6,6 +6,8 @@ RUN apt-get update \
         curl \
         ca-certificates \
         cmake \
+        g++ \
+        make \
         build-essential \
         python3 \
         python3-venv \
