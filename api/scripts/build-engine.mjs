@@ -70,7 +70,11 @@ function run(command, args, cwd, captureStderr = false) {
 }
 
 function configureAndBuild(captureStderr = false) {
-  const configureResult = run("cmake", ["..", "-DCMAKE_BUILD_TYPE=Release"], buildDir, captureStderr);
+  const configureArgs = ["..", "-DCMAKE_BUILD_TYPE=Release"];
+  if (process.platform === "linux") {
+    configureArgs.push("-DCMAKE_CXX_COMPILER=g++", "-DCMAKE_C_COMPILER=gcc");
+  }
+  const configureResult = run("cmake", configureArgs, buildDir, captureStderr);
   if (configureResult.status !== 0) {
     return configureResult;
   }
