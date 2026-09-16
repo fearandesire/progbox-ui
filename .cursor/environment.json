@@ -1,10 +1,5 @@
 {
   "name": "progbox-ui",
-  "user": "ubuntu",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": ".."
-  },
   "install": "bash scripts/cloud-agent-install.sh",
   "ports": [
     { "name": "web", "port": 5173 },
