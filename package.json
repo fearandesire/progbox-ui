@@ -2,6 +2,11 @@
   "name": "progbox-ui",
   "private": true,
   "packageManager": "pnpm@10.8.0",
+  "pnpm": {
+    "overrides": {
+      "js-cookie": "3.0.7"
+    }
+  },
   "scripts": {
     "dev": "pnpm -r --parallel run dev",
     "dev:web-only": "pnpm --filter web dev",

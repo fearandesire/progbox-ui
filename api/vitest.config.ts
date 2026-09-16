@@ -18,7 +18,8 @@ export default defineConfig({
       thresholds: {
         lines: 65,
         functions: 65,
-        branches: 65,
+        // Vitest 4 + @vitest/coverage-v8 report more branch points than Vitest 3 (~550 vs ~429).
+        branches: 57,
         statements: 65,
       },
     },
