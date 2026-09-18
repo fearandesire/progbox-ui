@@ -1,6 +1,7 @@
 import { ofetch } from "ofetch";
 import type { AnalysisDataResponse, CompareDataResponse } from "./analysisTypes";
 import type { GodProg, PlayerSummary, RunMetadata } from "./types";
+import type { ProgressionVersion } from "./versions";
 
 /** Base URL for API calls. Browser default `/api` (Vite proxy). Override with `VITE_API_BASE_URL`. */
 export function getApiBaseUrl(): string {
@@ -30,8 +31,8 @@ export interface CreateSimInput {
   seed: number;
   runs: number;
   n_workers: number | null;
-  version: "v41" | "v43";
-  /** When true (default server-side), also run the other version and pair them. */
+  version: ProgressionVersion;
+  /** When true (default server-side), also run the published script and pair them. */
   compare?: boolean;
 }
 
