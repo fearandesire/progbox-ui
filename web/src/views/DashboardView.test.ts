@@ -153,6 +153,29 @@ describe("DashboardView", () => {
     expect(paired[0]!.text()).toBe("paired");
   });
 
+  it("shows a Published badge for NET 3.2 runs", async () => {
+    mockSimsStore.runs = [
+      {
+        build: "20260101120000",
+        status: "complete",
+        teams: [],
+        requested_version: "v321",
+        pair_id: "pair-1",
+      } as RunMetadata,
+      { build: "20260102120000", status: "complete", teams: [], requested_version: "v43" },
+    ];
+
+    const wrapper = mount(DashboardView, {
+      global: { stubs: { RouterLink: RouterLinkStub } },
+    });
+    await flushPromises();
+
+    const published = wrapper.findAll(".run-row__published");
+    expect(published.length).toBe(1);
+    expect(published[0]!.text()).toBe("Published");
+    expect(published[0]!.attributes("title")).toBe("Live NET script run");
+  });
+
   it("enables Compare only at 2+ selected runs and navigates to the comparison", async () => {
     mockSimsStore.runs = [
       { build: "20260101120000", status: "complete", teams: [], requested_version: "v43" },

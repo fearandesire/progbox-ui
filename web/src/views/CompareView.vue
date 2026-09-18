@@ -7,6 +7,7 @@ import VersionChip from "../components/VersionChip.vue";
 import { compareUrl, fetchCompareData, fetchSims } from "../lib/api";
 import type { CompareDataResponse } from "../lib/analysisTypes";
 import type { RunMetadata } from "../lib/types";
+import { versionRole, type VersionRole } from "../lib/versions";
 
 const route = useRoute();
 
@@ -57,7 +58,8 @@ watch(builds, (next, prev) => {
 });
 
 const runs = ref<RunMetadata[]>([]);
-onMounted(async () => {
+
+async function loadRuns() {
   try {
     const all = await fetchSims();
     const byBuild = new Map(all.map((r) => [r.build, r]));
@@ -67,6 +69,48 @@ onMounted(async () => {
   } catch {
     runs.value = [];
   }
+}
+
+onMounted(() => {
+  void loadRuns();
+});
+watch(builds, () => {
+  void loadRuns();
+});
+
+function roleWord(role: VersionRole | null): string | null {
+  if (role === "published") return "Published";
+  if (role === "candidate") return "Candidate";
+  if (role === "legacy") return "Legacy";
+  return null;
+}
+
+function runRole(build: string): VersionRole | null {
+  const r = runs.value.find((x) => x.build === build);
+  return versionRole(r?.requested_version ?? "");
+}
+
+const isPublishedPair = computed(() => {
+  if (builds.value.length !== 2 || runs.value.length !== 2) return false;
+  const roles = runs.value.map((r) => versionRole(r.requested_version ?? ""));
+  const hasPublished = roles.includes("published");
+  const hasNonPublished = roles.some((r) => r != null && r !== "published");
+  const pairId = runs.value[0]?.pair_id;
+  const samePair =
+    pairId != null && pairId !== "" && runs.value.every((r) => r.pair_id === pairId);
+  return hasPublished && hasNonPublished && samePair;
+});
+
+/** Published-first when this is a published/candidate pair; else query order. */
+const displayBuilds = computed(() => {
+  if (!isPublishedPair.value) return builds.value;
+  return [...builds.value].sort((a, b) => {
+    const ra = runRole(a);
+    const rb = runRole(b);
+    if (ra === "published" && rb !== "published") return -1;
+    if (rb === "published" && ra !== "published") return 1;
+    return 0;
+  });
 });
 
 const containerEl = ref<HTMLElement | null>(null);
@@ -102,10 +146,17 @@ function toggleFullscreen() {
     >
       <div>
         <h1 class="page-title">
-          Comparison
+          <template v-if="isPublishedPair">Published vs Candidate</template>
+          <template v-else>Comparison</template>
         </h1>
         <p class="page-desc">
-          Head-to-head scorecard and overlaid charts across the selected runs.
+          <template v-if="isPublishedPair">
+            Left: NET 3.2, what leagues run today. Right: v4.3, the proposed release.
+            Scorecard is the short answer, graphs are the detail.
+          </template>
+          <template v-else>
+            Head-to-head scorecard and overlaid charts across the selected runs.
+          </template>
         </p>
       </div>
     </div>
@@ -120,10 +171,14 @@ function toggleFullscreen() {
     <template v-else>
       <div class="compare-runs">
         <span
-          v-for="b in builds"
+          v-for="b in displayBuilds"
           :key="b"
           class="compare-runs__item"
         >
+          <span
+            v-if="roleWord(runRole(b))"
+            class="compare-runs__role"
+          >{{ roleWord(runRole(b)) }}</span>
           <VersionChip
             :version="runs.find((r) => r.build === b)?.requested_version
               ?? runs.find((r) => r.build === b)?.script_version"
@@ -233,6 +288,13 @@ function toggleFullscreen() {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+}
+.compare-runs__role {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-mute);
 }
 .compare-runs__id {
   font-family: var(--mono, monospace);

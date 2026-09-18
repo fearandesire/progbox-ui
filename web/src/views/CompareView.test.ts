@@ -113,6 +113,35 @@ describe("CompareView", () => {
     );
   });
 
+  it("shows Published vs Candidate when a published pair is loaded", async () => {
+    vi.mocked(fetchCompareData).mockResolvedValue(sampleCompareData());
+    vi.mocked(fetchSims).mockResolvedValue([
+      {
+        build: "20260101120000",
+        status: "complete",
+        teams: [],
+        requested_version: "v43",
+        pair_id: "pair-1",
+      },
+      {
+        build: "20260102120000",
+        status: "complete",
+        teams: [],
+        requested_version: "v321",
+        pair_id: "pair-1",
+      },
+    ] as never);
+    // Candidate first in the query — UI should still put Published first.
+    const { wrapper } = await mountAt("?builds=20260101120000,20260102120000");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Published vs Candidate");
+    expect(wrapper.text()).toContain("what leagues run today");
+    const roles = wrapper.findAll(".compare-runs__role").map((n) => n.text());
+    expect(roles[0]).toBe("Published");
+    expect(roles[1]).toBe("Candidate");
+  });
+
   it("links the escape hatch to the original comparison HTML", async () => {
     vi.mocked(fetchCompareData).mockResolvedValue(sampleCompareData());
     const { wrapper } = await mountAt("?builds=20260101120000,20260102120000");

@@ -260,6 +260,7 @@ describe("RunDetailView", () => {
       status: "complete",
       teams: [],
       script_version: "v4.3.0",
+      requested_version: "v43",
       pair_id: "pair-1",
       pair_role: "primary",
       paired_with: "20260101120001",
@@ -275,6 +276,9 @@ describe("RunDetailView", () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain("Paired run");
+    expect(wrapper.text()).toContain("Candidate");
+    expect(wrapper.get(".paired-box__tag").text()).toMatch(/Paired run · Candidate/);
+    expect(wrapper.get(".paired-box__tag").text().toLowerCase()).not.toContain("baseline");
 
     const tos = wrapper
       .findAllComponents(RouterLinkStub)

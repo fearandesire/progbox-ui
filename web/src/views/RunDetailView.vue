@@ -14,6 +14,7 @@ import { useRunStats } from "../composables/useRunStats";
 import { deleteSim, downloadUrl, fetchSim } from "../lib/api";
 import { duration, signed } from "../lib/format";
 import type { RunMetadata } from "../lib/types";
+import { versionLabel, versionRole } from "../lib/versions";
 
 type Tab = "overview" | "charts" | "players" | "godprogs";
 
@@ -127,9 +128,18 @@ const kpis = computed(() => {
 const pairing = computed(() => {
   const r = run.value as PairedRun | null;
   if (!r || !r.paired_with) return null;
+  const ver = r.requested_version ?? "";
+  const vRole = versionRole(ver);
+  let role: string | null = null;
+  if (r.pair_role === "baseline") {
+    // Never surface the API word "baseline" in the UI.
+    role = vRole === "published" ? "Published" : versionLabel(ver) || null;
+  } else if (r.pair_role === "primary") {
+    role = vRole === "candidate" ? "Candidate" : versionLabel(ver) || null;
+  }
   return {
     sibling: r.paired_with,
-    role: r.pair_role ?? null,
+    role,
     compareBuilds: `${r.build},${r.paired_with}`,
   };
 });
