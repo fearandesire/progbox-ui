@@ -316,7 +316,7 @@ describe.skipIf(!hasBinary)("C++ engine smoke", () => {
       expect(primaryMeta.paired_with).toBe(body.compare_build);
       expect(baselineMeta.paired_with).toBe(body.build);
       expect(primaryMeta.requested_version).toBe("v43");
-      expect(baselineMeta.requested_version).toBe("v41");
+      expect(baselineMeta.requested_version).toBe("v321");
       // Analysis may be Python or the TS fallback — do not require Python for pairing.
       expect(["python", "fallback"]).toContain(primaryMeta.analysis_engine);
       expect(["python", "fallback"]).toContain(baselineMeta.analysis_engine);

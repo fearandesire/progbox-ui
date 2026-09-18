@@ -20,7 +20,8 @@ describe("config route", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body) as Record<string, unknown>;
       expect(typeof body.engine_build).toBe("string");
-      expect(body.versions).toEqual(["v41", "v43"]);
+      expect(body.versions).toEqual(["v321", "v41", "v43"]);
+      expect(body.published_version).toBe("v321");
     } finally {
       await app.close();
     }

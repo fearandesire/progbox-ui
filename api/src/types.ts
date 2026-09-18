@@ -4,7 +4,7 @@ export interface RunMetadata {
   build: string;
   /** Executed progression script (name/id), patched from the engine post-run. */
   script_version?: string | null;
-  /** Version requested at run-creation time (`v41` | `v43`). */
+  /** Version requested at run-creation time (`v321` | `v41` | `v43`). */
   requested_version?: string | null;
   /** Progression the engine actually ran. */
   progression?: { id: string | null; name: string | null } | null;

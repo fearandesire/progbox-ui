@@ -38,6 +38,13 @@ import {
   getComparisonScorecard,
 } from "../services/analysisExtract.js";
 import type { SimProgressPayload } from "../types.js";
+import {
+  PROGRESSION_VERSIONS,
+  DEFAULT_PROGRESSION_VERSION,
+  compareBaselineFor,
+  versionLabel,
+  type ProgressionVersion,
+} from "../progressionVersions.js";
 
 export interface SimsRouteOptions {
   scheduleBackground: (task: () => void | Promise<void>) => void;
@@ -120,28 +127,14 @@ function defaultNWorkers(requested: number | null | undefined): number {
   return Math.max(cpu - 1, 1);
 }
 
-/** Progression-script versions the engine can run. Default is the adopted v4.3. */
-export const PROGRESSION_VERSIONS = ["v41", "v43"] as const;
-export type ProgressionVersion = (typeof PROGRESSION_VERSIONS)[number];
-
-/** Human display label for a progression version id. */
-function versionLabel(version: string): string {
-  return version === "v43" ? "v4.3" : version === "v41" ? "v4.1" : version;
-}
-
 const SimCreateBodySchema = z.object({
   teams: z.array(z.string()).default([]),
   seed: z.number().int().default(69),
   runs: z.number().int().positive().default(500),
   n_workers: z.number().int().positive().nullable().optional(),
-  version: z.enum(PROGRESSION_VERSIONS).default("v43"),
+  version: z.enum(PROGRESSION_VERSIONS).default(DEFAULT_PROGRESSION_VERSION),
   compare: z.boolean().default(true),
 });
-
-/** The progression version that isn't the selected one (binary enum today). */
-function otherVersion(version: ProgressionVersion): ProgressionVersion {
-  return PROGRESSION_VERSIONS.find((v) => v !== version) ?? version;
-}
 
 type SimCreateBody = z.infer<typeof SimCreateBodySchema>;
 
@@ -355,9 +348,9 @@ export async function registerSimsRoutes(
       }
 
       if (body.compare) {
-        // Auto-comparison: a second run with the OTHER version, same inputs, its own
-        // run dir. The selected version is primary; the other is the baseline.
-        const baselineVersion = otherVersion(body.version);
+        // Auto-comparison: a second run with the published script, same inputs, its own
+        // run dir. The selected version is primary; the published script is the baseline.
+        const baselineVersion = compareBaselineFor(body.version);
         // Start from the next second so we never reuse the primary id; exclusive mkdir
         // then retries further if that slot is already taken by another request.
         const { build: baselineBuild, out: baselineOut } = await allocateBuildDir(

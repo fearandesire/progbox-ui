@@ -376,6 +376,40 @@ describe("sims routes", () => {
     spy.mockRestore();
   });
 
+  it("post sim with v41 + compare pairs against published v321", async () => {
+    const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
+    const app = await buildTestApp();
+    const res = await multipartPost(
+      app,
+      { players: [{ stats: [], tid: 0 }] },
+      { teams: [], seed: 1, runs: 10, n_workers: 1, version: "v41", compare: true },
+      { "0": "BOS" },
+    );
+    expect(res.statusCode).toBe(200);
+    expect(spy).toHaveBeenCalledTimes(2);
+    const [primary, baseline] = spy.mock.calls;
+    expect(primary![7]).toBe("v41");
+    expect(baseline![7]).toBe("v321");
+    spy.mockRestore();
+  });
+
+  it("post sim with v321 + compare pairs against candidate v43", async () => {
+    const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
+    const app = await buildTestApp();
+    const res = await multipartPost(
+      app,
+      { players: [{ stats: [], tid: 0 }] },
+      { teams: [], seed: 1, runs: 10, n_workers: 1, version: "v321", compare: true },
+      { "0": "BOS" },
+    );
+    expect(res.statusCode).toBe(200);
+    expect(spy).toHaveBeenCalledTimes(2);
+    const [primary, baseline] = spy.mock.calls;
+    expect(primary![7]).toBe("v321");
+    expect(baseline![7]).toBe("v43");
+    spy.mockRestore();
+  });
+
   it("post sim rejects an invalid version", async () => {
     const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
     const app = await buildTestApp();
@@ -466,7 +500,7 @@ describe("sims routes", () => {
     expect(spy).toHaveBeenCalledTimes(2);
     const [primary, baseline] = spy.mock.calls;
     expect(primary![7]).toBe("v43");
-    expect(baseline![7]).toBe("v41");
+    expect(baseline![7]).toBe("v321");
     // Same seed / teams / n_workers across both runs.
     expect(primary![3]).toEqual(baseline![3]);
     expect(primary![3]).toEqual(["BOS"]);
@@ -526,8 +560,8 @@ describe("sims routes", () => {
     // Each run reflects its own version.
     expect(primaryMeta.requested_version).toBe("v43");
     expect(primaryMeta.script_version).toBe("v4.3");
-    expect(baselineMeta.requested_version).toBe("v41");
-    expect(baselineMeta.script_version).toBe("v4.1");
+    expect(baselineMeta.requested_version).toBe("v321");
+    expect(baselineMeta.script_version).toBe("NET 3.2");
     // Each paired run is self-contained with its own export + teaminfo copy.
     expect(
       fs.existsSync(path.join(isolatedOutputsPath(), body.compare_build, "export.json")),
