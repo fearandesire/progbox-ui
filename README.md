@@ -165,14 +165,62 @@ The active simulation backend is the vendored C++ engine source at `api/vendor/p
 The API runner orchestrates three stages:
 
 1. **Clean** — TypeScript export cleaner (`api/src/services/exportCleaner.ts`) validates the uploaded export and writes `input.csv` for the engine
-2. **Simulate** — the C++ `progbox` binary runs the Monte Carlo simulation. The progression script (`v41` / `v43`, default **`v43`**) is chosen per run on the New-sim form and passed to the engine via `-v`.
+2. **Simulate** — the C++ `progbox` binary runs the Monte Carlo simulation. The progression script (`v321` / `v41` / `v43`, default **`v43`**) is chosen per run on the New-sim form and passed to the engine via `-v`.
 3. **Analyze** — the vendored Python post-processor (`api/vendor/progbox_cpp/tools/analysis.py`) writes the interactive Plotly `analysis_dashboard.html` and `analysis.xlsx`. If Python (or its deps) is unavailable the run still completes: analysis degrades to the TypeScript stub table (`api/src/services/analysisGenerate.ts`) and `metadata.analysis_engine` is recorded as `"fallback"` (else `"python"`), which the Charts tab surfaces as a notice.
 
 Progression-script identity and sim parameters for each run come from the engine's own `engine_metadata.json` (patched into the run's `metadata.json` post-run), not a hardcoded mirror. The vendored `VERSION` file records the engine **build** — separate from the per-run progression version.
 
 ### Auto-comparison runs
 
-The New-sim form has an "also run the other version and compare" toggle, **on by default**. When on, one submission creates **two linked runs** — the selected version (primary) and the other version (baseline) — with identical export, seed, iterations, and workers, so the only difference is the progression script. Each run is a normal, individually-viewable run; they share a `pair_id` and record `pair_role` / `paired_with` in their metadata. Once both finish, the web app opens the head-to-head comparison automatically. Untick the toggle for a single run (the previous behaviour). The manual dashboard "select 2+ runs → Compare" flow is unchanged.
+The New-sim form has an "also run published NET 3.2 and compare" toggle, **on by default**. When on, one submission creates **two linked runs** — the selected version (primary) and the **published** script (`v321` / NET 3.2) — with identical export, seed, iterations, and workers, so the only difference is the progression script. If you pick published itself, the pair partner is candidate `v43`. Each run is a normal, individually-viewable run; they share a `pair_id` and record `pair_role` / `paired_with` in their metadata. Once both finish, the web app opens the head-to-head comparison automatically (Published vs Candidate when the pair spans those roles). Untick the toggle for a single run. The manual dashboard "select 2+ runs → Compare" flow is unchanged.
+
+### Version catalog
+
+| Id | UI label | Role | Notes |
+| --- | --- | --- | --- |
+| `v321` | NET 3.2 | **Published** | What live NET leagues run today. Auto-compare target. |
+| `v43` | v4.3 | **Candidate** | Default selection; proposed release. |
+| `v41` | v4.1 | **Legacy** | Older research fork; still selectable. |
+
+Catalog source of truth: [`api/src/progressionVersions.ts`](api/src/progressionVersions.ts) (web mirrors it in [`web/src/lib/versions.ts`](web/src/lib/versions.ts)).
+
+### Glossary
+
+| Term | Meaning |
+| --- | --- |
+| Progression script | The rating-change model the engine runs (`-v`). Not the same as the engine binary build. |
+| Published | The script live leagues use today (`v321` / NET 3.2). |
+| Candidate | The proposed next script (`v43` / v4.3). |
+| Legacy | An older selectable fork kept for research (`v41` / v4.1). |
+| Engine build | Binary identity from the vendored `VERSION` file — separate from the script version. |
+| Run id (CalVer) | 14-digit `YYYYMMDDHHmmss` folder under `outputs/`. |
+| Pair | Two runs from one submission (`pair_id`, `pair_role`, `paired_with`). |
+| Scorecard | Short KPI table in a comparison (Drift, PeakAge, ICC, …). |
+| Export | BBGM `export.json` upload that feeds the cleaner. |
+| Teaminfo | `{tid → abbrev}` map; auto-generated, optionally overridden. |
+| Godprogs | Rare large rating bumps recorded in `raw/godprogs.json`. |
+
+### Data lineage
+
+```mermaid
+flowchart LR
+  export[export.json] --> cleaner[export cleaner]
+  cleaner --> input[input.csv + teaminfo]
+  input --> cpp["C++ progbox -v"]
+  cpp --> raw["raw/outputs.csv + godprogs.json"]
+  raw --> py[Python analysis / compare]
+  py --> ui[UI tabs]
+```
+
+Where each UI surface reads from:
+
+- Charts tab ← `charts/*.png` (when present)
+- Players ← `raw/outputs.csv`
+- GodProgs ← `raw/godprogs.json`
+- Analysis ← `analysis_dashboard.html`
+- Compare ← `outputs/comparisons/<a_b>/`
+
+Script math lives in [`api/vendor/progbox_cpp/README.md`](api/vendor/progbox_cpp/README.md).
 
 ### Python analysis dependencies
 
@@ -199,7 +247,7 @@ Run `pnpm verify` after updating to validate the integration.
 
 | Method | Endpoint                        | Description                         |
 | ------ | ------------------------------- | ----------------------------------- |
-| POST   | `/api/sims`                     | Upload export + config, start a run. Config takes `version` (`v41`/`v43`) and `compare` (default **true**); when `compare` is on it also runs the other version with identical inputs and links them as a pair, returning `{ build, compare_build, pair_id }` |
+| POST   | `/api/sims`                     | Upload export + config, start a run. Config takes `version` (`v321`/`v41`/`v43`) and `compare` (default **true**); when `compare` is on it also runs the published script with identical inputs and links them as a pair, returning `{ build, compare_build, pair_id }` |
 | GET    | `/api/sims`                     | List all runs                       |
 | GET    | `/api/sims/{build}`             | Run metadata                        |
 | GET    | `/api/sims/{build}/progress`    | SSE progress stream                 |
@@ -211,7 +259,7 @@ Run `pnpm verify` after updating to validate the integration.
 | GET    | `/api/sims/{build}/download`    | Download analysis or CSV            |
 | GET    | `/api/sims/compare?builds=a,b`  | Head-to-head comparison dashboard for 2+ completed runs (cached) |
 | DELETE | `/api/sims/{build}`             | Delete a run                        |
-| GET    | `/api/config`                   | Engine build id + available progression versions |
+| GET    | `/api/config`                   | Engine build id, versions, `published_version`, and `version_meta` |
 
 Build IDs follow **CalVer** format: `YYYYMMDDHHmmss`.
 

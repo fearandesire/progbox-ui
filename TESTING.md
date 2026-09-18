@@ -52,7 +52,6 @@ npx playwright install chromium
 - Frontend coverage is enforced through `web/vitest.config.ts` with V8 coverage thresholds (see that file).
 - Backend coverage is enforced in CI through `pnpm --filter @progbox/api test:coverage` (`api/vitest.config.ts`, global thresholds **65%** on statements/branches/functions/lines for `api/src/**`).
 - Vendored C++ under `api/vendor/progbox_cpp/` is not part of JS coverage.
-- Placeholder-only UI, such as `NewSimView.vue`, may be excluded until it gains behavior worth testing.
 
 ## RED, GREEN, REFACTOR
 
