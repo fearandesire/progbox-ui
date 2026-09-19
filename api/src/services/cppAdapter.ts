@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { normalizeNetInput } from "./netInput.js";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -202,6 +203,9 @@ export async function runCppSimulation(opts: RunCppOptions): Promise<RunCppResul
         String(seasonY),
       ];
 
+      // Capture the launch artifact before a concurrent rebuild can replace it
+      // while the process is running.
+      const binarySha256 = createHash("sha256").update(await fsp.readFile(binary)).digest("hex");
       const proc = spawn(cmd[0]!, cmd.slice(1), {
         cwd: workspace,
         stdio: ["ignore", "pipe", "pipe"],
@@ -223,17 +227,40 @@ export async function runCppSimulation(opts: RunCppOptions): Promise<RunCppResul
       emitStage("cpp_done", "Saving workbook…");
 
       const cppRunDir = findCppOutputDir(cppOutputsBase);
+      const cppMetaSrc = path.join(cppRunDir, "metadata.json");
+      let metadata: Record<string, unknown> | undefined;
+      if (fs.existsSync(cppMetaSrc)) {
+        metadata = JSON.parse(await fsp.readFile(cppMetaSrc, "utf8"));
+      }
+      if (inputContract) {
+        if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+          throw new Error("C++ engine metadata is required for normalized NET input; rebuild the engine");
+        }
+        if (!isDeepStrictEqual(metadata.input_contract, inputContract)) {
+          throw new Error("C++ engine did not acknowledge the requested NET input contract; rebuild the engine");
+        }
+        const simulation = metadata.simulation as { year?: unknown } | undefined;
+        const progression = metadata.progression as { id?: unknown } | undefined;
+        if (simulation?.year !== inputContract.entering_season) {
+          throw new Error("C++ engine metadata year does not match the NET entering season");
+        }
+        if (metadata.player_count !== inputContract.target_count) {
+          throw new Error("C++ engine metadata player count does not match the NET target count");
+        }
+        if (progression?.id !== engineScriptId(version)) {
+          throw new Error("C++ engine metadata progression does not match the requested NET version");
+        }
+      }
+
+      // Only publish artifacts after the executing engine confirms the contract.
       const rawDst = path.join(canonicalRunDir, "raw");
       if (fs.existsSync(rawDst)) {
         await fsp.rm(rawDst, { recursive: true, force: true });
       }
       await fsp.cp(path.join(cppRunDir, "raw"), rawDst, { recursive: true });
-
-      const cppMetaSrc = path.join(cppRunDir, "metadata.json");
-      if (fs.existsSync(cppMetaSrc)) {
-        const metadata = JSON.parse(await fsp.readFile(cppMetaSrc, "utf8"));
-        metadata.input_contract = inputContract ?? { id: "legacy-v41" };
-        metadata.binary_sha256 = createHash("sha256").update(await fsp.readFile(binary)).digest("hex");
+      if (metadata) {
+        if (!inputContract) metadata.input_contract = { id: "legacy-v41" };
+        metadata.binary_sha256 = binarySha256;
         await fsp.writeFile(path.join(canonicalRunDir, "engine_metadata.json"), JSON.stringify(metadata, null, 2));
       }
 

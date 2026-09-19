@@ -424,7 +424,7 @@ int resolve_year(const json& data, int requested) {
 void write_metadata(const fs::path& out_dir, const std::string& build_id,
                     const std::string& display_name,
                     const progbox_cfg::Settings& settings, size_t player_count,
-                    int seed) {
+                    int seed, const json& input_contract = nullptr) {
     auto now = std::chrono::system_clock::now();
     auto local_time = std::chrono::current_zone()->to_local(now);
     std::string iso_time = std::format("{:%Y-%m-%dT%H:%M:%S}", local_time);
@@ -442,6 +442,7 @@ void write_metadata(const fs::path& out_dir, const std::string& build_id,
          {{"export_path", settings.export_path},
           {"teaminfo_path", settings.teaminfo_path}}},
         {"player_count", player_count}};
+    if (!input_contract.is_null()) meta["input_contract"] = input_contract;
 
     std::ofstream f(out_dir / "metadata.json");
     if (f.is_open()) {
@@ -750,7 +751,8 @@ int main(int argc, char** argv) {
 
     //    Phase 10: Write metadata
     write_metadata(settings.output_dir, build_id, display_name, settings,
-                   player_meta.size(), settings.seed);
+                   player_meta.size(), settings.seed,
+                   export_data->value("_progbox_contract", json(nullptr)));
 
     //    Phase 11: Run simulation
     printf("Simulating...\n");
