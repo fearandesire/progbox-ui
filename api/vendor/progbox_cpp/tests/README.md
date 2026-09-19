@@ -18,6 +18,14 @@ both complete browser scripts with BBGM storage/lifecycle mocks and pinned BBGM
 `972f9d3c08476bd91276ea7327b0972dfba3a382`. JSON `references` records source SHA-256s.
 Those tests do not substitute for real BBGM browser lifecycle acceptance.
 
+`net_loader_precision` calls the production `load_players` function through a
+translation unit that renames its CLI entry point. A normalized raw fixture with
+20 three-point attempts over 3 games must reconstruct exactly 20 attempts and
+remain eligible for the efficiency pool. It also verifies double precision for
+advanced rates and availability, unchanged float normalization for legacy input,
+and actual `Analytics::export_godprogs` output: seeds above 2^53 and at the signed
+64-bit maximum must be exact decimal strings in JSON.
+
 ## Format
 
 Each case specifies `version` (`v321` or `v43`), entering-season `age`, `attrs` in
@@ -32,10 +40,12 @@ Coverage includes fractional flooring, unchanged height, rating clamps, soft
 ceilings, minutes/attempt cutoffs, heterogeneous reliability-weighted pools,
 negative and zero PER, age boundaries, god bonus endpoints and chance thresholds,
 Published physical skips and shared maximum mutation, zero-max fallback,
-OVR-capping branches, and extreme-PER inverted ranges. Inputs use exactly
-representable per-game statistics so comparisons measure formulas rather than
-C++ float storage loss. Integer outputs require exact equality. The suite does
-not claim arbitrary floating-point inputs or same-seed sequences are identical.
+OVR-capping branches, and extreme-PER inverted ranges. The shared golden inputs
+use exactly representable per-game statistics, while the real-loader regression
+covers non-binary fractional division and the 20-attempt eligibility boundary.
+Normalized NET statistics use doubles throughout; legacy input retains its
+historical float normalization. Integer outputs require exact equality. The
+suite does not claim same-seed sequences are identical across languages.
 
 ## Regeneration
 
