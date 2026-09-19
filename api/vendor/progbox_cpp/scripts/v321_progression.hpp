@@ -11,6 +11,7 @@
 #pragma once
 #include "i_progression.hpp"
 #include "ovr_math.hpp"
+#include "progression_draws.hpp"
 #include <cstring>
 
 namespace progbox {
@@ -18,7 +19,7 @@ namespace progbox {
 /// @brief Progression strategy implementing V3.2.1 aging, stat scaling, and god-prog logic.
 /// @details This version features:
 ///   - OVR-scaled god prog chance (0.09 max at OVR < 30, down to 0.0009 at OVR > 61)
-///   - God prog range of 7-13 (wider than v4.1's 7-10)
+///   - God prog range of 7-12 (wider than v4.1's 7-10)
 ///   - Physical decline starts at age 30 (not 26)
 ///   - Mid-age slowdown for ages 25-29 (not 26-29)
 ///   - Additional OVR cap logic with random minimum for capped players
@@ -34,7 +35,7 @@ private:
     static constexpr int MAX_RATING = 61;
     static constexpr double MAX_GOD_PROG_CHANCE = 0.09;
     static constexpr int MIN_GOD_PROG = 7;
-    static constexpr int MAX_GOD_PROG = 13;
+    static constexpr int MAX_GOD_PROG_EXCLUSIVE = 13;
 
     static constexpr int EARLY_PROG_PER_THRESHOLD = 20;
     static constexpr int EARLY_PROG_AGE_THRESHOLD = 31;
@@ -125,6 +126,8 @@ private:
 
             if (params.max1 >= 0 && params.max2 >= 0) {
                 mx = static_cast<int>(std::ceil(per / static_cast<double>(params.max1))) - params.max2;
+                // Published JS uses `calculated || 2`, including a zero result.
+                if (mx == 0) mx = DEFAULT_MAX_PROG;
             } else {
                 mx = DEFAULT_MAX_PROG;
             }
@@ -144,9 +147,10 @@ private:
     }
 
     /// @brief Apply OVR cap logic with age-based adjustments.
-    /// @note Contains emulation of suspected JS bug in randomMin logic.
+    /// @note Retains the pinned Published JS randomMin branch literally.
+    template <typename Draws>
     [[nodiscard]] inline std::pair<int, int> apply_ovr_cap_logic(
-        int mn, int mx, int ovr, int age, std::mt19937& rng
+        int mn, int mx, int ovr, int age, Draws& draws
     ) const {
         int ovr_progression = mx + ovr;
         int flag_lower = mn + ovr;
@@ -159,10 +163,9 @@ private:
                 } else if (age >= 35) {
                     mn = -14;
                 } else if (age <= 30) {
-                    // JS bug emulation: randInt(-2, 0) gives {-2, -1, 0}
-                    // Only -2 satisfies the condition < 0.02
-                    std::uniform_int_distribution<int> dist(-2, 0);
-                    int random_min = dist(rng);
+                    // Published JS consumes this draw even though every outcome
+                    // {-2, -1, 0} satisfies randomMin < 0.02.
+                    int random_min = static_cast<int>(std::floor(draws.unit() * 3.0)) - 2;
                     if (random_min < 0.02) {
                         mn = -2;
                     }
@@ -184,13 +187,14 @@ private:
     }
 
     /// @brief Main entry point for calculating progression range.
+    template <typename Draws>
     [[nodiscard]] inline std::pair<int, int> get_progression_range(
-        double per, int age, int ovr, std::mt19937& rng
+        double per, int age, int ovr, Draws& draws
     ) const {
         auto params = get_age_params(age);
         auto [mn, mx] = calculate_base_range(per, params);
         std::tie(mn, mx) = apply_hard_limits(mn, mx, params);
-        return apply_ovr_cap_logic(mn, mx, ovr, age, rng);
+        return apply_ovr_cap_logic(mn, mx, ovr, age, draws);
     }
 
     // ========================================================================
@@ -214,22 +218,21 @@ private:
 
     /// @brief Attempt god progression for a player.
     /// @return std::nullopt if no god prog, otherwise (min, max) tuple.
+    template <typename Draws>
     [[nodiscard]] inline std::optional<std::pair<int, int>> attempt_god_prog(
-        int age, int ovr, std::mt19937& rng
+        int age, int ovr, Draws& draws
     ) const {
-        std::uniform_real_distribution<double> r_dist(0.0, 1.0);
-
         if (age >= YOUNG_MAX) {
             return std::nullopt;
         }
 
         double chance = calculate_god_prog_chance(ovr);
-        if (r_dist(rng) >= chance) {
+        if (draws.unit() >= chance) {
             return std::nullopt;
         }
 
-        std::uniform_int_distribution<int> bonus_dist(MIN_GOD_PROG, MAX_GOD_PROG);
-        int bonus = bonus_dist(rng);
+        const int bonus = static_cast<int>(std::floor(
+            draws.unit() * (MAX_GOD_PROG_EXCLUSIVE - MIN_GOD_PROG))) + MIN_GOD_PROG;
         return std::make_pair(bonus, bonus);
     }
 
@@ -239,33 +242,30 @@ private:
 
     /// @brief Apply physical caps for older players.
     /// @return Tuple of (adjusted_mn, adjusted_mx, skip_flag).
+    template <typename Draws>
     [[nodiscard]] inline std::tuple<int, int, bool> apply_physical_caps(
-        size_t idx, int age, int mn, int mx, std::mt19937& rng
+        size_t idx, int age, int mn, int mx, Draws& draws
     ) const {
         // Only applies to age >= 30 for physical attributes with positive max
         if (age < 30 || !is_physical_old(idx) || mx <= 0) {
             return {mn, mx, false};
         }
 
-        std::uniform_real_distribution<double> r_dist(0.0, 1.0);
-
-        // Old player physical progression chance (1-6%)
-        double old_prog_phys = r_dist(rng) * 0.05 + 0.01;
-        if (r_dist(rng) >= old_prog_phys) {
-            return {0, 0, true};  // Skip progression entirely
-        }
-
-        // Cap progression for old physical attributes
-        if (mx > 3) {
-            mx = 3;
+        // Preserve the published branch literally: usually progress normally.
+        // The rare branch caps a >3 maximum, otherwise skips this attribute.
+        const double old_prog_phys = draws.unit() * 0.05 + 0.01;
+        if (draws.unit() < old_prog_phys) {
+            if (mx > 3) mx = 3;
+            else return {mn, mx, true};
         }
 
         return {mn, mx, false};
     }
 
     /// @brief Apply mid-age slowdown for physical attributes (ages 25-29).
+    template <typename Draws>
     [[nodiscard]] inline int apply_mid_age_slowdown(
-        size_t idx, int age, int prog, std::mt19937& rng
+        size_t idx, int age, int prog, Draws& draws
     ) const {
         if (!(25 <= age && age < 30 && is_physical_mid(idx) && prog > 0)) {
             return prog;
@@ -275,39 +275,49 @@ private:
         double age_factor = 0.7 - (age - 25) * 0.1;
         double prob_progression = std::max(age_factor, 0.0);
 
-        std::uniform_real_distribution<double> r_dist(0.0, 1.0);
         // JS: return Math.random() > probProgression; (returns true to SKIP)
         // Inverted: keep prog if random() <= prob
-        return (r_dist(rng) <= prob_progression) ? prog : 0;
+        return (draws.unit() <= prob_progression) ? prog : 0;
     }
 
     /// @brief Progress a single attribute with all applicable rules.
+    template <typename Draws>
     [[nodiscard]] inline double progress_attribute(
-        size_t idx, int age, int mn, int mx, double current_rating, std::mt19937& rng
+        size_t idx, int age, int& mn, int& mx, double current_rating, Draws& draws
     ) const {
         // Apply physical caps first
-        auto [adj_mn, adj_mx, skip] = apply_physical_caps(idx, age, mn, mx, rng);
+        auto [adj_mn, adj_mx, skip] = apply_physical_caps(idx, age, mn, mx, draws);
         if (skip) {
             return current_rating;
         }
 
+        // JS mutates the shared progRange, so later nonphysical attributes also
+        // observe a cap triggered by an earlier physical attribute.
+        mn = adj_mn;
+        mx = adj_mx;
+
         // Calculate base progression
         int prog = 0;
         if (adj_mn <= adj_mx) {
-            std::uniform_int_distribution<int> dist(adj_mn, adj_mx);
-            prog = dist(rng);
+            prog = draws.integer(adj_mn, adj_mx);
+        } else {
+            // JS randInt uses floor(uniform * (max-min+1) + min), even when
+            // extreme PER produces an inverted range. Do not feed that range
+            // to std::uniform_int_distribution, whose precondition forbids it.
+            prog = static_cast<int>(std::floor(draws.unit() * (adj_mx - adj_mn + 1) + adj_mn));
         }
 
-        // Apply mid-age slowdown
-        prog = apply_mid_age_slowdown(idx, age, prog, rng);
+        // JS `continue` leaves the attribute untouched, even if fractional.
+        const int slowed = apply_mid_age_slowdown(idx, age, prog, draws);
+        if (prog > 0 && slowed == 0) return current_rating;
 
-        // Clamp to valid range
-        return std::max(0.0, std::min(100.0, current_rating + static_cast<double>(prog)));
+        // BBGM limitRating floors before the final OVR calculation.
+        return std::floor(std::clamp(current_rating + static_cast<double>(slowed), 0.0, 100.0));
     }
 
 public:
     /// @brief Runs the full V3.2.1 progression pipeline for a single player.
-    /// @details Skips players under 25 or with PER <= 0. Calculates ranges,
+    /// @details Skips players under 25 or with PER == 0. Calculates ranges,
     ///          rolls for god-progs with OVR-scaled chance, and applies deltas.
     /// @param player The initial player state.
     /// @param rng The run-specific random number generator.
@@ -319,26 +329,35 @@ public:
         std::mt19937& rng,
         int64_t run_seed
     ) const override {
+        ProgressionDraws draws{rng};
+        return progress_player_with_draws(player, stats, draws, run_seed);
+    }
+
+    template <typename Draws>
+    ProgressionResult progress_player_with_draws(const PlayerState& player,
+                                                const PlayerStats& stats,
+                                                Draws& draws,
+                                                int64_t run_seed) const {
         PlayerState out = player;
         std::optional<GodProgRecord> god_prog = std::nullopt;
 
         int age = static_cast<int>(out.age);
 
         // Skip conditions
-        if (age < 25 || stats.per <= 0.0) {
+        if (age < 25 || stats.per == 0.0) {
             int ovr = calcovr_from_array(out.attrs);
             return {out, ovr, std::nullopt};
         }
 
         int ovr = calcovr_from_array(out.attrs);
-        auto [mn, mx] = get_progression_range(stats.per, age, ovr, rng);
+        auto [mn, mx] = get_progression_range(stats.per, age, ovr, draws);
 
         // Check for god progression
-        if (auto gp = attempt_god_prog(age, ovr, rng)) {
+        if (auto gp = attempt_god_prog(age, ovr, draws)) {
             std::tie(mn, mx) = *gp;
             god_prog = GodProgRecord{
                 "",                              // name (set by caller if needed)
-                static_cast<int>(run_seed),
+                run_seed,
                 age,
                 ovr,
                 mn,                              // jump amount
@@ -349,7 +368,7 @@ public:
         // Apply progression to each attribute (excluding Hgt at index 14)
         for (size_t i = 0; i < 15; ++i) {
             if (i != 14) {
-                out.attrs[i] = progress_attribute(i, age, mn, mx, out.attrs[i], rng);
+                out.attrs[i] = progress_attribute(i, age, mn, mx, out.attrs[i], draws);
             }
         }
 
