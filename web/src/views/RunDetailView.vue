@@ -130,12 +130,13 @@ const pairing = computed(() => {
   if (!r || !r.paired_with) return null;
   const ver = r.requested_version ?? "";
   const vRole = versionRole(ver);
+  // Never surface the API word "baseline" in the UI — map catalog roles only.
   let role: string | null = null;
-  if (r.pair_role === "baseline") {
-    // Never surface the API word "baseline" in the UI.
-    role = vRole === "published" ? "Published" : versionLabel(ver) || null;
-  } else if (r.pair_role === "primary") {
-    role = vRole === "candidate" ? "Candidate" : versionLabel(ver) || null;
+  if (r.pair_role === "baseline" || r.pair_role === "primary") {
+    if (vRole === "published") role = "Published";
+    else if (vRole === "candidate") role = "Candidate";
+    else if (vRole === "legacy") role = "Legacy";
+    else role = versionLabel(ver) || null;
   }
   return {
     sibling: r.paired_with,

@@ -296,6 +296,46 @@ describe("RunDetailView", () => {
     expect(compareLink!.query.builds).toBe("20260101120000,20260101120001");
   });
 
+  it("tags published primary and legacy primary with role words", async () => {
+    vi.mocked(fetchSim).mockResolvedValueOnce({
+      build: "20260101120000",
+      status: "complete",
+      teams: [],
+      requested_version: "v321",
+      pair_id: "pair-2",
+      pair_role: "primary",
+      paired_with: "20260101120001",
+    } as RunMetadata);
+
+    const routerPub = createRouterForBuild();
+    await routerPub.push("/runs/20260101120000");
+    await routerPub.isReady();
+    const published = mount(RunDetailView, {
+      global: { plugins: [routerPub], stubs: { RouterLink: RouterLinkStub } },
+    });
+    await flushPromises();
+    expect(published.get(".paired-box__tag").text()).toMatch(/Paired run · Published/);
+
+    vi.mocked(fetchSim).mockResolvedValueOnce({
+      build: "20260102120000",
+      status: "complete",
+      teams: [],
+      requested_version: "v41",
+      pair_id: "pair-3",
+      pair_role: "primary",
+      paired_with: "20260102120001",
+    } as RunMetadata);
+
+    const routerLegacy = createRouterForBuild();
+    await routerLegacy.push("/runs/20260102120000");
+    await routerLegacy.isReady();
+    const legacy = mount(RunDetailView, {
+      global: { plugins: [routerLegacy], stubs: { RouterLink: RouterLinkStub } },
+    });
+    await flushPromises();
+    expect(legacy.get(".paired-box__tag").text()).toMatch(/Paired run · Legacy/);
+  });
+
   it("deletes a run after confirmation and returns to the dashboard", async () => {
     vi.mocked(fetchSim).mockResolvedValueOnce({
       build: "20260101120000",
