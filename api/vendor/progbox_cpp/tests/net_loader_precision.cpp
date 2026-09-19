@@ -7,7 +7,7 @@
 int main() {
     const json ratings = {{"diq",50},{"dnk",50},{"drb",50},{"endu",50},
         {"fg",50},{"ft",50},{"ins",50},{"jmp",50},{"oiq",50},{"pss",50},
-        {"reb",50},{"spd",50},{"stre",50},{"tp",50},{"hgt",50}};
+        {"reb",50},{"spd",50.25},{"stre",50},{"tp",50},{"hgt",50}};
     const json stat = {{"season",2019},{"per",15},{"gp",3},{"min",24},
         {"minAvailable",97},{"tpa",20},{"tp",10},{"stlp",0.123456789012345}};
     const json data = {
@@ -28,6 +28,8 @@ int main() {
     };
     check(stats.size()==1 && population.size()==1, "loader must retain target in preparation population");
     if (stats.size()!=1 || population.size()!=1) return 1;
+    check(states.size()==1 && states[0].attrs[11]==50.25,
+          "normalized ratings must preserve fractional base until progression floors it");
     const auto& s = stats[0];
     // V43 zscores/prepare promote per-game attempts to double before multiplying
     // by gp. Float 20/3 becomes 19.999999523162842 and fails the 20-attempt gate.
@@ -50,6 +52,8 @@ int main() {
     load_players(legacy, json{{"0","Fixture"}}, 2020, legacy_meta, legacy_states,
                  legacy_stats, legacy_population);
     check(legacy_stats.size()==1, "legacy fixture must still load");
+    check(legacy_states.size()==1 && legacy_states[0].attrs[11]==50.0,
+          "legacy rating input must retain integer truncation");
     if (!legacy_stats.empty()) {
         check(legacy_stats[0].tpa == static_cast<double>(20.0f/3.0f),
               "legacy per-game division must retain float rounding");

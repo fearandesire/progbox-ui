@@ -22,7 +22,8 @@ Those tests do not substitute for real BBGM browser lifecycle acceptance.
 translation unit that renames its CLI entry point. A normalized raw fixture with
 20 three-point attempts over 3 games must reconstruct exactly 20 attempts and
 remain eligible for the efficiency pool. It also verifies double precision for
-advanced rates and availability, unchanged float normalization for legacy input,
+advanced rates and availability, fractional normalized ratings until progression,
+unchanged float normalization and integer rating truncation for legacy input,
 and actual `Analytics::export_godprogs` output: seeds above 2^53 and at the signed
 64-bit maximum must be exact decimal strings in JSON.
 
