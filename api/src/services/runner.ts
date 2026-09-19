@@ -62,7 +62,7 @@ export async function runSimulationJob(
   seed: number,
   runs: number,
   n_workers: number,
-  version = "v43",
+  version = "v4.3",
 ): Promise<void> {
   const canonicalRunDir = path.join(outputsRoot(), build);
   await fsp.mkdir(canonicalRunDir, { recursive: true });

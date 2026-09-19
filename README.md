@@ -165,33 +165,33 @@ The active simulation backend is the vendored C++ engine source at `api/vendor/p
 The API runner orchestrates three stages:
 
 1. **Clean** — TypeScript export cleaner (`api/src/services/exportCleaner.ts`) validates the uploaded export and writes `input.csv` for the engine
-2. **Simulate** — the C++ `progbox` binary runs the Monte Carlo simulation. The progression script (`v321` / `v41` / `v43`, default **`v43`**) is chosen per run on the New-sim form and passed to the engine via `-v`.
+2. **Simulate** — the C++ `progbox` binary runs the Monte Carlo simulation. The progression script (`v3.2.1` / `v4.1` / `v4.3`, default **`v4.3`**) is chosen per run on the New-sim form. The API maps those public ids to the engine's compact CLI ids (`v321` / `v41` / `v43`) when invoking `-v`.
 3. **Analyze** — the vendored Python post-processor (`api/vendor/progbox_cpp/tools/analysis.py`) writes the interactive Plotly `analysis_dashboard.html` and `analysis.xlsx`. If Python (or its deps) is unavailable the run still completes: analysis degrades to the TypeScript stub table (`api/src/services/analysisGenerate.ts`) and `metadata.analysis_engine` is recorded as `"fallback"` (else `"python"`), which the Charts tab surfaces as a notice.
 
 Progression-script identity and sim parameters for each run come from the engine's own `engine_metadata.json` (patched into the run's `metadata.json` post-run), not a hardcoded mirror. The vendored `VERSION` file records the engine **build** — separate from the per-run progression version.
 
 ### Auto-comparison runs
 
-The New-sim form has an "also run published NET 3.2 and compare" toggle, **on by default**. When on, one submission creates **two linked runs**: the selected version (primary) and the **published** script (`v321` / NET 3.2), with identical export, seed, iterations, and workers, so the only difference is the progression script. If you pick published itself, the pair partner is candidate `v43`. Each run is a normal, individually-viewable run; they share a `pair_id` and record `pair_role` / `paired_with` in their metadata. Once both finish, the web app opens the head-to-head comparison automatically (Published vs Candidate when the pair spans those roles). Untick the toggle for a single run. The manual dashboard "select 2+ runs → Compare" flow is unchanged.
+The New-sim form has an "also run published NET 3.2 and compare" toggle, **on by default**. When on, one submission creates **two linked runs**: the selected version (primary) and the **published** script (`v3.2.1` / NET 3.2), with identical export, seed, iterations, and workers, so the only difference is the progression script. If you pick published itself, the pair partner is candidate `v4.3`. Each run is a normal, individually-viewable run; they share a `pair_id` and record `pair_role` / `paired_with` in their metadata. Once both finish, the web app opens the head-to-head comparison automatically (Published vs Candidate when the pair spans those roles). Untick the toggle for a single run. The manual dashboard "select 2+ runs → Compare" flow is unchanged.
 
 ### Version catalog
 
 | Id | UI label | Role | Notes |
 | --- | --- | --- | --- |
-| `v321` | NET 3.2 | **Published** | What live NET leagues run today. Auto-compare target. |
-| `v43` | v4.3 | **Candidate** | Default selection; proposed release. |
-| `v41` | v4.1 | **Legacy** | Older research fork; still selectable. |
+| `v3.2.1` | NET 3.2 | **Published** | What live NET leagues run today. Auto-compare target. Engine CLI: `v321`. |
+| `v4.3` | v4.3 | **Candidate** | Default selection; proposed release. Engine CLI: `v43`. |
+| `v4.1` | v4.1 | **Legacy** | Older research fork; still selectable. Engine CLI: `v41`. |
 
-Catalog source of truth: [`api/src/progressionVersions.ts`](api/src/progressionVersions.ts) (web mirrors it in [`web/src/lib/versions.ts`](web/src/lib/versions.ts)).
+Catalog source of truth: [`api/src/progressionVersions.ts`](api/src/progressionVersions.ts) (web mirrors it in [`web/src/lib/versions.ts`](web/src/lib/versions.ts)). Public ids use dotted NET tags; `engineScriptId()` maps them to the vendored C++ CLI identifiers.
 
 ### Glossary
 
 | Term | Meaning |
 | --- | --- |
 | Progression script | The rating-change model the engine runs (`-v`). Not the same as the engine binary build. |
-| Published | The script live leagues use today (`v321` / NET 3.2). |
-| Candidate | The proposed next script (`v43` / v4.3). |
-| Legacy | An older selectable fork kept for research (`v41` / v4.1). |
+| Published | The script live leagues use today (`v3.2.1` / NET 3.2). |
+| Candidate | The proposed next script (`v4.3`). |
+| Legacy | An older selectable fork kept for research (`v4.1`). |
 | Engine build | Binary identity from the vendored `VERSION` file, separate from the script version. |
 | Run id (CalVer) | 14-digit `YYYYMMDDHHmmss` folder under `outputs/`. |
 | Pair | Two runs from one submission (`pair_id`, `pair_role`, `paired_with`). |
@@ -247,7 +247,7 @@ Run `pnpm verify` after updating to validate the integration.
 
 | Method | Endpoint                        | Description                         |
 | ------ | ------------------------------- | ----------------------------------- |
-| POST   | `/api/sims`                     | Upload export + config, start a run. Config takes `version` (`v321`/`v41`/`v43`) and `compare` (default **true**); when `compare` is on it also runs the published script (`v321`) with identical inputs (or candidate `v43` if published was selected) and links them as a pair, returning `{ build, compare_build, pair_id }` |
+| POST   | `/api/sims`                     | Upload export + config, start a run. Config takes `version` (`v3.2.1`/`v4.1`/`v4.3`) and `compare` (default **true**); when `compare` is on it also runs the published script (`v3.2.1`) with identical inputs (or candidate `v4.3` if published was selected) and links them as a pair, returning `{ build, compare_build, pair_id }` |
 | GET    | `/api/sims`                     | List all runs                       |
 | GET    | `/api/sims/{build}`             | Run metadata                        |
 | GET    | `/api/sims/{build}/progress`    | SSE progress stream                 |

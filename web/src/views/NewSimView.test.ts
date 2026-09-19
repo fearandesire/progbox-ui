@@ -67,7 +67,7 @@ async function chooseExport(wrapper: ReturnType<typeof mount>) {
 
 async function submitPaired(
   wrapper: ReturnType<typeof mount>,
-  opts: { version?: "v321" | "v41" | "v43" } = {},
+  opts: { version?: "v3.2.1" | "v4.1" | "v4.3" } = {},
 ) {
   vi.mocked(createSim).mockResolvedValue({
     build: "20260101120000",
@@ -102,9 +102,9 @@ describe("NewSimView", () => {
   it("defaults the progression version to v4.3", () => {
     const { wrapper } = mountView();
     const select = wrapper.get("#sim-version").element as HTMLSelectElement;
-    expect(select.value).toBe("v43");
+    expect(select.value).toBe("v4.3");
     const values = [...select.options].map((o) => o.value);
-    expect(values).toEqual(["v43", "v321", "v41"]);
+    expect(values).toEqual(["v4.3", "v3.2.1", "v4.1"]);
   });
 
   it("renders the compare toggle checked by default, naming the published script", () => {
@@ -117,31 +117,31 @@ describe("NewSimView", () => {
 
   it("re-labels the compare toggle to candidate when published is selected", async () => {
     const { wrapper } = mountView();
-    await wrapper.get("#sim-version").setValue("v321");
+    await wrapper.get("#sim-version").setValue("v3.2.1");
     expect(wrapper.get(".compare-toggle").text()).toContain("candidate v4.3");
   });
 
-  it("posts v321 and shows candidate compare label when published is selected", async () => {
+  it("posts v3.2.1 and shows candidate compare label when published is selected", async () => {
     const { wrapper } = mountView();
     await chooseExport(wrapper);
-    await wrapper.get("#sim-version").setValue("v321");
+    await wrapper.get("#sim-version").setValue("v3.2.1");
     expect(wrapper.get(".compare-toggle").text()).toContain("candidate v4.3");
     await wrapper.get("form").trigger("submit");
     await flushPromises();
 
     expect(createSim).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(createSim).mock.calls[0]![1]).toMatchObject({ version: "v321" });
+    expect(vi.mocked(createSim).mock.calls[0]![1]).toMatchObject({ version: "v3.2.1" });
   });
 
   it("posts the chosen version when submitting", async () => {
     const { wrapper } = mountView();
     await chooseExport(wrapper);
-    await wrapper.get("#sim-version").setValue("v41");
+    await wrapper.get("#sim-version").setValue("v4.1");
     await wrapper.get("form").trigger("submit");
     await flushPromises();
 
     expect(createSim).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(createSim).mock.calls[0]![1]).toMatchObject({ version: "v41" });
+    expect(vi.mocked(createSim).mock.calls[0]![1]).toMatchObject({ version: "v4.1" });
   });
 
   it("submits compare:true and opens the comparison once both paired runs complete", async () => {
@@ -275,7 +275,7 @@ describe("NewSimView", () => {
     useProgress(primary, baseline);
 
     const { wrapper, router } = mountView();
-    await submitPaired(wrapper, { version: "v41" });
+    await submitPaired(wrapper, { version: "v4.1" });
 
     primary.done.value = true;
     primary.phase.value = "failed";

@@ -31,7 +31,7 @@ const teamsCsv = ref("");
 const seed = ref(69);
 const runs = ref(500);
 const nWorkers = ref<number | null>(null);
-const version = ref<ProgressionVersion>("v43");
+const version = ref<ProgressionVersion>("v4.3");
 const compare = ref(true);
 
 const state = ref<CreateState>("idle");
@@ -292,13 +292,13 @@ async function submit() {
           v-model="version"
           class="input"
         >
-          <option value="v43">
+          <option value="v4.3">
             v4.3, candidate (recommended)
           </option>
-          <option value="v321">
+          <option value="v3.2.1">
             NET 3.2, published: what leagues run today
           </option>
-          <option value="v41">
+          <option value="v4.1">
             v4.1, legacy research fork
           </option>
         </select>

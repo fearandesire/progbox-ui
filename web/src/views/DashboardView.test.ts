@@ -137,10 +137,10 @@ describe("DashboardView", () => {
         build: "20260101120000",
         status: "complete",
         teams: [],
-        requested_version: "v43",
+        requested_version: "v4.3",
         pair_id: "pair-1",
       } as RunMetadata,
-      { build: "20260102120000", status: "complete", teams: [], requested_version: "v41" },
+      { build: "20260102120000", status: "complete", teams: [], requested_version: "v4.1" },
     ];
 
     const wrapper = mount(DashboardView, {
@@ -159,10 +159,10 @@ describe("DashboardView", () => {
         build: "20260101120000",
         status: "complete",
         teams: [],
-        requested_version: "v321",
+        requested_version: "v3.2.1",
         pair_id: "pair-1",
       } as RunMetadata,
-      { build: "20260102120000", status: "complete", teams: [], requested_version: "v43" },
+      { build: "20260102120000", status: "complete", teams: [], requested_version: "v4.3" },
     ];
 
     const wrapper = mount(DashboardView, {
@@ -178,8 +178,8 @@ describe("DashboardView", () => {
 
   it("enables Compare only at 2+ selected runs and navigates to the comparison", async () => {
     mockSimsStore.runs = [
-      { build: "20260101120000", status: "complete", teams: [], requested_version: "v43" },
-      { build: "20260102120000", status: "complete", teams: [], requested_version: "v41" },
+      { build: "20260101120000", status: "complete", teams: [], requested_version: "v4.3" },
+      { build: "20260102120000", status: "complete", teams: [], requested_version: "v4.1" },
     ];
 
     const wrapper = mount(DashboardView, {

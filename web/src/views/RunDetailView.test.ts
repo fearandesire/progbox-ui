@@ -122,7 +122,7 @@ describe("RunDetailView", () => {
       build: "20260101120000",
       status: "complete",
       teams: [],
-      requested_version: "v43",
+      requested_version: "v4.3",
     });
 
     const router = createRouterForBuild();
@@ -260,7 +260,7 @@ describe("RunDetailView", () => {
       status: "complete",
       teams: [],
       script_version: "v4.3.0",
-      requested_version: "v43",
+      requested_version: "v4.3",
       pair_id: "pair-1",
       pair_role: "primary",
       paired_with: "20260101120001",
@@ -301,7 +301,7 @@ describe("RunDetailView", () => {
       build: "20260101120000",
       status: "complete",
       teams: [],
-      requested_version: "v321",
+      requested_version: "v3.2.1",
       pair_id: "pair-2",
       pair_role: "primary",
       paired_with: "20260101120001",
@@ -320,7 +320,7 @@ describe("RunDetailView", () => {
       build: "20260102120000",
       status: "complete",
       teams: [],
-      requested_version: "v41",
+      requested_version: "v4.1",
       pair_id: "pair-3",
       pair_role: "primary",
       paired_with: "20260102120001",

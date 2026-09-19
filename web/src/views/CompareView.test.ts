@@ -122,14 +122,14 @@ describe("CompareView", () => {
         build: "20260101120000",
         status: "complete",
         teams: [],
-        requested_version: "v43",
+        requested_version: "v4.3",
         pair_id: "pair-1",
       },
       {
         build: "20260102120000",
         status: "complete",
         teams: [],
-        requested_version: "v321",
+        requested_version: "v3.2.1",
         pair_id: "pair-1",
       },
     ] as never);
@@ -156,14 +156,14 @@ describe("CompareView", () => {
         build: "20260101120000",
         status: "complete",
         teams: [],
-        requested_version: "v41",
+        requested_version: "v4.1",
         pair_id: "pair-legacy",
       },
       {
         build: "20260102120000",
         status: "complete",
         teams: [],
-        requested_version: "v321",
+        requested_version: "v3.2.1",
         pair_id: "pair-legacy",
       },
     ] as never);

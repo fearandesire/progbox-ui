@@ -5,6 +5,11 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { vendorCppDir } from "../paths.js";
+import {
+  DEFAULT_PROGRESSION_VERSION,
+  engineScriptId,
+  type ProgressionVersion,
+} from "../progressionVersions.js";
 import { normalizeSeason } from "../utils/normalizeSeason.js";
 import { buildInputRows, rowsToCsv } from "./exportCleaner.js";
 import { runAnalysis } from "./analysisPython.js";
@@ -174,7 +179,9 @@ export async function runCppSimulation(opts: RunCppOptions): Promise<RunCppResul
         path.resolve(opts.teaminfoPath),
         path.resolve(cppOutputsBase),
         "-v",
-        opts.version ?? "v41",
+        engineScriptId(
+          (opts.version as ProgressionVersion | undefined) ?? DEFAULT_PROGRESSION_VERSION,
+        ),
         "-r",
         String(opts.runs),
         "-w",

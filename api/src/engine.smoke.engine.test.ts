@@ -150,7 +150,7 @@ describe.skipIf(!hasBinary)("C++ engine smoke", () => {
       expect(metadata.error).toBeNull();
       expect(metadata.player_count).toBe(6);
 
-      // Executed truth patched from the engine's own metadata (default version = v4.3).
+      // Engine CLI id stays compact (`v43`); API catalog id is dotted `v4.3`.
       expect((metadata.progression as { id?: string } | undefined)?.id).toBe("v43");
       expect(typeof metadata.script_version).toBe("string");
 
@@ -281,7 +281,7 @@ describe.skipIf(!hasBinary)("C++ engine smoke", () => {
           seed: 42,
           runs: 2,
           n_workers: 1,
-          version: "v43",
+          version: "v4.3",
           compare: true,
         }),
       );
@@ -315,8 +315,8 @@ describe.skipIf(!hasBinary)("C++ engine smoke", () => {
       expect(baselineMeta.pair_role).toBe("baseline");
       expect(primaryMeta.paired_with).toBe(body.compare_build);
       expect(baselineMeta.paired_with).toBe(body.build);
-      expect(primaryMeta.requested_version).toBe("v43");
-      expect(baselineMeta.requested_version).toBe("v321");
+      expect(primaryMeta.requested_version).toBe("v4.3");
+      expect(baselineMeta.requested_version).toBe("v3.2.1");
       // Analysis may be Python or the TS fallback — do not require Python for pairing.
       expect(["python", "fallback"]).toContain(primaryMeta.analysis_engine);
       expect(["python", "fallback"]).toContain(baselineMeta.analysis_engine);

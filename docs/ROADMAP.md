@@ -8,7 +8,7 @@ planning is done week-by-week. issues live in [GitHub Projects (#10)](https://gi
 
 a dashboard that's genuinely useful for reading sim results — not just running them. for v1.0 that means:
 
-- run sims with a selectable progression script (`v321` / NET 3.2 published, `v43` candidate, `v41` legacy)
+- run sims with a selectable progression script (`v3.2.1` / NET 3.2 published, `v4.3` candidate, `v4.1` legacy)
 - run + dashboard cards that surface impactful, at-a-glance data
 - compare runs against each other, including published vs candidate pairs (shipped)
 - brief in-app docs so the outputs aren't a mystery
@@ -31,7 +31,7 @@ everything tagged [`v1.0`](https://github.com/fearandesire/progbox-ui/labels/v1.
 | # | item |
 |---|------|
 | [#18](https://github.com/fearandesire/progbox-ui/issues/18) | sync latest chart changes into the UI |
-| [#19](https://github.com/fearandesire/progbox-ui/issues/19) | NET script version selector (`v321` / `v41` / `v43`) |
+| [#19](https://github.com/fearandesire/progbox-ui/issues/19) | NET script version selector (`v3.2.1` / `v4.1` / `v4.3`) |
 | [#20](https://github.com/fearandesire/progbox-ui/issues/20) | improve run cards — key aggregated stats |
 | [#21](https://github.com/fearandesire/progbox-ui/issues/21) | brief in-app docs page |
 

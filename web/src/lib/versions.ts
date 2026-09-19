@@ -2,16 +2,16 @@
  * Local mirror of api/src/progressionVersions.ts.
  * Switch to /api/config.version_meta if a fourth id ever ships.
  */
-export const PROGRESSION_VERSIONS = ["v321", "v41", "v43"] as const;
+export const PROGRESSION_VERSIONS = ["v3.2.1", "v4.1", "v4.3"] as const;
 export type ProgressionVersion = (typeof PROGRESSION_VERSIONS)[number];
-export const PUBLISHED_PROGRESSION_VERSION: ProgressionVersion = "v321";
-export const DEFAULT_PROGRESSION_VERSION: ProgressionVersion = "v43";
+export const PUBLISHED_PROGRESSION_VERSION: ProgressionVersion = "v3.2.1";
+export const DEFAULT_PROGRESSION_VERSION: ProgressionVersion = "v4.3";
 export type VersionRole = "published" | "candidate" | "legacy";
 
 const META: Record<ProgressionVersion, { label: string; role: VersionRole }> = {
-  v321: { label: "NET 3.2", role: "published" },
-  v43: { label: "v4.3", role: "candidate" },
-  v41: { label: "v4.1", role: "legacy" },
+  "v3.2.1": { label: "NET 3.2", role: "published" },
+  "v4.3": { label: "v4.3", role: "candidate" },
+  "v4.1": { label: "v4.1", role: "legacy" },
 };
 
 export function versionLabel(v: string): string {
@@ -42,4 +42,9 @@ export function versionTitle(v: ProgressionVersion): string {
       return _exhaustive;
     }
   }
+}
+
+/** CSS-safe class token (dots are invalid in unescaped class selectors). */
+export function versionChipClass(v: ProgressionVersion): string {
+  return v.replace(/\./g, "-");
 }
