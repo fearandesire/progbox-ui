@@ -21,62 +21,16 @@ const builds = computed<string[]>(() => {
 });
 
 const valid = computed(() => builds.value.length >= 2);
-const compareSrc = computed(() => compareUrl(builds.value));
 
 const data = ref<CompareDataResponse | null>(null);
 const loading = ref(false);
 const loadError = ref<string | null>(null);
+const runs = ref<RunMetadata[]>([]);
+/** Runs metadata must resolve before compare fetch so Published-first order sticks. */
+const runsReady = ref(false);
 
 // Native comparison failed → embed the original engine-rendered HTML.
 const useIframe = computed(() => loadError.value !== null && !loading.value);
-
-// Monotonic token: an uncached comparison can take a minute, so a slow
-// response for a previous build set must never replace the current one.
-let requestId = 0;
-
-async function load() {
-  if (!valid.value) return;
-  const token = ++requestId;
-  loading.value = true;
-  loadError.value = null;
-  data.value = null;
-  try {
-    const result = await fetchCompareData(builds.value);
-    if (token !== requestId) return;
-    data.value = result;
-  } catch (e) {
-    if (token !== requestId) return;
-    loadError.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    if (token === requestId) loading.value = false;
-  }
-}
-
-onMounted(load);
-watch(builds, (next, prev) => {
-  if (next.join(",") !== prev.join(",")) void load();
-});
-
-const runs = ref<RunMetadata[]>([]);
-
-async function loadRuns() {
-  try {
-    const all = await fetchSims();
-    const byBuild = new Map(all.map((r) => [r.build, r]));
-    runs.value = builds.value
-      .map((b) => byBuild.get(b))
-      .filter((r): r is RunMetadata => r != null);
-  } catch {
-    runs.value = [];
-  }
-}
-
-onMounted(() => {
-  void loadRuns();
-});
-watch(builds, () => {
-  void loadRuns();
-});
 
 function roleWord(role: VersionRole | null): string | null {
   if (role === "published") return "Published";
@@ -90,20 +44,25 @@ function runRole(build: string): VersionRole | null {
   return versionRole(r?.requested_version ?? "");
 }
 
-const isPublishedPair = computed(() => {
-  if (builds.value.length !== 2 || runs.value.length !== 2) return false;
+/** Same auto-compare pair spanning published + one other catalog role. */
+const pairedRoles = computed<"published-candidate" | "published-legacy" | null>(() => {
+  if (builds.value.length !== 2 || runs.value.length !== 2) return null;
   const roles = runs.value.map((r) => versionRole(r.requested_version ?? ""));
-  const hasPublished = roles.includes("published");
-  const hasNonPublished = roles.some((r) => r != null && r !== "published");
   const pairId = runs.value[0]?.pair_id;
   const samePair =
     pairId != null && pairId !== "" && runs.value.every((r) => r.pair_id === pairId);
-  return hasPublished && hasNonPublished && samePair;
+  if (!samePair) return null;
+  const hasPublished = roles.includes("published");
+  const hasCandidate = roles.includes("candidate");
+  const hasLegacy = roles.includes("legacy");
+  if (hasPublished && hasCandidate) return "published-candidate";
+  if (hasPublished && hasLegacy) return "published-legacy";
+  return null;
 });
 
-/** Published-first when this is a published/candidate pair; else query order. */
+/** Published-first for published pairs; else query order. */
 const displayBuilds = computed(() => {
-  if (!isPublishedPair.value) return builds.value;
+  if (!pairedRoles.value) return builds.value;
   return [...builds.value].sort((a, b) => {
     const ra = runRole(a);
     const rb = runRole(b);
@@ -111,6 +70,91 @@ const displayBuilds = computed(() => {
     if (rb === "published" && ra !== "published") return 1;
     return 0;
   });
+});
+
+const compareSrc = computed(() => compareUrl(displayBuilds.value));
+
+const pairTitle = computed(() => {
+  const kind = pairedRoles.value;
+  switch (kind) {
+    case "published-candidate":
+      return "Published vs Candidate";
+    case "published-legacy":
+      return "Published vs Legacy";
+    case null:
+      return "Comparison";
+    default: {
+      const _exhaustive: never = kind;
+      return _exhaustive;
+    }
+  }
+});
+
+const pairDesc = computed(() => {
+  const kind = pairedRoles.value;
+  switch (kind) {
+    case "published-candidate":
+      return "Left: NET 3.2, what leagues run today. Right: v4.3, the proposed release. Scorecard is the short answer, graphs are the detail.";
+    case "published-legacy":
+      return "Left: NET 3.2, what leagues run today. Right: v4.1, the older research fork. Scorecard is the short answer, graphs are the detail.";
+    case null:
+      return "Head-to-head scorecard and overlaid charts across the selected runs.";
+    default: {
+      const _exhaustive: never = kind;
+      return _exhaustive;
+    }
+  }
+});
+
+// Monotonic token: an uncached comparison can take a minute, so a slow
+// response for a previous build set must never replace the current one.
+let requestId = 0;
+
+async function load() {
+  if (!valid.value || !runsReady.value) return;
+  const ordered = displayBuilds.value;
+  const token = ++requestId;
+  loading.value = true;
+  loadError.value = null;
+  data.value = null;
+  try {
+    const result = await fetchCompareData(ordered);
+    if (token !== requestId) return;
+    data.value = result;
+  } catch (e) {
+    if (token !== requestId) return;
+    loadError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    if (token === requestId) loading.value = false;
+  }
+}
+
+async function loadRuns() {
+  runsReady.value = false;
+  try {
+    const all = await fetchSims();
+    const byBuild = new Map(all.map((r) => [r.build, r]));
+    runs.value = builds.value
+      .map((b) => byBuild.get(b))
+      .filter((r): r is RunMetadata => r != null);
+  } catch {
+    runs.value = [];
+  } finally {
+    runsReady.value = true;
+  }
+}
+
+async function bootstrap() {
+  await loadRuns();
+  await load();
+}
+
+onMounted(() => {
+  void bootstrap();
+});
+watch(builds, (next, prev) => {
+  if (next.join(",") === prev.join(",")) return;
+  void bootstrap();
 });
 
 const containerEl = ref<HTMLElement | null>(null);
@@ -145,19 +189,8 @@ function toggleFullscreen() {
       style="margin-bottom: 12px"
     >
       <div>
-        <h1 class="page-title">
-          <template v-if="isPublishedPair">Published vs Candidate</template>
-          <template v-else>Comparison</template>
-        </h1>
-        <p class="page-desc">
-          <template v-if="isPublishedPair">
-            Left: NET 3.2, what leagues run today. Right: v4.3, the proposed release.
-            Scorecard is the short answer, graphs are the detail.
-          </template>
-          <template v-else>
-            Head-to-head scorecard and overlaid charts across the selected runs.
-          </template>
-        </p>
+        <h1 class="page-title">{{ pairTitle }}</h1>
+        <p class="page-desc">{{ pairDesc }}</p>
       </div>
     </div>
 

@@ -96,6 +96,8 @@ describe("CompareView", () => {
       }),
     );
     const { wrapper } = await mountAt("?builds=20260101120000,20260102120000");
+    // loadRuns resolves first; then compare fetch starts and shows the spinner.
+    await flushPromises();
     expect(wrapper.text()).toContain("Generating comparison");
     resolve(sampleCompareData());
     await flushPromises();
@@ -131,15 +133,49 @@ describe("CompareView", () => {
         pair_id: "pair-1",
       },
     ] as never);
-    // Candidate first in the query — UI should still put Published first.
+    // Candidate first in the query — UI should still put Published first for chips + fetch.
     const { wrapper } = await mountAt("?builds=20260101120000,20260102120000");
     await flushPromises();
 
     expect(wrapper.text()).toContain("Published vs Candidate");
     expect(wrapper.text()).toContain("what leagues run today");
+    expect(wrapper.text()).toContain("proposed release");
     const roles = wrapper.findAll(".compare-runs__role").map((n) => n.text());
     expect(roles[0]).toBe("Published");
     expect(roles[1]).toBe("Candidate");
+    expect(fetchCompareData).toHaveBeenCalledWith([
+      "20260102120000",
+      "20260101120000",
+    ]);
+  });
+
+  it("shows Published vs Legacy for a published+legacy pair", async () => {
+    vi.mocked(fetchCompareData).mockResolvedValue(sampleCompareData());
+    vi.mocked(fetchSims).mockResolvedValue([
+      {
+        build: "20260101120000",
+        status: "complete",
+        teams: [],
+        requested_version: "v41",
+        pair_id: "pair-legacy",
+      },
+      {
+        build: "20260102120000",
+        status: "complete",
+        teams: [],
+        requested_version: "v321",
+        pair_id: "pair-legacy",
+      },
+    ] as never);
+    const { wrapper } = await mountAt("?builds=20260101120000,20260102120000");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Published vs Legacy");
+    expect(wrapper.text()).not.toContain("Published vs Candidate");
+    expect(wrapper.text()).toContain("older research fork");
+    const roles = wrapper.findAll(".compare-runs__role").map((n) => n.text());
+    expect(roles[0]).toBe("Published");
+    expect(roles[1]).toBe("Legacy");
   });
 
   it("links the escape hatch to the original comparison HTML", async () => {
