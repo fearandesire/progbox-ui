@@ -22,8 +22,9 @@ Set up Linear to mirror the progbox-ui plan.
 
 1. In my Linear team, create a Project called "progbox-ui v1.0".
    Goal: a dashboard that's useful for reading sim results, not just running them —
-   selectable NET script version, run/dashboard cards with at-a-glance aggregated
-   data, run comparison (incl. cross-version), and brief in-app docs.
+   selectable progression script (v3.2.1 published / v4.3 candidate / v4.1 legacy),
+   run/dashboard cards with at-a-glance aggregated data, run comparison
+   (incl. published vs candidate), and brief in-app docs.
 
 2. Enable 1-week Cycles. Create the current cycle "Sprint 1" ending Fri Jun 19.
 
@@ -34,8 +35,8 @@ Set up Linear to mirror the progbox-ui plan.
      Bring the latest engine chart output into the dashboard so runs show current charts.
      Acceptance: latest charts render in run/dashboard view; no stale artifacts; works for a fresh run end-to-end.
 
-   - "Add NET script version selector (v3.0 / v3.1 / v4.1)"
-     Let users pick which NET script version a run uses (v4.1 = Shawn's current build).
+   - "Add NET script version selector (v3.2.1 / v4.1 / v4.3)" [historical prompt — ids were once compact `v321`/`v41`/`v43`]
+     Let users pick which progression script a run uses (v3.2.1 = published NET 3.2; v4.3 = candidate).
      Acceptance: version dropdown in new-sim config; selection passed to runner; version recorded in metadata and shown on the run.
 
    - "Improve run cards: surface key aggregated stats"
@@ -46,7 +47,7 @@ Set up Linear to mirror the progbox-ui plan.
      Short docs explaining what outputs/metrics mean.
      Acceptance: reachable from nav; covers main outputs (charts, player table, god-progs, analysis); brief.
 
-   - "Run comparison: side-by-side, cross-version" (backlog)
+   - "Run comparison: side-by-side, cross-version" (backlog) [shipped in product — keep for Linear history]
      Compare 2+ runs side-by-side, including across NET versions. Builds on the run-cards work.
      Acceptance: select 2+ runs; aggregated stats side-by-side; cross-version supported; clear deltas.
 

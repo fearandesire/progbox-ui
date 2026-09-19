@@ -14,6 +14,7 @@ import { useRunStats } from "../composables/useRunStats";
 import { deleteSim, downloadUrl, fetchSim } from "../lib/api";
 import { duration, signed } from "../lib/format";
 import type { RunMetadata } from "../lib/types";
+import { versionLabel, versionRole } from "../lib/versions";
 
 type Tab = "overview" | "charts" | "players" | "godprogs";
 
@@ -127,9 +128,19 @@ const kpis = computed(() => {
 const pairing = computed(() => {
   const r = run.value as PairedRun | null;
   if (!r || !r.paired_with) return null;
+  const ver = r.requested_version ?? r.script_version ?? "";
+  const vRole = versionRole(r.requested_version, r.script_version);
+  // Never surface the API word "baseline" in the UI — map catalog roles only.
+  let role: string | null = null;
+  if (r.pair_role === "baseline" || r.pair_role === "primary") {
+    if (vRole === "published") role = "Published";
+    else if (vRole === "candidate") role = "Candidate";
+    else if (vRole === "legacy") role = "Legacy";
+    else role = versionLabel(ver) || null;
+  }
   return {
     sibling: r.paired_with,
-    role: r.pair_role ?? null,
+    role,
     compareBuilds: `${r.build},${r.paired_with}`,
   };
 });
@@ -259,7 +270,10 @@ async function removeRun() {
             <div class="meta-row">
               <dt>Script</dt>
               <dd style="display: flex; align-items: center; gap: 8px">
-                <VersionChip :version="run.script_version ?? run.requested_version" />
+                <VersionChip
+                  :version="run.requested_version"
+                  :script-version="run.script_version"
+                />
                 <span
                   v-if="run.script_version && run.script_version !== 'v4.3' && run.script_version !== 'v4.1'"
                   style="font-size: 12px; color: var(--fg-mute)"

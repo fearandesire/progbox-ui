@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import AnalysisDashboard from "../components/analysis/AnalysisDashboard.vue";
 import DeIcon from "../components/DeIcon.vue";
@@ -7,6 +7,7 @@ import VersionChip from "../components/VersionChip.vue";
 import { compareUrl, fetchCompareData, fetchSims } from "../lib/api";
 import type { CompareDataResponse } from "../lib/analysisTypes";
 import type { RunMetadata } from "../lib/types";
+import { versionRole, type VersionRole } from "../lib/versions";
 
 const route = useRoute();
 
@@ -20,27 +21,126 @@ const builds = computed<string[]>(() => {
 });
 
 const valid = computed(() => builds.value.length >= 2);
-const compareSrc = computed(() => compareUrl(builds.value));
 
 const data = ref<CompareDataResponse | null>(null);
 const loading = ref(false);
 const loadError = ref<string | null>(null);
+const runs = ref<RunMetadata[]>([]);
 
 // Native comparison failed → embed the original engine-rendered HTML.
 const useIframe = computed(() => loadError.value !== null && !loading.value);
+
+function roleWord(role: VersionRole | null): string | null {
+  if (role === "published") return "Published";
+  if (role === "candidate") return "Candidate";
+  if (role === "legacy") return "Legacy";
+  return null;
+}
+
+function runRole(build: string): VersionRole | null {
+  const r = runs.value.find((x) => x.build === build);
+  return versionRole(r?.requested_version, r?.script_version);
+}
+
+/** Same auto-compare pair spanning published + one other catalog role. */
+const pairedRoles = computed<"published-candidate" | "published-legacy" | null>(() => {
+  if (builds.value.length !== 2 || runs.value.length !== 2) return null;
+  const roles = runs.value.map((r) => versionRole(r.requested_version, r.script_version));
+  const pairId = runs.value[0]?.pair_id;
+  const samePair =
+    pairId != null && pairId !== "" && runs.value.every((r) => r.pair_id === pairId);
+  if (!samePair) return null;
+  const hasPublished = roles.includes("published");
+  const hasCandidate = roles.includes("candidate");
+  const hasLegacy = roles.includes("legacy");
+  if (hasPublished && hasCandidate) return "published-candidate";
+  if (hasPublished && hasLegacy) return "published-legacy";
+  return null;
+});
+
+/** Published-first for published pairs; else query order. */
+const displayBuilds = computed(() => {
+  if (!pairedRoles.value) return builds.value;
+  return [...builds.value].sort((a, b) => {
+    const ra = runRole(a);
+    const rb = runRole(b);
+    if (ra === "published" && rb !== "published") return -1;
+    if (rb === "published" && ra !== "published") return 1;
+    return 0;
+  });
+});
+
+const compareSrc = computed(() => compareUrl(displayBuilds.value));
+
+const pairTitle = computed(() => {
+  const kind = pairedRoles.value;
+  switch (kind) {
+    case "published-candidate":
+      return "Published vs Candidate";
+    case "published-legacy":
+      return "Published vs Legacy";
+    case null:
+      return "Comparison";
+    default: {
+      const _exhaustive: never = kind;
+      return _exhaustive;
+    }
+  }
+});
+
+const pairDesc = computed(() => {
+  const kind = pairedRoles.value;
+  switch (kind) {
+    case "published-candidate":
+      return "Left: NET 3.2, what leagues run today. Right: v4.3, the proposed release. Scorecard is the short answer, graphs are the detail.";
+    case "published-legacy":
+      return "Left: NET 3.2, what leagues run today. Right: v4.1, the older research fork. Scorecard is the short answer, graphs are the detail.";
+    case null:
+      return "Head-to-head scorecard and overlaid charts across the selected runs.";
+    default: {
+      const _exhaustive: never = kind;
+      return _exhaustive;
+    }
+  }
+});
 
 // Monotonic token: an uncached comparison can take a minute, so a slow
 // response for a previous build set must never replace the current one.
 let requestId = 0;
 
-async function load() {
-  if (!valid.value) return;
+async function bootstrap() {
   const token = ++requestId;
-  loading.value = true;
-  loadError.value = null;
+  const requestedBuilds = [...builds.value];
   data.value = null;
+  loadError.value = null;
+  runs.value = [];
+  loading.value = requestedBuilds.length >= 2;
+  if (!loading.value) return;
+
   try {
-    const result = await fetchCompareData(builds.value);
+    const all = await fetchSims();
+    if (token !== requestId) return;
+    const byBuild = new Map(all.map((r) => [r.build, r]));
+    runs.value = requestedBuilds
+      .map((b) => byBuild.get(b))
+      .filter((r): r is RunMetadata => r != null);
+  } catch {
+    if (token !== requestId) return;
+    runs.value = [];
+  }
+
+  if (token !== requestId) return;
+  // Metadata now determines Published-first order; the build snapshot belongs
+  // to this token even if a later route starts another request.
+  const ordered = pairedRoles.value
+    ? [...requestedBuilds].sort((a, b) => {
+        if (runRole(a) === "published") return -1;
+        if (runRole(b) === "published") return 1;
+        return 0;
+      })
+    : requestedBuilds;
+  try {
+    const result = await fetchCompareData(ordered);
     if (token !== requestId) return;
     data.value = result;
   } catch (e) {
@@ -51,23 +151,16 @@ async function load() {
   }
 }
 
-onMounted(load);
+onMounted(() => {
+  void bootstrap();
+});
+onUnmounted(() => {
+  ++requestId;
+});
 watch(builds, (next, prev) => {
-  if (next.join(",") !== prev.join(",")) void load();
-});
-
-const runs = ref<RunMetadata[]>([]);
-onMounted(async () => {
-  try {
-    const all = await fetchSims();
-    const byBuild = new Map(all.map((r) => [r.build, r]));
-    runs.value = builds.value
-      .map((b) => byBuild.get(b))
-      .filter((r): r is RunMetadata => r != null);
-  } catch {
-    runs.value = [];
-  }
-});
+  if (next.join(",") === prev.join(",")) return;
+  void bootstrap();
+}, { flush: "sync" });
 
 const containerEl = ref<HTMLElement | null>(null);
 const frameEl = ref<HTMLIFrameElement | null>(null);
@@ -101,12 +194,8 @@ function toggleFullscreen() {
       style="margin-bottom: 12px"
     >
       <div>
-        <h1 class="page-title">
-          Comparison
-        </h1>
-        <p class="page-desc">
-          Head-to-head scorecard and overlaid charts across the selected runs.
-        </p>
+        <h1 class="page-title">{{ pairTitle }}</h1>
+        <p class="page-desc">{{ pairDesc }}</p>
       </div>
     </div>
 
@@ -120,13 +209,17 @@ function toggleFullscreen() {
     <template v-else>
       <div class="compare-runs">
         <span
-          v-for="b in builds"
+          v-for="b in displayBuilds"
           :key="b"
           class="compare-runs__item"
         >
+          <span
+            v-if="roleWord(runRole(b))"
+            class="compare-runs__role"
+          >{{ roleWord(runRole(b)) }}</span>
           <VersionChip
-            :version="runs.find((r) => r.build === b)?.requested_version
-              ?? runs.find((r) => r.build === b)?.script_version"
+            :version="runs.find((r) => r.build === b)?.requested_version"
+            :script-version="runs.find((r) => r.build === b)?.script_version"
           />
           <span class="compare-runs__id">{{ b }}</span>
         </span>
@@ -233,6 +326,13 @@ function toggleFullscreen() {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+}
+.compare-runs__role {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-mute);
 }
 .compare-runs__id {
   font-family: var(--mono, monospace);

@@ -42,7 +42,8 @@ export interface PlayerSummary {
 
 export interface GodProg {
   name: string;
-  run_seed: number;
+  /** New engine records preserve all 64 bits; historical records may be numeric. */
+  run_seed: string | number;
   age: number;
   ovr: number;
   bonus: number;

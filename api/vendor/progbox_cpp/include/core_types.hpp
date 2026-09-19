@@ -20,20 +20,20 @@ struct PlayerStats {
     double per;
     // ── Advanced (already league-relative rates) ─────────────────────────
     double ewa, ows, dws;
-    float obpm, dbpm, vorp;
-    float ortg, drtg;
-    float pm100, onOff100;
-    float astp, blkp, drbp, orbp, stlp, trbp, usgp;
+    double obpm, dbpm, vorp;
+    double ortg, drtg;
+    double pm100, onOff100;
+    double astp, blkp, drbp, orbp, stlp, trbp, usgp;
     // ── Volume, PER GAME ─────────────────────────────────────────────────
-    float min;
-    float fg, fga, tp, tpa, ft, fta;
-    float fgAtRim, fgaAtRim, fgLowPost, fgaLowPost, fgMidRange, fgaMidRange;
-    float orb, drb, ast, tov, stl, blk, ba, pf, pts;
-    float dd, td;
+    double min;
+    double fg, fga, tp, tpa, ft, fta;
+    double fgAtRim, fgaAtRim, fgLowPost, fgaLowPost, fgMidRange, fgaMidRange;
+    double orb, drb, ast, tov, stl, blk, ba, pf, pts;
+    double dd, td;
     // ── Context / weighting ──────────────────────────────────────────────
-    float gp, gs, availability;
+    double gp, gs, availability;
 };
-static_assert(sizeof(progbox::PlayerStats) <= 200, "PlayerStats grew unexpectedly");
+static_assert(sizeof(progbox::PlayerStats) <= 400, "PlayerStats grew unexpectedly");
 
 struct PlayerState {
     double age;
@@ -42,6 +42,7 @@ struct PlayerState {
 };
 
 struct PlayerMeta {
+    int64_t player_id = -1;
     std::string name;
     std::string team;
 };

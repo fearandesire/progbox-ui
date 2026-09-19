@@ -43,6 +43,8 @@ async function patchFromEngineMetadata(build: string, runDir: string): Promise<v
   const prog = (engine.progression ?? {}) as Record<string, unknown>;
   const sim = (engine.simulation ?? {}) as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
+  if (engine.input_contract) updates.input_contract = engine.input_contract;
+  if (typeof engine.binary_sha256 === "string") updates.binary_sha256 = engine.binary_sha256;
   const progId = typeof prog.id === "string" ? prog.id : undefined;
   const progName = typeof prog.name === "string" ? prog.name : undefined;
   if (progId || progName) updates.progression = { id: progId ?? null, name: progName ?? null };
@@ -62,7 +64,7 @@ export async function runSimulationJob(
   seed: number,
   runs: number,
   n_workers: number,
-  version = "v43",
+  version = "v4.3",
 ): Promise<void> {
   const canonicalRunDir = path.join(outputsRoot(), build);
   await fsp.mkdir(canonicalRunDir, { recursive: true });

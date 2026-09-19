@@ -34,7 +34,8 @@
 ///           still move
 ///             independently near the cap to prevent net-OVR clamping from
 ///             homogenizing them.
-///           * God prog unchanged (v321).
+///           * Floor/clamp each changed rating before calculating OVR.
+///           * Candidate god bonus is 7-13 inclusive (Published is 7-12).
 ///
 ///        DEFENSIVE BALANCING: Lockdown defender value directly lifts dIQ,
 ///        Str, and Jmp
@@ -53,6 +54,7 @@
 
 #include "i_progression.hpp"
 #include "ovr_math.hpp"
+#include "progression_draws.hpp"
 
 namespace progbox {
 
@@ -146,7 +148,7 @@ class V43Progression final : public IProgressionStrategy {
 
         double globalScale = 1.0;  // whole-league dev-speed knob
 
-        // ── God prog (v321 semantics: rare, flat, OVR-scaled) ──────────────
+        // ── God prog: rare, flat, OVR-scaled; candidate bonus 7-13 ────────
         int godYoungMax = 30;
         int godMinRating = 30;
         int godMaxRating = 61;
@@ -258,6 +260,16 @@ class V43Progression final : public IProgressionStrategy {
                                       const PlayerStats& stats,
                                       std::mt19937& rng,
                                       int64_t run_seed) const override {
+        ProgressionDraws draws{rng};
+        return progress_player_with_draws(player, stats, draws, run_seed);
+    }
+
+    // Same implementation as production, with controlled draws for parity tests.
+    template <typename Draws>
+    ProgressionResult progress_player_with_draws(const PlayerState& player,
+                                                const PlayerStats& stats,
+                                                Draws& draws,
+                                                int64_t run_seed) const {
         PlayerState out = player;
         std::optional<GodProgRecord> god_prog = std::nullopt;
 
@@ -266,18 +278,15 @@ class V43Progression final : public IProgressionStrategy {
 
         if (age < 25 || stats.per <= 0.0) return {out, ovr, std::nullopt};
 
-        // God prog: rare flat replacement (v321). Bypasses everything below.
+        // Candidate god prog: flat replacement, bypassing age/noise/physical rules.
         if (age < cfg_.godYoungMax) {
             const double chance = god_chance(ovr);
-            std::uniform_real_distribution<double> roll(0.0, 1.0);
-            if (roll(rng) < chance) {
-                std::uniform_int_distribution<int> b(cfg_.godMinBonus,
-                                                     cfg_.godMaxBonus);
-                const double bonus = static_cast<double>(b(rng));
+            if (draws.unit() < chance) {
+                const double bonus = draws.integer(cfg_.godMinBonus, cfg_.godMaxBonus);
                 for (int a = 0; a < 15; ++a)
                     if (a != Hgt)
                         out.attrs[a] =
-                            std::clamp(out.attrs[a] + bonus, 0.0, 100.0);
+                            std::floor(std::clamp(out.attrs[a] + bonus, 0.0, 100.0));
                 god_prog = GodProgRecord{
                     "", run_seed, age, ovr, static_cast<int>(bonus), chance};
                 return {out, calcovr_from_array(out.attrs), god_prog};
@@ -287,10 +296,9 @@ class V43Progression final : public IProgressionStrategy {
         // Production z (once) → global signal G (once, added to every attr).
         const double P = production_P(stats);
 
-        std::uniform_real_distribution<double> unit(-1.0, 1.0);
         const double nmult = noise_mult(stats.min, age);
         // Common per-player shock: correlated across attributes
-        const double commonShock = unit(rng) * cfg_.commonNoise * nmult;
+        const double commonShock = (2.0 * draws.unit() - 1.0) * cfg_.commonNoise * nmult;
         const double Gage = global_signal(out.age, P) * cfg_.globalScale;
         // const double G =
         //     (global_signal(out.age, P) + commonShock) * cfg_.globalScale;
@@ -307,12 +315,13 @@ class V43Progression final : public IProgressionStrategy {
             const double nudge = std::clamp(cfg_.nudgeGain * stat_nudge(a, z),
                                             -cfg_.nudgeCap, cfg_.nudgeCap);
             const double L = ageShape + nudge;
-            const double noise = unit(rng) * namp;
+            const double noise = (2.0 * draws.unit() - 1.0) * namp;
             const double base = (a == oIQ || a == dIQ) ? 0.0 : Gage;
             double delta = base + commonShock + L + noise;
             if (delta > 0.0) delta *= gf;
 
-            out.attrs[a] = std::clamp(out.attrs[a] + delta, 0.0, 100.0);
+            // BBGM limitRating floors before OVR is recalculated.
+            out.attrs[a] = std::floor(std::clamp(out.attrs[a] + delta, 0.0, 100.0));
         }
 
         return {out, calcovr_from_array(out.attrs), god_prog};

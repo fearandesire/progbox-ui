@@ -14,6 +14,12 @@ import Toast from "../components/Toast.vue";
 import { createSim } from "../lib/api";
 import type { CreateSimInput, CreateSimResponse } from "../lib/api";
 import { useSimProgress } from "../composables/useSimProgress";
+import {
+  compareBaselineFor,
+  versionLabel,
+  type ProgressionVersion,
+  PUBLISHED_PROGRESSION_VERSION,
+} from "../lib/versions";
 
 type CreateState = "idle" | "uploading" | "running" | "failed";
 
@@ -25,7 +31,7 @@ const teamsCsv = ref("");
 const seed = ref(69);
 const runs = ref(500);
 const nWorkers = ref<number | null>(null);
-const version = ref<"v41" | "v43">("v43");
+const version = ref<ProgressionVersion>("v4.3");
 const compare = ref(true);
 
 const state = ref<CreateState>("idle");
@@ -48,10 +54,23 @@ function clearCompareRedirectTimer() {
 
 onUnmounted(clearCompareRedirectTimer);
 
-// Label the toggle with the OTHER version's v4.x display label.
-const otherVersionLabel = computed(() => (version.value === "v43" ? "v4.1" : "v4.3"));
+const otherVersionLabel = computed(() =>
+  versionLabel(compareBaselineFor(version.value)),
+);
 
-const primaryVersionLabel = computed(() => (version.value === "v43" ? "v4.3" : "v4.1"));
+const primaryVersionLabel = computed(() => versionLabel(version.value));
+
+const compareToggleLabel = computed(() =>
+  version.value === PUBLISHED_PROGRESSION_VERSION
+    ? "Also run candidate v4.3 and compare"
+    : "Also run published NET 3.2 and compare",
+);
+
+const compareHint = computed(() =>
+  version.value === PUBLISHED_PROGRESSION_VERSION
+    ? "One submission runs published NET 3.2 and candidate v4.3 with identical inputs, then opens the head-to-head."
+    : "One submission runs your selected script and published NET 3.2 with identical inputs, then opens the head-to-head.",
+);
 
 const pairComparisonBlockedMessage = computed(() =>
   pairComparisonBlocked.value
@@ -273,14 +292,20 @@ async function submit() {
           v-model="version"
           class="input"
         >
-          <option value="v43">
-            v4.3 — adopted engine (recommended)
+          <option value="v4.3">
+            v4.3, candidate (recommended)
           </option>
-          <option value="v41">
-            v4.1 — legacy
+          <option value="v3.2.1">
+            NET 3.2, published: what leagues run today
+          </option>
+          <option value="v4.1">
+            v4.1, legacy research fork
           </option>
         </select>
-        <span class="hint">v4.3 fixes league-wide OVR deflation and the age curve. Pick v4.1 only to compare.</span>
+        <span class="hint">
+          Candidate is the proposed release. Published is what live leagues run.
+          Legacy is the older research fork.
+        </span>
       </div>
 
       <div class="field">
@@ -289,11 +314,10 @@ async function submit() {
             v-model="compare"
             type="checkbox"
           >
-          <span>Also run {{ otherVersionLabel }} and compare</span>
+          <span>{{ compareToggleLabel }}</span>
         </label>
         <span class="hint">
-          Runs the simulation twice from one submission — your selected version and
-          {{ otherVersionLabel }} — with identical inputs, then opens the head-to-head comparison.
+          {{ compareHint }}
         </span>
       </div>
 

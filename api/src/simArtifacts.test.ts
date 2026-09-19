@@ -119,11 +119,18 @@ describe("simArtifacts", () => {
   });
 
   it("godprogsRecords", () => {
+    const exactSeed = "9223372036854775807";
     makeRunDir("20260101120000", {
       rawRows: rowsFixture(),
-      godprogs: [{ name: "Alpha One", run_seed: 1 }],
+      godprogs: [
+        { name: "Future Star", run_seed: exactSeed },
+        { name: "Alpha One", run_seed: 1 },
+      ],
     });
-    expect(godprogsRecords("20260101120000")).toEqual([{ name: "Alpha One", run_seed: 1 }]);
+    expect(godprogsRecords("20260101120000")).toEqual([
+      { name: "Future Star", run_seed: exactSeed },
+      { name: "Alpha One", run_seed: 1 },
+    ]);
     makeRunDir("20260201120000");
     expect(godprogsRecords("20260201120000")).toEqual([]);
     const bad = makeRunDir("20260301120000");

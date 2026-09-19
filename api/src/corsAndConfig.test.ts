@@ -20,7 +20,13 @@ describe("config route", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body) as Record<string, unknown>;
       expect(typeof body.engine_build).toBe("string");
-      expect(body.versions).toEqual(["v41", "v43"]);
+      expect(body.versions).toEqual(["v3.2.1", "v4.1", "v4.3"]);
+      expect(body.published_version).toBe("v3.2.1");
+      expect(body.version_meta).toEqual([
+        { id: "v3.2.1", label: "NET 3.2", role: "published" },
+        { id: "v4.1", label: "v4.1", role: "legacy" },
+        { id: "v4.3", label: "v4.3", role: "candidate" },
+      ]);
     } finally {
       await app.close();
     }

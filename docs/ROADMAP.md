@@ -8,9 +8,9 @@ planning is done week-by-week. issues live in [GitHub Projects (#10)](https://gi
 
 a dashboard that's genuinely useful for reading sim results — not just running them. for v1.0 that means:
 
-- run sims with a selectable NET script version (v3.0 / v3.1 / v4.1)
+- run sims with a selectable progression script (`v3.2.1` / NET 3.2 published, `v4.3` candidate, `v4.1` legacy)
 - run + dashboard cards that surface impactful, at-a-glance data
-- compare runs against each other, including cross-version
+- compare runs against each other, including published vs candidate pairs (shipped)
 - brief in-app docs so the outputs aren't a mystery
 
 everything tagged [`v1.0`](https://github.com/fearandesire/progbox-ui/labels/v1.0) on the repo is in scope for the release.
@@ -31,7 +31,7 @@ everything tagged [`v1.0`](https://github.com/fearandesire/progbox-ui/labels/v1.
 | # | item |
 |---|------|
 | [#18](https://github.com/fearandesire/progbox-ui/issues/18) | sync latest chart changes into the UI |
-| [#19](https://github.com/fearandesire/progbox-ui/issues/19) | NET script version selector (v3.0 / v3.1 / v4.1) |
+| [#19](https://github.com/fearandesire/progbox-ui/issues/19) | NET script version selector (`v3.2.1` / `v4.1` / `v4.3`) |
 | [#20](https://github.com/fearandesire/progbox-ui/issues/20) | improve run cards — key aggregated stats |
 | [#21](https://github.com/fearandesire/progbox-ui/issues/21) | brief in-app docs page |
 
@@ -41,7 +41,7 @@ everything tagged [`v1.0`](https://github.com/fearandesire/progbox-ui/labels/v1.
 
 unscheduled — pulled into a sprint when ready.
 
-- [#22](https://github.com/fearandesire/progbox-ui/issues/22) **run comparison** — side-by-side, cross-version (v3.1 vs v4.1 on the same export). builds on #20.
+- ~~[#22](https://github.com/fearandesire/progbox-ui/issues/22) **run comparison** — side-by-side, cross-version~~ **shipped** (auto-compare pairs + `/compare`; published vs candidate framing).
 
 ---
 

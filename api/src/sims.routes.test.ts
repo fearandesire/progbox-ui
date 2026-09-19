@@ -260,10 +260,17 @@ describe("sims routes", () => {
 
   it("godprogs", async () => {
     const build = "20260101120000";
-    makeRunDir(build, { godprogs: [{ name: "Alpha One", run_seed: 1 }] });
+    const exactSeed = "9223372036854775807";
+    makeRunDir(build, { godprogs: [
+      { name: "Future Star", run_seed: exactSeed },
+      { name: "Alpha One", run_seed: 1 },
+    ] });
     const app = await buildTestApp();
     const res = await app.inject({ method: "GET", url: `/api/sims/${build}/godprogs` });
-    expect(JSON.parse(res.body)).toEqual([{ name: "Alpha One", run_seed: 1 }]);
+    expect(JSON.parse(res.body)).toEqual([
+      { name: "Future Star", run_seed: exactSeed },
+      { name: "Alpha One", run_seed: 1 },
+    ]);
   });
 
   it("download", async () => {
@@ -337,7 +344,7 @@ describe("sims routes", () => {
     spy.mockRestore();
   });
 
-  it("post sim defaults progression version to v43", async () => {
+  it("post sim defaults progression version to v4.3", async () => {
     const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
     const app = await buildTestApp();
     const res = await multipartPost(
@@ -348,31 +355,65 @@ describe("sims routes", () => {
     );
     expect(res.statusCode).toBe(200);
     const build = (JSON.parse(res.body) as { build: string }).build;
-    expect(spy.mock.calls[0]![7]).toBe("v43");
+    expect(spy.mock.calls[0]![7]).toBe("v4.3");
     const meta = JSON.parse(
       fs.readFileSync(path.join(isolatedOutputsPath(), build, "metadata.json"), "utf8"),
     );
-    expect(meta.requested_version).toBe("v43");
+    expect(meta.requested_version).toBe("v4.3");
     expect(meta.script_version).toBe("v4.3");
     spy.mockRestore();
   });
 
-  it("post sim accepts an explicit v41 version", async () => {
+  it("post sim accepts an explicit v4.1 version", async () => {
     const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
     const app = await buildTestApp();
     const res = await multipartPost(
       app,
       { players: [{ stats: [], tid: 0 }] },
-      { teams: [], seed: 1, runs: 10, n_workers: 1, version: "v41" },
+      { teams: [], seed: 1, runs: 10, n_workers: 1, version: "v4.1" },
       { "0": "BOS" },
     );
     expect(res.statusCode).toBe(200);
     const build = (JSON.parse(res.body) as { build: string }).build;
-    expect(spy.mock.calls[0]![7]).toBe("v41");
+    expect(spy.mock.calls[0]![7]).toBe("v4.1");
     const meta = JSON.parse(
       fs.readFileSync(path.join(isolatedOutputsPath(), build, "metadata.json"), "utf8"),
     );
-    expect(meta.requested_version).toBe("v41");
+    expect(meta.requested_version).toBe("v4.1");
+    spy.mockRestore();
+  });
+
+  it("post sim with v4.1 + compare pairs against published v3.2.1", async () => {
+    const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
+    const app = await buildTestApp();
+    const res = await multipartPost(
+      app,
+      { players: [{ stats: [], tid: 0 }] },
+      { teams: [], seed: 1, runs: 10, n_workers: 1, version: "v4.1", compare: true },
+      { "0": "BOS" },
+    );
+    expect(res.statusCode).toBe(200);
+    expect(spy).toHaveBeenCalledTimes(2);
+    const [primary, baseline] = spy.mock.calls;
+    expect(primary![7]).toBe("v4.1");
+    expect(baseline![7]).toBe("v3.2.1");
+    spy.mockRestore();
+  });
+
+  it("post sim with v3.2.1 + compare pairs against candidate v4.3", async () => {
+    const spy = vi.spyOn(runner, "runSimulationJob").mockResolvedValue(undefined);
+    const app = await buildTestApp();
+    const res = await multipartPost(
+      app,
+      { players: [{ stats: [], tid: 0 }] },
+      { teams: [], seed: 1, runs: 10, n_workers: 1, version: "v3.2.1", compare: true },
+      { "0": "BOS" },
+    );
+    expect(res.statusCode).toBe(200);
+    expect(spy).toHaveBeenCalledTimes(2);
+    const [primary, baseline] = spy.mock.calls;
+    expect(primary![7]).toBe("v3.2.1");
+    expect(baseline![7]).toBe("v4.3");
     spy.mockRestore();
   });
 
@@ -432,7 +473,7 @@ describe("sims routes", () => {
     const res = await multipartPost(
       app,
       { players: [{ stats: [], tid: 0 }] },
-      { teams: [], seed: 1, runs: 10, n_workers: 1, version: "v43" },
+      { teams: [], seed: 1, runs: 10, n_workers: 1, version: "v4.3" },
       { "0": "BOS" },
     );
     expect(res.statusCode).toBe(500);
@@ -449,7 +490,7 @@ describe("sims routes", () => {
     const res = await multipartPost(
       app,
       { players: [{ stats: [], tid: 0 }] },
-      { teams: ["BOS"], seed: 7, runs: 12, n_workers: 3, version: "v43" },
+      { teams: ["BOS"], seed: 7, runs: 12, n_workers: 3, version: "v4.3" },
       { "0": "BOS" },
     );
     expect(res.statusCode).toBe(200);
@@ -465,8 +506,8 @@ describe("sims routes", () => {
     // Two jobs, one per version, same inputs, distinct valid build dirs.
     expect(spy).toHaveBeenCalledTimes(2);
     const [primary, baseline] = spy.mock.calls;
-    expect(primary![7]).toBe("v43");
-    expect(baseline![7]).toBe("v41");
+    expect(primary![7]).toBe("v4.3");
+    expect(baseline![7]).toBe("v3.2.1");
     // Same seed / teams / n_workers across both runs.
     expect(primary![3]).toEqual(baseline![3]);
     expect(primary![3]).toEqual(["BOS"]);
@@ -497,7 +538,7 @@ describe("sims routes", () => {
     const res = await multipartPost(
       app,
       { players: [{ stats: [], tid: 0 }] },
-      { teams: [], seed: 1, runs: 10, n_workers: 1, version: "v43" },
+      { teams: [], seed: 1, runs: 10, n_workers: 1, version: "v4.3" },
       { "0": "BOS" },
     );
     expect(res.statusCode).toBe(200);
@@ -524,10 +565,10 @@ describe("sims routes", () => {
     expect(primaryMeta.paired_with).toBe(body.compare_build);
     expect(baselineMeta.paired_with).toBe(body.build);
     // Each run reflects its own version.
-    expect(primaryMeta.requested_version).toBe("v43");
+    expect(primaryMeta.requested_version).toBe("v4.3");
     expect(primaryMeta.script_version).toBe("v4.3");
-    expect(baselineMeta.requested_version).toBe("v41");
-    expect(baselineMeta.script_version).toBe("v4.1");
+    expect(baselineMeta.requested_version).toBe("v3.2.1");
+    expect(baselineMeta.script_version).toBe("NET 3.2");
     // Each paired run is self-contained with its own export + teaminfo copy.
     expect(
       fs.existsSync(path.join(isolatedOutputsPath(), body.compare_build, "export.json")),

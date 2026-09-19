@@ -424,7 +424,7 @@ int resolve_year(const json& data, int requested) {
 void write_metadata(const fs::path& out_dir, const std::string& build_id,
                     const std::string& display_name,
                     const progbox_cfg::Settings& settings, size_t player_count,
-                    int seed) {
+                    int seed, const json& input_contract = nullptr) {
     auto now = std::chrono::system_clock::now();
     auto local_time = std::chrono::current_zone()->to_local(now);
     std::string iso_time = std::format("{:%Y-%m-%dT%H:%M:%S}", local_time);
@@ -442,6 +442,7 @@ void write_metadata(const fs::path& out_dir, const std::string& build_id,
          {{"export_path", settings.export_path},
           {"teaminfo_path", settings.teaminfo_path}}},
         {"player_count", player_count}};
+    if (!input_contract.is_null()) meta["input_contract"] = input_contract;
 
     std::ofstream f(out_dir / "metadata.json");
     if (f.is_open()) {
@@ -476,7 +477,8 @@ void write_metadata(const fs::path& out_dir, const std::string& build_id,
 void load_players(const json& data, const json& team_lookup, int year,
                   std::vector<progbox::PlayerMeta>& out_meta,
                   std::vector<progbox::PlayerState>& out_states,
-                  std::vector<progbox::PlayerStats>& out_stats) {
+                  std::vector<progbox::PlayerStats>& out_stats,
+                  std::vector<progbox::PlayerStats>& population) {
     if (!data.contains("players") || !data["players"].is_array()) {
         printf("Error: export contains no \"players\" array.\n");
         return;
@@ -514,12 +516,19 @@ void load_players(const json& data, const json& team_lookup, int year,
             p["ratings"].empty())
             continue;
 
-        // rd(): raw value as float.  pg(): per-game (raw / gp).
+        // NET preserves JavaScript double precision at attempt thresholds.
+        // The legacy loader retains its original float arithmetic.
+        const bool normalized = data.contains("_progbox_contract");
         auto rd = [&](const char* k) {
-            return static_cast<float>(safe_json_get<double>(stat, k, 0.0));
+            const double value = safe_json_get<double>(stat, k, 0.0);
+            return normalized ? value : static_cast<double>(static_cast<float>(value));
         };
-        const float gp = rd("gp");
-        auto pg = [&](const char* k) { return gp > 0.f ? rd(k) / gp : 0.f; };
+        const double gp = rd("gp");
+        auto pg = [&](const char* k) {
+            if (gp <= 0.0) return 0.0;
+            return normalized ? rd(k) / gp
+                : static_cast<double>(static_cast<float>(rd(k)) / static_cast<float>(gp));
+        };
 
         progbox::PlayerStats pstats{};
         pstats.per = per;  // double, verbatim
@@ -568,17 +577,23 @@ void load_players(const json& data, const json& team_lookup, int year,
         // context / weighting
         pstats.gp = gp;
         pstats.gs = rd("gs");
-        pstats.min = gp > 0.f ? rd("min") / gp : 0.f;  // minutes per game
-        const float min_avail = rd("minAvailable");
-        pstats.availability =
-            min_avail > 0.f ? std::min(1.0f, rd("min") / min_avail) : 0.f;
+        pstats.min = pg("min");  // minutes per game
+        const double min_avail = rd("minAvailable");
+        pstats.availability = min_avail > 0.0
+            ? (normalized ? std::min(1.0, rd("min") / min_avail)
+                : static_cast<double>(std::min(1.0f, static_cast<float>(rd("min")) / static_cast<float>(min_avail))))
+            : 0.0;
+
+        population.push_back(pstats);
+        if (safe_json_get<bool>(p, "_progbox_pool_only", false)) continue;
 
         const json& last_rating = p["ratings"].back();
-        std::unordered_map<std::string, int> ratings;
+        std::unordered_map<std::string, double> ratings;
         for (auto& [k, v] : last_rating.items()) {
             std::string key = k;
             std::transform(key.begin(), key.end(), key.begin(), ::tolower);
-            ratings[key] = safe_json_number<int>(v, 0);
+            ratings[key] = normalized ? safe_json_number<double>(v, 0.0)
+                : static_cast<double>(safe_json_number<int>(v, 0));
         }
 
         /// @brief Lambda to look up a rating attribute with FAILSAFE remapping.
@@ -595,6 +610,7 @@ void load_players(const json& data, const json& team_lookup, int year,
         meta.name = p.value("firstName", std::string{}) + " " +
                     p.value("lastName", std::string{});
         meta.team = team;
+        if (data.contains("_progbox_contract")) meta.player_id = safe_json_get<int64_t>(p, "pid", -1);
 
         progbox::PlayerState state;
         state.age = static_cast<double>(age);
@@ -680,7 +696,9 @@ int main(int argc, char** argv) {
 
     //    Phase 6: Resolve the values the banner is about to report
     // The year may be clamped by the export
-    settings.year = resolve_year(*export_data, settings.year);
+    settings.year = export_data->contains("_progbox_contract")
+        ? (*export_data)["_progbox_contract"].at("entering_season").get<int>()
+        : resolve_year(*export_data, settings.year);
     if (settings.seed == 0) {
         std::random_device rd;
         settings.seed = static_cast<int>(rd());
@@ -691,8 +709,9 @@ int main(int argc, char** argv) {
     std::vector<progbox::PlayerMeta> player_meta;
     std::vector<progbox::PlayerState> player_states;
     std::vector<progbox::PlayerStats> player_stats;
+    std::vector<progbox::PlayerStats> population;
     load_players(*export_data, *team_lookup, settings.year, player_meta,
-                 player_states, player_stats);
+                 player_states, player_stats, population);
 
     if (player_meta.empty()) {
         printf("No players found. Check export file and year (%d).\n",
@@ -732,13 +751,14 @@ int main(int argc, char** argv) {
 
     //    Phase 10: Write metadata
     write_metadata(settings.output_dir, build_id, display_name, settings,
-                   player_meta.size(), settings.seed);
+                   player_meta.size(), settings.seed,
+                   export_data->value("_progbox_contract", json(nullptr)));
 
     //    Phase 11: Run simulation
     printf("Simulating...\n");
     progbox::SimEngine engine(*progression, settings.workers);
     std::vector<progbox::RunResult> raw_results = engine.run(
-        player_meta, player_states, player_stats, settings.runs, settings.seed);
+        player_meta, player_states, player_stats, settings.runs, settings.seed, &population);
 
     /// @note Validate simulation output before proceeding to analytics.
     if (raw_results.empty()) {

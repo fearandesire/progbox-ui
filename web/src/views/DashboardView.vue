@@ -10,6 +10,7 @@ import { useRunStats } from "../composables/useRunStats";
 import { deleteSim } from "../lib/api";
 import { duration, signed, timeAgo } from "../lib/format";
 import type { RunMetadata } from "../lib/types";
+import { versionRole } from "../lib/versions";
 import { useSimsStore } from "../stores/sims";
 
 // Local forward-compatible augmentation for pairing metadata (owned by lib).
@@ -453,12 +454,20 @@ function openCompare() {
             >
             <span class="run-row__id">{{ r.build }}</span>
             <StatusBadge :status="r.status" />
-            <VersionChip :version="r.requested_version ?? r.script_version" />
+            <VersionChip
+              :version="r.requested_version"
+              :script-version="r.script_version"
+            />
             <span
               v-if="isPaired(r)"
               class="run-row__paired"
               title="Part of an auto-comparison pair"
             >paired</span>
+            <span
+              v-if="versionRole(r.requested_version, r.script_version) === 'published'"
+              class="run-row__paired run-row__published"
+              title="Live NET script run"
+            >Published</span>
             <div class="run-row__meta">
               <span><b>{{ r.runs ?? "—" }}</b> iter</span>
               <span><b>{{ r.player_count ?? "—" }}</b> players</span>
@@ -531,5 +540,10 @@ function openCompare() {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+.run-row__published {
+  background: color-mix(in srgb, #3b82f6 12%, transparent);
+  border-color: color-mix(in srgb, #3b82f6 45%, transparent);
+  color: #1d4ed8;
 }
 </style>

@@ -109,7 +109,7 @@ namespace progbox {
                 const auto& st = base_stats_[p];
 
                 f << std::format("{},{},{},{},{:.4f},{:.4f},{:.4f},{:.1f}",
-                                 p, m.name, m.team, static_cast<int>(s.age),
+                                 (m.player_id >= 0 ? m.player_id : static_cast<int64_t>(p)), m.name, m.team, static_cast<int>(s.age),
                                  st.per, st.dws, st.ewa, s.baseline_ovr);
 
                 for (size_t a = 0; a < ALL_ATTRS.size(); ++a) {
@@ -150,7 +150,7 @@ namespace progbox {
                     int age      = static_cast<int>(base_states_[p].age);
 
                     f << std::format("{},{},{},{},{},{},{:.1f},{:.1f},{:.1f},{:.6f},{},{:.4f},{:.4f},{:.4f}",
-                                     r, seed, meta_[p].name, meta_[p].team, age, p,
+                                     r, seed, meta_[p].name, meta_[p].team, age, (meta_[p].player_id >= 0 ? meta_[p].player_id : static_cast<int64_t>(p)),
                                      base, ovr, delta, pct,
                                      (ovr > base) ? "True" : "False",
                                      st.per, st.dws, st.ewa);
@@ -249,7 +249,7 @@ namespace progbox {
                     for (const auto& rec : res.god_progs) {
                         records.push_back({
                             {"name",     rec.name},
-                            {"run_seed", rec.run_seed},
+                            {"run_seed", std::to_string(rec.run_seed)},
                             {"age",      rec.age},
                             {"ovr",      rec.ovr},
                             {"bonus",    rec.bonus},

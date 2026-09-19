@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
+import { normalizeNetInput } from "./netInput.js";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import fs from "node:fs";
@@ -5,6 +8,11 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { vendorCppDir } from "../paths.js";
+import {
+  DEFAULT_PROGRESSION_VERSION,
+  engineScriptId,
+  type ProgressionVersion,
+} from "../progressionVersions.js";
 import { normalizeSeason } from "../utils/normalizeSeason.js";
 import { buildInputRows, rowsToCsv } from "./exportCleaner.js";
 import { runAnalysis } from "./analysisPython.js";
@@ -152,21 +160,29 @@ export async function runCppSimulation(opts: RunCppOptions): Promise<RunCppResul
     const workspace = await fsp.mkdtemp(path.join(os.tmpdir(), "progbox_cpp_"));
 
     try {
-      const playerCount = writeInputCsv(
-        workspace,
-        opts.exportPath,
-        opts.teaminfoPath,
-        opts.teams,
-      );
-
+      const version = (opts.version as ProgressionVersion | undefined) ?? DEFAULT_PROGRESSION_VERSION;
       let effectiveExport = path.resolve(opts.exportPath);
-      if (opts.teams.length > 0) {
-        const filtered = filterExport(opts.exportPath, opts.teaminfoPath, opts.teams);
-        effectiveExport = path.join(workspace, "export_filtered.json");
-        await fsp.writeFile(effectiveExport, JSON.stringify(filtered), "utf8");
+      let seasonY = getSeason(opts.exportPath);
+      let playerCount: number;
+      let inputContract: ReturnType<typeof normalizeNetInput>["contract"] | undefined;
+      if (version !== "v4.1") {
+        const normalized = normalizeNetInput(
+          JSON.parse(await fsp.readFile(opts.exportPath, "utf8")),
+          JSON.parse(await fsp.readFile(opts.teaminfoPath, "utf8")), opts.teams, version,
+        );
+        inputContract = normalized.contract;
+        seasonY = inputContract.entering_season;
+        playerCount = inputContract.target_count;
+        if (!playerCount) throw new Error("No eligible NET targets for the selected season and teams");
+        effectiveExport = path.join(workspace, "export_normalized.json");
+        await fsp.writeFile(effectiveExport, JSON.stringify(normalized.data), "utf8");
+      } else {
+        playerCount = writeInputCsv(workspace, opts.exportPath, opts.teaminfoPath, opts.teams);
+        if (opts.teams.length) {
+          effectiveExport = path.join(workspace, "export_filtered.json");
+          await fsp.writeFile(effectiveExport, JSON.stringify(filterExport(opts.exportPath, opts.teaminfoPath, opts.teams)), "utf8");
+        }
       }
-
-      const seasonY = getSeason(opts.exportPath);
 
       const cmd = [
         binary,
@@ -174,7 +190,9 @@ export async function runCppSimulation(opts: RunCppOptions): Promise<RunCppResul
         path.resolve(opts.teaminfoPath),
         path.resolve(cppOutputsBase),
         "-v",
-        opts.version ?? "v41",
+        engineScriptId(
+          (opts.version as ProgressionVersion | undefined) ?? DEFAULT_PROGRESSION_VERSION,
+        ),
         "-r",
         String(opts.runs),
         "-w",
@@ -185,6 +203,9 @@ export async function runCppSimulation(opts: RunCppOptions): Promise<RunCppResul
         String(seasonY),
       ];
 
+      // Capture the launch artifact before a concurrent rebuild can replace it
+      // while the process is running.
+      const binarySha256 = createHash("sha256").update(await fsp.readFile(binary)).digest("hex");
       const proc = spawn(cmd[0]!, cmd.slice(1), {
         cwd: workspace,
         stdio: ["ignore", "pipe", "pipe"],
@@ -206,15 +227,41 @@ export async function runCppSimulation(opts: RunCppOptions): Promise<RunCppResul
       emitStage("cpp_done", "Saving workbook…");
 
       const cppRunDir = findCppOutputDir(cppOutputsBase);
+      const cppMetaSrc = path.join(cppRunDir, "metadata.json");
+      let metadata: Record<string, unknown> | undefined;
+      if (fs.existsSync(cppMetaSrc)) {
+        metadata = JSON.parse(await fsp.readFile(cppMetaSrc, "utf8"));
+      }
+      if (inputContract) {
+        if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+          throw new Error("C++ engine metadata is required for normalized NET input; rebuild the engine");
+        }
+        if (!isDeepStrictEqual(metadata.input_contract, inputContract)) {
+          throw new Error("C++ engine did not acknowledge the requested NET input contract; rebuild the engine");
+        }
+        const simulation = metadata.simulation as { year?: unknown } | undefined;
+        const progression = metadata.progression as { id?: unknown } | undefined;
+        if (simulation?.year !== inputContract.entering_season) {
+          throw new Error("C++ engine metadata year does not match the NET entering season");
+        }
+        if (metadata.player_count !== inputContract.target_count) {
+          throw new Error("C++ engine metadata player count does not match the NET target count");
+        }
+        if (progression?.id !== engineScriptId(version)) {
+          throw new Error("C++ engine metadata progression does not match the requested NET version");
+        }
+      }
+
+      // Only publish artifacts after the executing engine confirms the contract.
       const rawDst = path.join(canonicalRunDir, "raw");
       if (fs.existsSync(rawDst)) {
         await fsp.rm(rawDst, { recursive: true, force: true });
       }
       await fsp.cp(path.join(cppRunDir, "raw"), rawDst, { recursive: true });
-
-      const cppMetaSrc = path.join(cppRunDir, "metadata.json");
-      if (fs.existsSync(cppMetaSrc)) {
-        await fsp.copyFile(cppMetaSrc, path.join(canonicalRunDir, "engine_metadata.json"));
+      if (metadata) {
+        if (!inputContract) metadata.input_contract = { id: "legacy-v41" };
+        metadata.binary_sha256 = binarySha256;
+        await fsp.writeFile(path.join(canonicalRunDir, "engine_metadata.json"), JSON.stringify(metadata, null, 2));
       }
 
       emitStage("artifacts_copied", "Copied artifacts.");

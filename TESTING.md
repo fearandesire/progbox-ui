@@ -52,7 +52,6 @@ npx playwright install chromium
 - Frontend coverage is enforced through `web/vitest.config.ts` with V8 coverage thresholds (see that file).
 - Backend coverage is enforced in CI through `pnpm --filter @progbox/api test:coverage` (`api/vitest.config.ts`, global thresholds **65%** on statements/branches/functions/lines for `api/src/**`).
 - Vendored C++ under `api/vendor/progbox_cpp/` is not part of JS coverage.
-- Placeholder-only UI, such as `NewSimView.vue`, may be excluded until it gains behavior worth testing.
 
 ## RED, GREEN, REFACTOR
 
@@ -61,3 +60,9 @@ Use the TDD loop for future test work:
 1. RED: write the smallest failing test that captures the missing behavior.
 2. GREEN: add the minimum implementation needed to make it pass.
 3. REFACTOR: clean up duplication and naming while the full suite stays green.
+
+## NET parity
+
+After `pnpm build:engine`, run `ctest --test-dir api/vendor/progbox_cpp/build --output-on-failure`. The real C++ headers replay 137 controlled-draw cases shared with the complete NoEyeTest JavaScript tests. These cover integer ratings, OVR, Published quirks, god bonuses and random-draw consumption. CI runs this check after building the engine.
+
+API unit tests cover the [input contract](docs/net-parity-contract.md), cache order/publication and historical roles. Engine smoke verifies actual source player IDs, full-pool/target counts, season metadata and the executed binary hash. Full browser coverage remains `pnpm test:e2e:full`. Use `PROGBOX_PYTHON` pointing at a Python environment with the vendored requirements for engine analysis checks.
