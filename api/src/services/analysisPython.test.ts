@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
+import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -25,6 +26,7 @@ function writeComparisonOutputs(runDir: string): void {
 const roots: string[] = [];
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.resetAllMocks();
   for (const root of roots.splice(0)) {
     fs.rmSync(root, { recursive: true, force: true });
@@ -32,6 +34,94 @@ afterEach(() => {
 });
 
 describe("runPythonComparison", () => {
+  it("does not publish HTML while a cross-device copy is still in progress", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "progbox-comparison-copy-"));
+    roots.push(root);
+    const run = path.join(root, "run");
+    const cache = path.join(root, "cache");
+    fs.mkdirSync(run);
+    const proc = fakeProcess();
+    vi.mocked(spawn).mockReturnValue(proc as unknown as ReturnType<typeof spawn>);
+    const originalRename = fsp.rename.bind(fsp);
+    const originalCopy = fsp.copyFile.bind(fsp);
+    let release!: () => void;
+    let copying!: () => void;
+    const copyStarted = new Promise<void>((resolve) => { copying = resolve; });
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    vi.spyOn(fsp, "rename").mockImplementation(async (src, dst) => {
+      if (String(src) === path.join(run, "comparison_dashboard.html")) {
+        throw Object.assign(new Error("cross-device link"), { code: "EXDEV" });
+      }
+      return originalRename(src, dst);
+    });
+    vi.spyOn(fsp, "copyFile").mockImplementation(async (src, dst, mode) => {
+      if (String(src) === path.join(run, "comparison_dashboard.html")) {
+        fs.writeFileSync(dst, "partial");
+        copying();
+        await blocked;
+      }
+      return originalCopy(src, dst, mode);
+    });
+
+    const generating = runPythonComparison([run], cache);
+    await vi.waitFor(() => expect(spawn).toHaveBeenCalledTimes(1));
+    writeComparisonOutputs(run);
+    proc.emit("close", 0);
+    await copyStarted;
+    const htmlPath = path.join(cache, "comparison_dashboard.html");
+    const publishedEarly = fs.existsSync(htmlPath);
+    release();
+    await generating;
+    expect(publishedEarly).toBe(false);
+    expect(fs.readFileSync(htmlPath, "utf8")).toBe("<html>comparison</html>");
+    expect(fs.existsSync(path.join(cache, "comparison_scorecard.csv"))).toBe(true);
+  });
+
+  it("fails generation without publishing HTML when the scorecard is missing", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "progbox-comparison-missing-scorecard-"));
+    roots.push(root);
+    const run = path.join(root, "run");
+    const cache = path.join(root, "cache");
+    fs.mkdirSync(run);
+    const proc = fakeProcess();
+    vi.mocked(spawn).mockReturnValue(proc as unknown as ReturnType<typeof spawn>);
+    const generating = runPythonComparison([run], cache);
+    await vi.waitFor(() => expect(spawn).toHaveBeenCalledTimes(1));
+    fs.writeFileSync(path.join(run, "comparison_dashboard.html"), "<html>comparison</html>");
+    proc.emit("close", 0);
+    await expect(generating).rejects.toThrow("comparison_scorecard.csv");
+    expect(fs.existsSync(path.join(cache, "comparison_dashboard.html"))).toBe(false);
+  });
+
+  it("publishes the dashboard only after its scorecard has been moved", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "progbox-comparison-publish-"));
+    roots.push(root);
+    const run = path.join(root, "run");
+    const cache = path.join(root, "cache");
+    fs.mkdirSync(run);
+    const proc = fakeProcess();
+    vi.mocked(spawn).mockReturnValue(proc as unknown as ReturnType<typeof spawn>);
+    const originalRename = fsp.rename.bind(fsp);
+    let release!: () => void;
+    let movingCsv!: () => void;
+    const csvStarted = new Promise<void>((resolve) => { movingCsv = resolve; });
+    const blocked = new Promise<void>((resolve) => { release = resolve; });
+    vi.spyOn(fsp, "rename").mockImplementation(async (src, dst) => {
+      if (String(src).endsWith("comparison_scorecard.csv")) { movingCsv(); await blocked; }
+      return originalRename(src, dst);
+    });
+    const generating = runPythonComparison([run], cache);
+    await vi.waitFor(() => expect(spawn).toHaveBeenCalledTimes(1));
+    writeComparisonOutputs(run);
+    proc.emit("close", 0);
+    await csvStarted;
+    const publishedEarly = fs.existsSync(path.join(cache, "comparison_dashboard.html"));
+    release();
+    await generating;
+    expect(publishedEarly).toBe(false);
+    expect(fs.existsSync(path.join(cache, "comparison_scorecard.csv"))).toBe(true);
+  });
+
   it("serializes generation and reuses an existing cache", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "progbox-comparison-lock-"));
     roots.push(root);

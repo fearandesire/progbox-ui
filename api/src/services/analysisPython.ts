@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
@@ -88,15 +89,29 @@ export async function runPythonComparison(runDirs: string[], cacheDir: string): 
     await runAnalysisPy(resolved);
     await fsp.mkdir(cacheDir, { recursive: true });
     const firstDir = resolved[0]!;
-    for (const name of ["comparison_dashboard.html", "comparison_scorecard.csv"]) {
+    const artifacts = ["comparison_scorecard.csv", "comparison_dashboard.html"];
+    for (const name of artifacts) {
+      if (!fs.existsSync(path.join(firstDir, name))) {
+        throw new Error(`analysis.py did not produce ${name}`);
+      }
+    }
+    // Publish HTML last: its presence is the cache readiness marker.
+    for (const name of artifacts) {
       const src = path.join(firstDir, name);
-      if (!fs.existsSync(src)) continue;
       const dst = path.join(cacheDir, name);
       try {
         await fsp.rename(src, dst);
       } catch {
-        await fsp.copyFile(src, dst);
-        await fsp.rm(src, { force: true });
+        // Cross-device moves must finish in a cache-local temp file before
+        // the final name becomes visible to another comparison request.
+        const tmp = path.join(cacheDir, `${name}.${randomUUID()}.tmp`);
+        try {
+          await fsp.copyFile(src, tmp);
+          await fsp.rename(tmp, dst);
+          await fsp.rm(src, { force: true });
+        } finally {
+          await fsp.rm(tmp, { force: true });
+        }
       }
     }
   } finally {

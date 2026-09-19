@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "./app.js";
 import * as analysisPython from "./services/analysisPython.js";
-import { useIsolatedOutputs, makeRunDir } from "./testUtils.js";
+import { useIsolatedOutputs, makeRunDir, isolatedOutputsPath } from "./testUtils.js";
 
 useIsolatedOutputs();
 
@@ -162,8 +162,8 @@ describe("GET /api/sims/compare-data", () => {
       scorecard: { scripts: string[]; colors: string[] };
     };
     expect(body.engine).toBe("python");
-    // Cache key is the sorted build set, independent of query order.
-    expect(body.builds).toEqual(["20260101120000", "20260102120000"]);
+    // Build metadata follows the requested artifact order.
+    expect(body.builds).toEqual(["20260102120000", "20260101120000"]);
     expect(body.sections.map((s) => s.id)).toEqual(["scorecard", "age-curve"]);
     expect(body.scorecard.scripts).toHaveLength(2);
     expect(body.scorecard.colors).toEqual(["#2563eb", "#dc2626"]);
@@ -174,18 +174,55 @@ describe("GET /api/sims/compare-data", () => {
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
-  it("returns scorecard null when the CSV is missing", async () => {
+  it("keeps HTML, chart traces and scorecard columns in requested order across caches", async () => {
+    const ids = ["20260101120000", "20260102120000", "20260103120000", "20260104120000"];
+    for (const id of ids) makeRunDir(id);
+    const spy = vi.spyOn(analysisPython, "runPythonComparison").mockImplementation(async (dirs, cacheDir) => {
+      const ordered = dirs.map((dir) => path.basename(dir));
+      const html = comparisonHtml.replace(
+        /(<script type="application\/json" id="payload-[12]">)(.*?)(<\/script>)/g,
+        (_match, start: string, payload: string, end: string) => {
+          const figure = JSON.parse(payload);
+          if (start.includes("payload-1")) figure.data[0].header.values = ["Metric", ...ordered];
+          else figure.data = ordered.map((name) => ({ type: "scatter", name, x: [25], y: [1] }));
+          return start + JSON.stringify(figure) + end;
+        },
+      );
+      fs.mkdirSync(cacheDir, { recursive: true });
+      fs.writeFileSync(path.join(cacheDir, "comparison_scorecard.csv"), "Script,Players\n" + ordered.map((id) => `${id},2`).join("\n") + "\n");
+      fs.writeFileSync(path.join(cacheDir, "comparison_dashboard.html"), html);
+    });
+    const app = await buildTestApp();
+    const orders = [[ids[0], ids[1]], [ids[1], ids[0]], [ids[0], ids[1], ids[2]], [ids[0], ids[1], ids[3]], [ids[2], ids[1], ids[0]]];
+    for (const ordered of orders) {
+      const query = ordered.join(",");
+      const response = await app.inject({ method: "GET", url: `/api/sims/compare-data?builds=${query}` });
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(body.builds).toEqual(ordered);
+      expect(body.scorecard.scripts).toEqual(ordered);
+      expect(body.figures["payload-1"].data[0].header.values).toEqual(["Metric", ...ordered]);
+      expect(body.figures["payload-2"].data.map((trace: { name: string }) => trace.name)).toEqual(ordered);
+      const htmlResponse = await app.inject({ method: "GET", url: `/api/sims/compare?builds=${query}` });
+      expect(htmlResponse.body).toContain(JSON.stringify(["Metric", ...ordered]));
+    }
+    expect(spy).toHaveBeenCalledTimes(orders.length);
+    const concurrent = await Promise.all(orders.slice(0, 2).map((ordered) => app.inject({ method: "GET", url: `/api/sims/compare-data?builds=${ordered.join(",")}` })));
+    concurrent.forEach((response, index) => expect(response.json().scorecard.scripts).toEqual(orders[index]));
+    expect(spy).toHaveBeenCalledTimes(orders.length);
+  });
+
+  it("returns scorecard null for a legacy HTML-only cache", async () => {
     makeRunDir("20260101120000");
     makeRunDir("20260102120000");
-    vi.spyOn(analysisPython, "runPythonComparison").mockImplementation(
-      async (_dirs: string[], cacheDir: string) => {
-        fs.mkdirSync(cacheDir, { recursive: true });
-        fs.writeFileSync(
-          path.join(cacheDir, "comparison_dashboard.html"),
-          comparisonHtml,
-        );
-      },
+    const cacheDir = path.join(
+      isolatedOutputsPath(),
+      "comparisons",
+      "order-v2_20260101120000_20260102120000",
     );
+    fs.mkdirSync(cacheDir, { recursive: true });
+    fs.writeFileSync(path.join(cacheDir, "comparison_dashboard.html"), comparisonHtml);
+    const generation = vi.spyOn(analysisPython, "runPythonComparison");
     const app = await buildTestApp();
     const res = await app.inject({
       method: "GET",
@@ -193,6 +230,7 @@ describe("GET /api/sims/compare-data", () => {
     });
     expect(res.statusCode).toBe(200);
     expect((res.json() as { scorecard: unknown }).scorecard).toBeNull();
+    expect(generation).not.toHaveBeenCalled();
   });
 
   it("mirrors /compare validation failures", async () => {

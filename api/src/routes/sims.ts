@@ -606,7 +606,7 @@ export async function registerSimsRoutes(
   async function ensureComparison(
     buildsQuery: string | undefined,
     reply: FastifyReply,
-  ): Promise<string | null> {
+  ): Promise<{ key: string; builds: string[] } | null> {
     const rawBuilds = (buildsQuery ?? "")
       .split(",")
       .map((b) => b.trim())
@@ -635,8 +635,8 @@ export async function registerSimsRoutes(
       }
     }
 
-    // Cache keyed by the sorted build-id set: order-independent, reused on repeat.
-    const key = [...builds].sort().join("_");
+    // Artifact columns follow request order. A new namespace leaves historical caches intact.
+    const key = `order-v2_${builds.join("_")}`;
     const htmlPath = comparisonDashboardPath(key);
     if (!fs.existsSync(htmlPath)) {
       const runDirs = builds.map((b) => path.join(outputsRoot(), b));
@@ -652,14 +652,15 @@ export async function registerSimsRoutes(
         return null;
       }
     }
-    return key;
+    return { key, builds };
   }
 
   fastify.get<{ Querystring: { builds?: string } }>(
     "/api/sims/compare",
     async (request, reply) => {
-      const key = await ensureComparison(request.query.builds, reply);
-      if (key == null) return reply;
+      const comparison = await ensureComparison(request.query.builds, reply);
+      if (comparison == null) return reply;
+      const { key } = comparison;
       return reply
         .type("text/html")
         .send(fs.createReadStream(comparisonDashboardPath(key)));
@@ -669,8 +670,9 @@ export async function registerSimsRoutes(
   fastify.get<{ Querystring: { builds?: string } }>(
     "/api/sims/compare-data",
     async (request, reply) => {
-      const key = await ensureComparison(request.query.builds, reply);
-      if (key == null) return reply;
+      const comparison = await ensureComparison(request.query.builds, reply);
+      if (comparison == null) return reply;
+      const { key, builds } = comparison;
       try {
         const [data, scorecard] = await Promise.all([
           getComparisonData(key),
@@ -679,7 +681,7 @@ export async function registerSimsRoutes(
         return reply.send({
           ...data,
           engine: "python",
-          builds: key.split("_"),
+          builds,
           scorecard,
         });
       } catch (e) {
