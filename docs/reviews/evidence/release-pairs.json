@@ -1,0 +1,42 @@
+[
+  {
+    "build": "20260919031636",
+    "compare_build": "20260919031637",
+    "pair_id": "20260919031636",
+    "cohort": "sample",
+    "seed": 42,
+    "export": "data/export.json"
+  },
+  {
+    "build": "20260919031638",
+    "compare_build": "20260919031639",
+    "pair_id": "20260919031638",
+    "cohort": "sample",
+    "seed": 7,
+    "export": "data/export.json"
+  },
+  {
+    "build": "20260919031640",
+    "compare_build": "20260919031641",
+    "pair_id": "20260919031640",
+    "cohort": "sample",
+    "seed": 99,
+    "export": "data/export.json"
+  },
+  {
+    "build": "20260919031642",
+    "compare_build": "20260919031643",
+    "pair_id": "20260919031642",
+    "cohort": "synthetic",
+    "seed": 42,
+    "export": "outputs/release-review/synthetic-cohort.json"
+  },
+  {
+    "build": "20260919031644",
+    "compare_build": "20260919031645",
+    "pair_id": "20260919031644",
+    "cohort": "live",
+    "seed": 42,
+    "export": "outputs/release-review/live-bbgm/before-net-export.json"
+  }
+]

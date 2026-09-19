@@ -1,0 +1,10 @@
+{
+  "tested_commit": "cf5caa4",
+  "tested_source_sha256": "e6d932c8ea964b0810db4b2370bab950e523ede7c25e0726f44a7fa9d5043089",
+  "final_source_sha256": "c5959e659cce376a4945f437aa3da5b58aff30bf224d33d8bf146a9c5662f8b8",
+  "only_change": "Two introductory comment lines now say opt-in release and retain Published comparison v3.2.1. Executable script bytes after leading documentation block identical.",
+  "executable_body_sha256": "5f8c42bebcb6a775600f24f0ff6ad6b72c671c2c1a2e73549489179abe7c9216",
+  "browser_closed_before_header_change": true,
+  "restored_header_sha256": "e6d932c8ea964b0810db4b2370bab950e523ede7c25e0726f44a7fa9d5043089",
+  "restored_header_byte_equivalence_verified": true
+}

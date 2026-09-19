@@ -1,0 +1,1131 @@
+{
+  "generated_at_utc": "2026-09-19T03:20:16.473701+00:00",
+  "method": "PlayerID join of unrounded per-player means from raw/outputs.csv; 100 stochastic runs per fixed roster",
+  "caveats": [
+    "Run spread describes stochastic variation for one fixed roster; 100 runs are not 100 independent leagues.",
+    "Shared PlayerIDs alone enter paired deltas and Kendall tau when target sets differ.",
+    "Peak age is a cross-sectional zero crossing of expected one-step OVR change, not a career peak.",
+    "Same initial RunSeed sequence does not imply matched random shocks across progression models.",
+    "The live cohort is an actual disposable BBGM fixture export, not a production league sample."
+  ],
+  "provenance": {
+    "repo_head": "5639c38b735a24643e803a6033799838763bfde7",
+    "noeyetest_head": "2e8f6a45b01208249151f6b7b91b74ca9f65c764",
+    "pair_manifest": "outputs/release-review/release-pairs.json",
+    "pair_manifest_sha256": "9d3b670a30680bf994c5b004cafce2389909674fbf78268617d97ea460e213d5",
+    "binary": "api/vendor/progbox_cpp/build/progbox",
+    "binary_sha256": "00f7fade9b0ee2566b030ea83e65b6dcd16ffad3495f41b561f5a1f5aaae99c0",
+    "inputs_sha256": {
+      "data/export.json": "4feaaf8b156c30d5cd36644ac5d4da6d60064469f0908d7cdc55af24958d0691",
+      "outputs/release-review/synthetic-cohort.json": "9eab681ad9d32ac35ba33e00fd9557ddaf9d8df69a0de0dda84a2abeffe5fa6d",
+      "outputs/release-review/live-bbgm/before-net-export.json": "456bc08527dafcec07428af3c301eb7aec1d703db322d70f0d2f985227b5efd2"
+    },
+    "helpers_sha256": {
+      "api/src/services/netInput.ts": "ac04573a42882b33d232720deab8010ff28fdb13a9c0d603d56d88042110408f",
+      "api/vendor/progbox_cpp/tools/analysis.py": "cf03c7ea278256aa00c028beac6af49cfa3b02c1b8dd63a5d1cdd3fbc37773ed",
+      "../noeyetest-net-release-review/src/NoEyeTest.js": "c5959e659cce376a4945f437aa3da5b58aff30bf224d33d8bf146a9c5662f8b8",
+      "outputs/release-review/live-bbgm/runtime-helpers.json": "0557c0ace8669886f65b926f828f58b86988d6682976aa363021d249c744858f"
+    },
+    "pinned_bbgm_helper_revision": "0ae7a104d541ad0a4806de083819b19735cbf301",
+    "pinned_bbgm_helper_manifest_sha256": "7685e5d616c33a2fca68bf94edf5abc063a405ea1479eaee0815d260298f292b",
+    "pinned_bbgm_helper_files_sha256": {
+      "../noeyetest-net-release-review/tests/fixtures/bbgm/limitRating.ts": "f0b57d7409ea74f9f06b5200826d6d981e84d8b85bc76666278e5e34f84e891b",
+      "../noeyetest-net-release-review/tests/fixtures/bbgm/ovr.basketball.ts": "6d2faa34bbebc7844b252017c80b468784731348884f7e057fa784bd062c854f",
+      "../noeyetest-net-release-review/tests/fixtures/bbgm/LICENSE.md": "4b062aff490de1273782c6ab56839be01913690f494f0c95ac02bb07cb1f3603",
+      "../noeyetest-net-release-review/tests/fixtures/bbgm/random.ts": "d22c0e12d2ef60ae58df810fe437ddafdada8e31eb806219958d2961d08373d4"
+    },
+    "fixture_refs_sha256": {
+      "../noeyetest-net-release-review/tests/fixtures/net_parity_cases.json": "0f23503bfce12d5a73376fbc37a649ea202a916642daf8b621eb9fdeea3822f5",
+      "../noeyetest-net-release-review/tests/fixtures/published-972f9d3.js": "9740457fbd83e76a0db7f0641bf3bd2e90a7d7c09c0b6fe612231755e5159b09",
+      "outputs/release-review/live-bbgm/manifest.json": "aba740a09d74b0192989a1b1ceee3a899e036b4f4ebeefc5b034209eaa2f8fe8",
+      "outputs/release-review/live-bbgm/release-header-equivalence.json": "ca187768acf42b2abb8ff14c9c5bff2befa0ee71808430e8995219073b508914",
+      "outputs/release-review/live-bbgm/before-net-export.json": "456bc08527dafcec07428af3c301eb7aec1d703db322d70f0d2f985227b5efd2",
+      "outputs/release-review/synthetic-cohort.json": "9eab681ad9d32ac35ba33e00fd9557ddaf9d8df69a0de0dda84a2abeffe5fa6d"
+    },
+    "historical_review_snapshots_sha256": {
+      "outputs/release-review/net-candidate.js": "07770904247cb30fb3b84c61a9e9d4ba01bcdaf10cf5286c1c4358f8b4d61708",
+      "outputs/release-review/net-published-main.js": "9740457fbd83e76a0db7f0641bf3bd2e90a7d7c09c0b6fe612231755e5159b09"
+    },
+    "recount_script": "outputs/release-review/recount-corrected.py",
+    "recount_script_sha256": "3782004852882db4727dd9da6e12c2de11601b6bfff957d4a674a87f02140677",
+    "api_base": "http://127.0.0.1:18036",
+    "player_delta_csv": "outputs/release-review/corrected-player-deltas.csv",
+    "player_delta_csv_sha256": "a3aa061aac1e8fcd4ab574d9be9fa1d39ee9cd4f340411b8c8115ce08b492ee2"
+  },
+  "pairs": [
+    {
+      "cohort": "sample",
+      "seed": 42,
+      "candidate_build": "20260919031636",
+      "published_build": "20260919031637",
+      "input_contract": {
+        "candidate": {
+          "entering_season": 2018,
+          "id": "net-boundary-v1",
+          "player_id_policy": "source-pid",
+          "pool_count": 271,
+          "source_phase": 1,
+          "stats_season": 2017,
+          "target_count": 228,
+          "target_policy": "worker-console-default"
+        },
+        "published": {
+          "entering_season": 2018,
+          "id": "net-boundary-v1",
+          "player_id_policy": "source-pid",
+          "pool_count": 271,
+          "source_phase": 1,
+          "stats_season": 2017,
+          "target_count": 228,
+          "target_policy": "worker-console-default"
+        }
+      },
+      "paired_input_sha256": {
+        "export": "4feaaf8b156c30d5cd36644ac5d4da6d60064469f0908d7cdc55af24958d0691",
+        "teaminfo": "0fbaeb46d1dbd1ba53548713d25c9e1e2f32c0c0b458526bf33116439981377f"
+      },
+      "targets": {
+        "candidate": 228,
+        "published": 228,
+        "shared": 228,
+        "candidate_only": [],
+        "published_only": []
+      },
+      "paired_mean_delta": {
+        "higher": 111,
+        "lower": 117,
+        "ties": 0,
+        "share_higher": 0.4868421052631579,
+        "median_candidate_minus_published": -0.034999999999999976,
+        "mean_candidate_minus_published": 0.08236842105263165
+      },
+      "mean_drift_all_targets": {
+        "candidate": -0.860043859649123,
+        "published": -0.9424122807017544
+      },
+      "kendall_tau_mean_ovr_shared": 0.935389733982313,
+      "age_25_27_shared": {
+        "players": 65,
+        "higher": 43,
+        "lower": 22,
+        "ties": 0,
+        "mean_candidate_minus_published": 0.542923076923077
+      },
+      "age_41_targets": {
+        "candidate": 1,
+        "published": 1
+      },
+      "age_counts": {
+        "candidate": {
+          "26": 40,
+          "27": 25,
+          "28": 21,
+          "29": 21,
+          "30": 28,
+          "31": 22,
+          "32": 21,
+          "33": 25,
+          "34": 9,
+          "35": 7,
+          "36": 2,
+          "37": 3,
+          "38": 1,
+          "40": 2,
+          "41": 1
+        },
+        "published": {
+          "26": 40,
+          "27": 25,
+          "28": 21,
+          "29": 21,
+          "30": 28,
+          "31": 22,
+          "32": 21,
+          "33": 25,
+          "34": 9,
+          "35": 7,
+          "36": 2,
+          "37": 3,
+          "38": 1,
+          "40": 2,
+          "41": 1
+        }
+      },
+      "sparse_age_counts_under_5": {
+        "candidate": {
+          "36": 2,
+          "37": 3,
+          "38": 1,
+          "40": 2,
+          "41": 1
+        },
+        "published": {
+          "36": 2,
+          "37": 3,
+          "38": 1,
+          "40": 2,
+          "41": 1
+        }
+      },
+      "peak_one_step_zero_crossing": {
+        "candidate": {
+          "age": 26.920802820721455,
+          "left_age": 26,
+          "right_age": 27,
+          "observed_age_gap": 1,
+          "left_mean_delta": 0.679,
+          "right_mean_delta": -0.0584,
+          "left_players": 40,
+          "right_players": 25,
+          "crossings_found": 1,
+          "interpretation": "cross-sectional zero crossing of expected one-step OVR change, not a career peak"
+        },
+        "published": {
+          "age": 30.151922566623284,
+          "left_age": 30,
+          "right_age": 31,
+          "observed_age_gap": 1,
+          "left_mean_delta": 0.39035714285714285,
+          "right_mean_delta": -2.179090909090909,
+          "left_players": 28,
+          "right_players": 22,
+          "crossings_found": 2,
+          "interpretation": "cross-sectional zero crossing of expected one-step OVR change, not a career peak"
+        }
+      },
+      "within_roster_run_spread": {
+        "candidate": {
+          "n_runs": 100,
+          "mean": -0.8600438596491228,
+          "sd_across_runs": 0.13088168820157264,
+          "mc_se_of_fixed_roster_mean": 0.013088168820157264,
+          "p025": -1.1470394736842104,
+          "p975": -0.5958333333333335
+        },
+        "published": {
+          "n_runs": 100,
+          "mean": -0.9424122807017545,
+          "sd_across_runs": 0.10874186952074684,
+          "mc_se_of_fixed_roster_mean": 0.010874186952074684,
+          "p025": -1.1228070175438596,
+          "p975": -0.7516447368421054
+        }
+      },
+      "workbook_checks": {
+        "candidate": {
+          "player_max_abs_error": {
+            "MeanDelta": 0.0,
+            "MeanOvr": 0.0,
+            "StdDelta": 4.989832437984898e-05
+          },
+          "age_mean_max_abs_error": 4.28571428572333e-05
+        },
+        "published": {
+          "player_max_abs_error": {
+            "MeanDelta": 0.0,
+            "MeanOvr": 0.0,
+            "StdDelta": 4.963900380516861e-05
+          },
+          "age_mean_max_abs_error": 4.999999999999449e-05
+        }
+      },
+      "comparison": {
+        "builds": [
+          "20260919031637",
+          "20260919031636"
+        ],
+        "expected_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "cache": "outputs/comparisons/order-v2_20260919031637_20260919031636",
+        "json_sha256": "de5ed5f09e2df29fcf4e06ba51303aa5fa9ae6e65f16df180b8693cc27b681db",
+        "html_sha256": "59e4e2340a1db92fb7220908866f2fc929ef8d23f4ea240a4add17c68c8c9a7e",
+        "json_scorecard_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "json_named_chart_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "html_scorecard_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "html_is_real": true,
+        "scorecard_csv_sha256": "8f5e125e22bd5f325e9f1211a1c29a8729dfd8050d539cde7ef9a8d3dcaf1af6",
+        "cached_html_sha256": "59e4e2340a1db92fb7220908866f2fc929ef8d23f4ea240a4add17c68c8c9a7e",
+        "cache_scorecard_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "reverse_order": {
+          "builds": [
+            "20260919031636",
+            "20260919031637"
+          ],
+          "expected_scripts": [
+            "v4.3, new and improved progression script",
+            "v3.2.1, current progression script"
+          ],
+          "cache": "outputs/comparisons/order-v2_20260919031636_20260919031637",
+          "json_sha256": "042e3678022a52b957b373ac4fcbb9eafea085e0044c1ddaa27623caa23f8cd1",
+          "html_sha256": "bb5b21c2b2d2532bf722a0b39f7428a1c740df654245ec9e5802c67d205257de",
+          "json_scorecard_scripts": [
+            "v4.3, new and improved progression script",
+            "v3.2.1, current progression script"
+          ],
+          "json_named_chart_scripts": [
+            "v4.3, new and improved progression script",
+            "v3.2.1, current progression script"
+          ],
+          "html_scorecard_scripts": [
+            "v4.3, new and improved progression script",
+            "v3.2.1, current progression script"
+          ],
+          "html_is_real": true,
+          "scorecard_csv_sha256": "e36709f830ce1edc41d3e62356a9ee3ea1be12d39a5d548177cd88917a0de76c",
+          "cached_html_sha256": "bb5b21c2b2d2532bf722a0b39f7428a1c740df654245ec9e5802c67d205257de",
+          "cache_scorecard_scripts": [
+            "v4.3, new and improved progression script",
+            "v3.2.1, current progression script"
+          ]
+        }
+      },
+      "run_seed_sequences_identical": true,
+      "artifacts_sha256": {
+        "candidate_raw": "edb1a0d6bdb6ee296f04b9dd7c5aef8ba448e8d35ff78e94b9b4ab3b4111f995",
+        "published_raw": "c65ed50595d773eb1574187f4863689a6ff4d0ef83a07812eb64905638f8b53e",
+        "candidate_workbook": "ba4aec78fcbc44fc9c90c1d8db1a32695a20ddaaa5e2e9c56dedc98fdbc43a13",
+        "published_workbook": "bd39896a73440b3b41c2dbd140df71ba77b17860145ee399a7d2d346c4d1787d"
+      }
+    },
+    {
+      "cohort": "sample",
+      "seed": 7,
+      "candidate_build": "20260919031638",
+      "published_build": "20260919031639",
+      "input_contract": {
+        "candidate": {
+          "entering_season": 2018,
+          "id": "net-boundary-v1",
+          "player_id_policy": "source-pid",
+          "pool_count": 271,
+          "source_phase": 1,
+          "stats_season": 2017,
+          "target_count": 228,
+          "target_policy": "worker-console-default"
+        },
+        "published": {
+          "entering_season": 2018,
+          "id": "net-boundary-v1",
+          "player_id_policy": "source-pid",
+          "pool_count": 271,
+          "source_phase": 1,
+          "stats_season": 2017,
+          "target_count": 228,
+          "target_policy": "worker-console-default"
+        }
+      },
+      "paired_input_sha256": {
+        "export": "4feaaf8b156c30d5cd36644ac5d4da6d60064469f0908d7cdc55af24958d0691",
+        "teaminfo": "0fbaeb46d1dbd1ba53548713d25c9e1e2f32c0c0b458526bf33116439981377f"
+      },
+      "targets": {
+        "candidate": 228,
+        "published": 228,
+        "shared": 228,
+        "candidate_only": [],
+        "published_only": []
+      },
+      "paired_mean_delta": {
+        "higher": 107,
+        "lower": 120,
+        "ties": 1,
+        "share_higher": 0.4692982456140351,
+        "median_candidate_minus_published": -0.060000000000000026,
+        "mean_candidate_minus_published": 0.06811403508771931
+      },
+      "mean_drift_all_targets": {
+        "candidate": -0.8552631578947368,
+        "published": -0.9233771929824561
+      },
+      "kendall_tau_mean_ovr_shared": 0.936106070999429,
+      "age_25_27_shared": {
+        "players": 65,
+        "higher": 40,
+        "lower": 24,
+        "ties": 1,
+        "mean_candidate_minus_published": 0.42615384615384616
+      },
+      "age_41_targets": {
+        "candidate": 1,
+        "published": 1
+      },
+      "age_counts": {
+        "candidate": {
+          "26": 40,
+          "27": 25,
+          "28": 21,
+          "29": 21,
+          "30": 28,
+          "31": 22,
+          "32": 21,
+          "33": 25,
+          "34": 9,
+          "35": 7,
+          "36": 2,
+          "37": 3,
+          "38": 1,
+          "40": 2,
+          "41": 1
+        },
+        "published": {
+          "26": 40,
+          "27": 25,
+          "28": 21,
+          "29": 21,
+          "30": 28,
+          "31": 22,
+          "32": 21,
+          "33": 25,
+          "34": 9,
+          "35": 7,
+          "36": 2,
+          "37": 3,
+          "38": 1,
+          "40": 2,
+          "41": 1
+        }
+      },
+      "sparse_age_counts_under_5": {
+        "candidate": {
+          "36": 2,
+          "37": 3,
+          "38": 1,
+          "40": 2,
+          "41": 1
+        },
+        "published": {
+          "36": 2,
+          "37": 3,
+          "38": 1,
+          "40": 2,
+          "41": 1
+        }
+      },
+      "peak_one_step_zero_crossing": {
+        "candidate": {
+          "age": 26.909365558912388,
+          "left_age": 26,
+          "right_age": 27,
+          "observed_age_gap": 1,
+          "left_mean_delta": 0.602,
+          "right_mean_delta": -0.06,
+          "left_players": 40,
+          "right_players": 25,
+          "crossings_found": 1,
+          "interpretation": "cross-sectional zero crossing of expected one-step OVR change, not a career peak"
+        },
+        "published": {
+          "age": 30.139208660516886,
+          "left_age": 30,
+          "right_age": 31,
+          "observed_age_gap": 1,
+          "left_mean_delta": 0.3557142857142857,
+          "right_mean_delta": -2.1995454545454547,
+          "left_players": 28,
+          "right_players": 22,
+          "crossings_found": 2,
+          "interpretation": "cross-sectional zero crossing of expected one-step OVR change, not a career peak"
+        }
+      },
+      "within_roster_run_spread": {
+        "candidate": {
+          "n_runs": 100,
+          "mean": -0.855263157894737,
+          "sd_across_runs": 0.1261552748818984,
+          "mc_se_of_fixed_roster_mean": 0.01261552748818984,
+          "p025": -1.0789473684210527,
+          "p975": -0.618421052631579
+        },
+        "published": {
+          "n_runs": 100,
+          "mean": -0.9233771929824561,
+          "sd_across_runs": 0.11465441866793318,
+          "mc_se_of_fixed_roster_mean": 0.011465441866793318,
+          "p025": -1.1142543859649123,
+          "p975": -0.6944078947368424
+        }
+      },
+      "workbook_checks": {
+        "candidate": {
+          "player_max_abs_error": {
+            "MeanDelta": 0.0,
+            "MeanOvr": 0.0,
+            "StdDelta": 4.987103635545331e-05
+          },
+          "age_mean_max_abs_error": 4.7619047619018584e-05
+        },
+        "published": {
+          "player_max_abs_error": {
+            "MeanDelta": 0.0,
+            "MeanOvr": 0.0,
+            "StdDelta": 4.987367806563725e-05
+          },
+          "age_mean_max_abs_error": 4.999999999999449e-05
+        }
+      },
+      "comparison": {
+        "builds": [
+          "20260919031639",
+          "20260919031638"
+        ],
+        "expected_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "cache": "outputs/comparisons/order-v2_20260919031639_20260919031638",
+        "json_sha256": "00132d79fd0b8dddc358462598e45182340a6c199306f8cfa02a8742b524fb41",
+        "html_sha256": "cb23de090636e51f052d5d01380888bb596940881587932c7b0f8117d7123fc5",
+        "json_scorecard_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "json_named_chart_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "html_scorecard_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "html_is_real": true,
+        "scorecard_csv_sha256": "7a89b1ae405c2e6d688782579387249fb070a756a09ea40fc6d13aebbff74fbf",
+        "cached_html_sha256": "cb23de090636e51f052d5d01380888bb596940881587932c7b0f8117d7123fc5",
+        "cache_scorecard_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ]
+      },
+      "run_seed_sequences_identical": true,
+      "artifacts_sha256": {
+        "candidate_raw": "70b02b660fd19212ea78d9ef63128c3ccf30aedb94fbabc0a734537e57c87f73",
+        "published_raw": "652363101cefe9ee2e5e21e92ae35e06ebef8c057fb936e10bc50519193943cb",
+        "candidate_workbook": "704d2bf99bbfc8fa49e2e363e77af228731d3d723f6a6dc047e490a4edf6b116",
+        "published_workbook": "7b0ccb6ac4f1768355e9d225b4b67c5bd0112c934d97c851b783b0d845bb80e0"
+      }
+    },
+    {
+      "cohort": "sample",
+      "seed": 99,
+      "candidate_build": "20260919031640",
+      "published_build": "20260919031641",
+      "input_contract": {
+        "candidate": {
+          "entering_season": 2018,
+          "id": "net-boundary-v1",
+          "player_id_policy": "source-pid",
+          "pool_count": 271,
+          "source_phase": 1,
+          "stats_season": 2017,
+          "target_count": 228,
+          "target_policy": "worker-console-default"
+        },
+        "published": {
+          "entering_season": 2018,
+          "id": "net-boundary-v1",
+          "player_id_policy": "source-pid",
+          "pool_count": 271,
+          "source_phase": 1,
+          "stats_season": 2017,
+          "target_count": 228,
+          "target_policy": "worker-console-default"
+        }
+      },
+      "paired_input_sha256": {
+        "export": "4feaaf8b156c30d5cd36644ac5d4da6d60064469f0908d7cdc55af24958d0691",
+        "teaminfo": "0fbaeb46d1dbd1ba53548713d25c9e1e2f32c0c0b458526bf33116439981377f"
+      },
+      "targets": {
+        "candidate": 228,
+        "published": 228,
+        "shared": 228,
+        "candidate_only": [],
+        "published_only": []
+      },
+      "paired_mean_delta": {
+        "higher": 112,
+        "lower": 115,
+        "ties": 1,
+        "share_higher": 0.49122807017543857,
+        "median_candidate_minus_published": -0.019999999999999907,
+        "mean_candidate_minus_published": 0.10394736842105265
+      },
+      "mean_drift_all_targets": {
+        "candidate": -0.8326754385964912,
+        "published": -0.9366228070175439
+      },
+      "kendall_tau_mean_ovr_shared": 0.9327252011115998,
+      "age_25_27_shared": {
+        "players": 65,
+        "higher": 43,
+        "lower": 21,
+        "ties": 1,
+        "mean_candidate_minus_published": 0.5867692307692308
+      },
+      "age_41_targets": {
+        "candidate": 1,
+        "published": 1
+      },
+      "age_counts": {
+        "candidate": {
+          "26": 40,
+          "27": 25,
+          "28": 21,
+          "29": 21,
+          "30": 28,
+          "31": 22,
+          "32": 21,
+          "33": 25,
+          "34": 9,
+          "35": 7,
+          "36": 2,
+          "37": 3,
+          "38": 1,
+          "40": 2,
+          "41": 1
+        },
+        "published": {
+          "26": 40,
+          "27": 25,
+          "28": 21,
+          "29": 21,
+          "30": 28,
+          "31": 22,
+          "32": 21,
+          "33": 25,
+          "34": 9,
+          "35": 7,
+          "36": 2,
+          "37": 3,
+          "38": 1,
+          "40": 2,
+          "41": 1
+        }
+      },
+      "sparse_age_counts_under_5": {
+        "candidate": {
+          "36": 2,
+          "37": 3,
+          "38": 1,
+          "40": 2,
+          "41": 1
+        },
+        "published": {
+          "36": 2,
+          "37": 3,
+          "38": 1,
+          "40": 2,
+          "41": 1
+        }
+      },
+      "peak_one_step_zero_crossing": {
+        "candidate": {
+          "age": 27.09064455114215,
+          "left_age": 27,
+          "right_age": 28,
+          "observed_age_gap": 1,
+          "left_mean_delta": 0.0356,
+          "right_mean_delta": -0.35714285714285715,
+          "left_players": 25,
+          "right_players": 21,
+          "crossings_found": 1,
+          "interpretation": "cross-sectional zero crossing of expected one-step OVR change, not a career peak"
+        },
+        "published": {
+          "age": 30.146387035271687,
+          "left_age": 30,
+          "right_age": 31,
+          "observed_age_gap": 1,
+          "left_mean_delta": 0.37392857142857144,
+          "right_mean_delta": -2.1804545454545456,
+          "left_players": 28,
+          "right_players": 22,
+          "crossings_found": 2,
+          "interpretation": "cross-sectional zero crossing of expected one-step OVR change, not a career peak"
+        }
+      },
+      "within_roster_run_spread": {
+        "candidate": {
+          "n_runs": 100,
+          "mean": -0.8326754385964914,
+          "sd_across_runs": 0.13388372920637395,
+          "mc_se_of_fixed_roster_mean": 0.013388372920637395,
+          "p025": -1.0574561403508773,
+          "p975": -0.5782894736842107
+        },
+        "published": {
+          "n_runs": 100,
+          "mean": -0.936622807017544,
+          "sd_across_runs": 0.10991086074408782,
+          "mc_se_of_fixed_roster_mean": 0.010991086074408782,
+          "p025": -1.1165570175438597,
+          "p975": -0.7015350877192983
+        }
+      },
+      "workbook_checks": {
+        "candidate": {
+          "player_max_abs_error": {
+            "MeanDelta": 0.0,
+            "MeanOvr": 0.0,
+            "StdDelta": 4.995246477079718e-05
+          },
+          "age_mean_max_abs_error": 4.999999999999449e-05
+        },
+        "published": {
+          "player_max_abs_error": {
+            "MeanDelta": 0.0,
+            "MeanOvr": 0.0,
+            "StdDelta": 4.991614216010021e-05
+          },
+          "age_mean_max_abs_error": 5.000000000002225e-05
+        }
+      },
+      "comparison": {
+        "builds": [
+          "20260919031641",
+          "20260919031640"
+        ],
+        "expected_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "cache": "outputs/comparisons/order-v2_20260919031641_20260919031640",
+        "json_sha256": "b235a33726b3228974904de7c10681b1a63a1deaf8dd91b432aedfec6a788989",
+        "html_sha256": "cd0f8f7a9ad81bc4f447bb56e32a36ff274199004d58cf9bac2e66e132aaefa6",
+        "json_scorecard_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "json_named_chart_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "html_scorecard_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "html_is_real": true,
+        "scorecard_csv_sha256": "a8e1d05fb9308594bd9a400b125cfd7623cc50784c110dd53a82b4665508695f",
+        "cached_html_sha256": "cd0f8f7a9ad81bc4f447bb56e32a36ff274199004d58cf9bac2e66e132aaefa6",
+        "cache_scorecard_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ]
+      },
+      "run_seed_sequences_identical": true,
+      "artifacts_sha256": {
+        "candidate_raw": "7aff4ce8390448101322244ec9f249b229397c17e866384cf421cdca10de904c",
+        "published_raw": "0f550a88d10e77fe7e4294c571437dc124c091b7c420d80851f5c6f4b62f7620",
+        "candidate_workbook": "fb0977c7291642bb216155c7feef564e2de2d2da1b4ef8aa2e0ee9b8a3093eab",
+        "published_workbook": "db84e1c17eb3b440eeeb29486eedbe7183ea7b27a5963f2f671f462356a82654"
+      }
+    },
+    {
+      "cohort": "synthetic",
+      "seed": 42,
+      "candidate_build": "20260919031642",
+      "published_build": "20260919031643",
+      "input_contract": {
+        "candidate": {
+          "entering_season": 2018,
+          "id": "net-boundary-v1",
+          "player_id_policy": "source-pid",
+          "pool_count": 60,
+          "source_phase": 0,
+          "stats_season": 2017,
+          "target_count": 60,
+          "target_policy": "worker-console-default"
+        },
+        "published": {
+          "entering_season": 2018,
+          "id": "net-boundary-v1",
+          "player_id_policy": "source-pid",
+          "pool_count": 60,
+          "source_phase": 0,
+          "stats_season": 2017,
+          "target_count": 60,
+          "target_policy": "worker-console-default"
+        }
+      },
+      "paired_input_sha256": {
+        "export": "9eab681ad9d32ac35ba33e00fd9557ddaf9d8df69a0de0dda84a2abeffe5fa6d",
+        "teaminfo": "0c40a0942718ed5385a38a58648415664492cba590108ea8a8f4cb0a323a2c80"
+      },
+      "targets": {
+        "candidate": 60,
+        "published": 60,
+        "shared": 60,
+        "candidate_only": [],
+        "published_only": []
+      },
+      "paired_mean_delta": {
+        "higher": 42,
+        "lower": 18,
+        "ties": 0,
+        "share_higher": 0.7,
+        "median_candidate_minus_published": 0.6300000000000001,
+        "mean_candidate_minus_published": 0.6061666666666667
+      },
+      "mean_drift_all_targets": {
+        "candidate": -2.2338333333333327,
+        "published": -2.8400000000000003
+      },
+      "kendall_tau_mean_ovr_shared": 0.9395139997453272,
+      "age_25_27_shared": {
+        "players": 12,
+        "higher": 11,
+        "lower": 1,
+        "ties": 0,
+        "mean_candidate_minus_published": 0.5966666666666667
+      },
+      "age_41_targets": {
+        "candidate": 0,
+        "published": 0
+      },
+      "age_counts": {
+        "candidate": {
+          "26": 12,
+          "29": 12,
+          "31": 12,
+          "35": 12,
+          "40": 12
+        },
+        "published": {
+          "26": 12,
+          "29": 12,
+          "31": 12,
+          "35": 12,
+          "40": 12
+        }
+      },
+      "sparse_age_counts_under_5": {
+        "candidate": {},
+        "published": {}
+      },
+      "peak_one_step_zero_crossing": {
+        "candidate": {
+          "age": 26.20435193945128,
+          "left_age": 26,
+          "right_age": 29,
+          "observed_age_gap": 3,
+          "left_mean_delta": 0.06,
+          "right_mean_delta": -0.8208333333333333,
+          "left_players": 12,
+          "right_players": 12,
+          "crossings_found": 1,
+          "interpretation": "cross-sectional zero crossing of expected one-step OVR change, not a career peak"
+        },
+        "published": {
+          "age": null,
+          "reason": "no positive-to-nonpositive adjacent observed-age means"
+        }
+      },
+      "within_roster_run_spread": {
+        "candidate": {
+          "n_runs": 100,
+          "mean": -2.233833333333333,
+          "sd_across_runs": 0.21382433762907824,
+          "mc_se_of_fixed_roster_mean": 0.021382433762907823,
+          "p025": -2.566666666666667,
+          "p975": -1.7579166666666668
+        },
+        "published": {
+          "n_runs": 100,
+          "mean": -2.84,
+          "sd_across_runs": 0.18721780110476952,
+          "mc_se_of_fixed_roster_mean": 0.01872178011047695,
+          "p025": -3.1508333333333334,
+          "p975": -2.4579166666666667
+        }
+      },
+      "workbook_checks": {
+        "candidate": {
+          "player_max_abs_error": {
+            "MeanDelta": 0.0,
+            "MeanOvr": 0.0,
+            "StdDelta": 4.9586800145329235e-05
+          },
+          "age_mean_max_abs_error": 3.333333333355171e-05
+        },
+        "published": {
+          "player_max_abs_error": {
+            "MeanDelta": 0.0,
+            "MeanOvr": 0.0,
+            "StdDelta": 4.998499997033168e-05
+          },
+          "age_mean_max_abs_error": 3.333333333355171e-05
+        }
+      },
+      "comparison": {
+        "builds": [
+          "20260919031643",
+          "20260919031642"
+        ],
+        "expected_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "cache": "outputs/comparisons/order-v2_20260919031643_20260919031642",
+        "json_sha256": "dd578add5e75e951f27872ddfe54bf3b9482c3679870a9e9ee38afefbb50f2f6",
+        "html_sha256": "7673a2fb562a5e9675a67e350dd3bd4ec3bd4922aa102b3cc590d344b2929140",
+        "json_scorecard_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "json_named_chart_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "html_scorecard_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "html_is_real": true,
+        "scorecard_csv_sha256": "b93a855cafc26c3fa364cb878ee32df4dff006300a064cf14925d539eaddf09a",
+        "cached_html_sha256": "7673a2fb562a5e9675a67e350dd3bd4ec3bd4922aa102b3cc590d344b2929140",
+        "cache_scorecard_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ]
+      },
+      "run_seed_sequences_identical": true,
+      "artifacts_sha256": {
+        "candidate_raw": "68f30c2a34b773b2e8e56b1cf7b62491eca1aa82a12320737026ee4709fbae7c",
+        "published_raw": "802b86e6ff198e494546bfcc0a41474e7a888d0fcb51d86a1a4a3d783253d561",
+        "candidate_workbook": "5cdf7ef914e687e982c6aced51390f5cb750a6485c08d97ae3faabe529bcd68d",
+        "published_workbook": "814d24a806c4cda8cd59bb0408c98b991dd07fa4edf6db3d6786238b454eb145"
+      }
+    },
+    {
+      "cohort": "live",
+      "seed": 42,
+      "candidate_build": "20260919031644",
+      "published_build": "20260919031645",
+      "input_contract": {
+        "candidate": {
+          "entering_season": 2020,
+          "id": "net-boundary-v1",
+          "player_id_policy": "source-pid",
+          "pool_count": 7,
+          "source_phase": 0,
+          "stats_season": 2019,
+          "target_count": 3,
+          "target_policy": "worker-console-default"
+        },
+        "published": {
+          "entering_season": 2020,
+          "id": "net-boundary-v1",
+          "player_id_policy": "source-pid",
+          "pool_count": 7,
+          "source_phase": 0,
+          "stats_season": 2019,
+          "target_count": 4,
+          "target_policy": "worker-console-default"
+        }
+      },
+      "paired_input_sha256": {
+        "export": "456bc08527dafcec07428af3c301eb7aec1d703db322d70f0d2f985227b5efd2",
+        "teaminfo": "b691b8791055a22056d9cca53e5e3d7fe58daac452fcb5802d90bf859887ad92"
+      },
+      "targets": {
+        "candidate": 3,
+        "published": 4,
+        "shared": 3,
+        "candidate_only": [],
+        "published_only": [
+          {
+            "cohort": "live",
+            "seed": 42,
+            "candidate_build": "20260919031644",
+            "published_build": "20260919031645",
+            "PlayerID": "6",
+            "status": "published_only",
+            "Name": "NETFixture negative-per",
+            "Team": "MIN",
+            "Age": 30,
+            "Baseline": 55.0,
+            "CandidateMeanDelta": "",
+            "PublishedMeanDelta": -8.45,
+            "DeltaDifference": "",
+            "CandidateMeanOvr": "",
+            "PublishedMeanOvr": 46.55,
+            "OvrDifference": "",
+            "CandidateStdDelta": "",
+            "PublishedStdDelta": 1.0384039812533596
+          }
+        ]
+      },
+      "paired_mean_delta": {
+        "higher": 1,
+        "lower": 2,
+        "ties": 0,
+        "share_higher": 0.3333333333333333,
+        "median_candidate_minus_published": -1.16,
+        "mean_candidate_minus_published": -0.45999999999999996
+      },
+      "mean_drift_all_targets": {
+        "candidate": -0.9566666666666667,
+        "published": -2.485
+      },
+      "kendall_tau_mean_ovr_shared": -0.33333333333333337,
+      "age_25_27_shared": {
+        "players": 1,
+        "higher": 1,
+        "lower": 0,
+        "ties": 0,
+        "mean_candidate_minus_published": 1.01
+      },
+      "age_41_targets": {
+        "candidate": 0,
+        "published": 0
+      },
+      "age_counts": {
+        "candidate": {
+          "26": 1,
+          "30": 2
+        },
+        "published": {
+          "26": 1,
+          "30": 3
+        }
+      },
+      "sparse_age_counts_under_5": {
+        "candidate": {
+          "26": 1,
+          "30": 2
+        },
+        "published": {
+          "26": 1,
+          "30": 3
+        }
+      },
+      "peak_one_step_zero_crossing": {
+        "candidate": {
+          "age": 26.91533180778032,
+          "left_age": 26,
+          "right_age": 30,
+          "observed_age_gap": 4,
+          "left_mean_delta": 0.5,
+          "right_mean_delta": -1.685,
+          "left_players": 1,
+          "right_players": 2,
+          "crossings_found": 1,
+          "interpretation": "cross-sectional zero crossing of expected one-step OVR change, not a career peak"
+        },
+        "published": {
+          "age": null,
+          "reason": "no positive-to-nonpositive adjacent observed-age means"
+        }
+      },
+      "within_roster_run_spread": {
+        "candidate": {
+          "n_runs": 100,
+          "mean": -0.9566666666666667,
+          "sd_across_runs": 1.1572782419508842,
+          "mc_se_of_fixed_roster_mean": 0.11572782419508842,
+          "p025": -2.6666666666666665,
+          "p975": 2.3499999999999943
+        },
+        "published": {
+          "n_runs": 100,
+          "mean": -2.485,
+          "sd_across_runs": 0.6038805487608598,
+          "mc_se_of_fixed_roster_mean": 0.060388054876085985,
+          "p025": -3.25,
+          "p975": -0.8562500000000064
+        }
+      },
+      "workbook_checks": {
+        "candidate": {
+          "player_max_abs_error": {
+            "MeanDelta": 0.0,
+            "MeanOvr": 0.0,
+            "StdDelta": 4.9599190538263116e-05
+          },
+          "age_mean_max_abs_error": 0.0
+        },
+        "published": {
+          "player_max_abs_error": {
+            "MeanDelta": 0.0,
+            "MeanOvr": 0.0,
+            "StdDelta": 4.540044578016378e-05
+          },
+          "age_mean_max_abs_error": 3.333333333355171e-05
+        }
+      },
+      "comparison": {
+        "builds": [
+          "20260919031645",
+          "20260919031644"
+        ],
+        "expected_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "cache": "outputs/comparisons/order-v2_20260919031645_20260919031644",
+        "json_sha256": "f6dc0a43e36c1d1cbdce6438b0618c4598a29ca5e90f2b688539aae2cde98b5f",
+        "html_sha256": "e05444f8d3eaeae82c92d3b8467bab18ea3286e97950ba35b0e5faafb609db37",
+        "json_scorecard_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "json_named_chart_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "html_scorecard_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ],
+        "html_is_real": true,
+        "scorecard_csv_sha256": "0af6674514e9987065da0ed14512046e60779884a9f1859ad9f4e5df8639a535",
+        "cached_html_sha256": "e05444f8d3eaeae82c92d3b8467bab18ea3286e97950ba35b0e5faafb609db37",
+        "cache_scorecard_scripts": [
+          "v3.2.1, current progression script",
+          "v4.3, new and improved progression script"
+        ]
+      },
+      "run_seed_sequences_identical": true,
+      "artifacts_sha256": {
+        "candidate_raw": "3c1f90c9ad033556dd3c610cb64d793e85ec4b44f7a98c2d978bdede35369ad2",
+        "published_raw": "6b94e61e1f2b7ca5bcb87574b0e789982679bd7b27048da2ab8fc0fd4a9adb09",
+        "candidate_workbook": "0c178f4585a84bd5bd56e45a4f3650557e4520d64e9de87adbc31380fa163502",
+        "published_workbook": "735592a9b135ddbb1ba97cf11e9ab05e3b43afbbf81d98d9f9c5e521d7e2eca2"
+      }
+    }
+  ],
+  "same_roster_three_seed_range": {
+    "seeds": [
+      42,
+      7,
+      99
+    ],
+    "shared_players_each": 228,
+    "higher_count_min_max": [
+      107,
+      112
+    ],
+    "median_delta_min_max": [
+      -0.060000000000000026,
+      -0.019999999999999907
+    ],
+    "kendall_tau_min_max": [
+      0.9327252011115998,
+      0.936106070999429
+    ],
+    "interpretation": "three seeds of the same sample roster, not three independent leagues"
+  }
+}
