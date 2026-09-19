@@ -57,8 +57,8 @@ function player(
     lastName,
     tid,
     born: { year: bornYear, loc: "USA" },
-    stats: [{ per, dws, ewa, playoffs: false, gp: 82 }],
-    ratings: [attrs],
+    stats: [{ season: 2024, per, dws, ewa, playoffs: false, gp: 82 }],
+    ratings: [{ season: 2024, ...attrs }],
   };
 }
 
@@ -149,6 +149,8 @@ describe.skipIf(!hasBinary)("C++ engine smoke", () => {
       expect(metadata.status).toBe("complete");
       expect(metadata.error).toBeNull();
       expect(metadata.player_count).toBe(6);
+      expect(metadata.input_contract).toMatchObject({ id: "net-boundary-v1", entering_season: 2025, stats_season: 2024, target_count: 6, pool_count: 6 });
+      expect(metadata.binary_sha256).toMatch(/^[a-f0-9]{64}$/);
 
       // Engine CLI id stays compact (`v43`); API catalog id is dotted `v4.3`.
       expect((metadata.progression as { id?: string } | undefined)?.id).toBe("v43");
@@ -207,6 +209,8 @@ describe.skipIf(!hasBinary)("C++ engine smoke", () => {
         skip_empty_lines: true,
       }) as Record<string, string>[];
       expect(new Set(rows.map((r) => r.Team))).toEqual(new Set(["BOS"]));
+      expect(new Set(rows.map((r) => r.PlayerID))).toEqual(new Set(["0", "4"]));
+      expect(metadata.input_contract).toMatchObject({ target_count: 2, pool_count: 6 });
     } finally {
       await fsp.rm(root, { recursive: true, force: true });
     }

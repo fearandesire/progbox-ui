@@ -113,7 +113,8 @@ public:
         const std::vector<PlayerState>& base_states,
         const std::vector<PlayerStats>& base_stats,
         int runs,
-        int seed = 69
+        int seed = 69,
+        const std::vector<PlayerStats>* population = nullptr
     ) {
         std::mt19937 master_rng(seed);
         std::uniform_int_distribution<int64_t> seed_dist(0, std::numeric_limits<int64_t>::max());
@@ -122,7 +123,7 @@ public:
         for (int i = 0; i < runs; ++i) {
             run_seeds[i] = seed_dist(master_rng);
         }
-        strategy_.prepare(base_stats);
+        strategy_.prepare(population ? *population : base_stats);
         thread_pool pool(num_workers_);
         ProgressIndicator progress(runs, "simulations");
 

@@ -172,7 +172,7 @@ Progression-script identity and sim parameters for each run come from the engine
 
 ### Auto-comparison runs
 
-The New-sim form has an "also run published NET 3.2 and compare" toggle, **on by default**. When on, one submission creates **two linked runs**: the selected version (primary) and the **published** script (`v3.2.1` / NET 3.2), with identical export, seed, iterations, and workers, so the only difference is the progression script. If you pick published itself, the pair partner is candidate `v4.3`. Each run is a normal, individually-viewable run; they share a `pair_id` and record `pair_role` / `paired_with` in their metadata. Once both finish, the web app opens the head-to-head comparison automatically (Published vs Candidate when the pair spans those roles). Untick the toggle for a single run. The manual dashboard "select 2+ runs → Compare" flow is unchanged.
+The New-sim form has an "also run published NET 3.2 and compare" toggle, **on by default**. When on, one submission creates **two linked runs**: the selected version (primary) and the **published** script (`v3.2.1` / NET 3.2), with identical export, seed, iterations, and workers, using each script’s documented stats-selection and eligibility rules. If you pick published itself, the pair partner is candidate `v4.3`. Each run is a normal, individually-viewable run; they share a `pair_id` and record `pair_role` / `paired_with` in their metadata. Once both finish, the web app opens the head-to-head comparison automatically (Published vs Candidate when the pair spans those roles). Untick the toggle for a single run. The manual dashboard "select 2+ runs → Compare" flow is unchanged.
 
 ### Version catalog
 
@@ -181,6 +181,8 @@ The New-sim form has an "also run published NET 3.2 and compare" toggle, **on by
 | `v3.2.1` | NET 3.2 | **Published** | What live NET leagues run today. Auto-compare target. Engine CLI: `v321`. |
 | `v4.3` | v4.3 | **Candidate** | Default selection; proposed release. Engine CLI: `v43`. |
 | `v4.1` | v4.1 | **Legacy** | Older research fork; still selectable. Engine CLI: `v41`. |
+
+The [NET input contract](docs/net-parity-contract.md) defines the season boundary, base ratings, default entering-age-26 targets, and full league reference pool. Team selection restricts output targets without changing that pool. New run metadata records the contract and executed binary hash; historical runs retain their original inputs.
 
 Catalog source of truth: [`api/src/progressionVersions.ts`](api/src/progressionVersions.ts) (web mirrors it in [`web/src/lib/versions.ts`](web/src/lib/versions.ts)). Public ids use dotted NET tags; `engineScriptId()` maps them to the vendored C++ CLI identifiers.
 

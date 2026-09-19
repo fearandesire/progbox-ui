@@ -72,6 +72,9 @@ jobs:
       - name: Build C++ engine
         run: pnpm run build:engine
 
+      - name: NET math parity
+        run: ctest --test-dir api/vendor/progbox_cpp/build --output-on-failure
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

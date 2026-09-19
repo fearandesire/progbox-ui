@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { normalizeNetInput } from "./netInput.js";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import fs from "node:fs";
@@ -157,21 +159,29 @@ export async function runCppSimulation(opts: RunCppOptions): Promise<RunCppResul
     const workspace = await fsp.mkdtemp(path.join(os.tmpdir(), "progbox_cpp_"));
 
     try {
-      const playerCount = writeInputCsv(
-        workspace,
-        opts.exportPath,
-        opts.teaminfoPath,
-        opts.teams,
-      );
-
+      const version = (opts.version as ProgressionVersion | undefined) ?? DEFAULT_PROGRESSION_VERSION;
       let effectiveExport = path.resolve(opts.exportPath);
-      if (opts.teams.length > 0) {
-        const filtered = filterExport(opts.exportPath, opts.teaminfoPath, opts.teams);
-        effectiveExport = path.join(workspace, "export_filtered.json");
-        await fsp.writeFile(effectiveExport, JSON.stringify(filtered), "utf8");
+      let seasonY = getSeason(opts.exportPath);
+      let playerCount: number;
+      let inputContract: ReturnType<typeof normalizeNetInput>["contract"] | undefined;
+      if (version !== "v4.1") {
+        const normalized = normalizeNetInput(
+          JSON.parse(await fsp.readFile(opts.exportPath, "utf8")),
+          JSON.parse(await fsp.readFile(opts.teaminfoPath, "utf8")), opts.teams, version,
+        );
+        inputContract = normalized.contract;
+        seasonY = inputContract.entering_season;
+        playerCount = inputContract.target_count;
+        if (!playerCount) throw new Error("No eligible NET targets for the selected season and teams");
+        effectiveExport = path.join(workspace, "export_normalized.json");
+        await fsp.writeFile(effectiveExport, JSON.stringify(normalized.data), "utf8");
+      } else {
+        playerCount = writeInputCsv(workspace, opts.exportPath, opts.teaminfoPath, opts.teams);
+        if (opts.teams.length) {
+          effectiveExport = path.join(workspace, "export_filtered.json");
+          await fsp.writeFile(effectiveExport, JSON.stringify(filterExport(opts.exportPath, opts.teaminfoPath, opts.teams)), "utf8");
+        }
       }
-
-      const seasonY = getSeason(opts.exportPath);
 
       const cmd = [
         binary,
@@ -221,7 +231,10 @@ export async function runCppSimulation(opts: RunCppOptions): Promise<RunCppResul
 
       const cppMetaSrc = path.join(cppRunDir, "metadata.json");
       if (fs.existsSync(cppMetaSrc)) {
-        await fsp.copyFile(cppMetaSrc, path.join(canonicalRunDir, "engine_metadata.json"));
+        const metadata = JSON.parse(await fsp.readFile(cppMetaSrc, "utf8"));
+        metadata.input_contract = inputContract ?? { id: "legacy-v41" };
+        metadata.binary_sha256 = createHash("sha256").update(await fsp.readFile(binary)).digest("hex");
+        await fsp.writeFile(path.join(canonicalRunDir, "engine_metadata.json"), JSON.stringify(metadata, null, 2));
       }
 
       emitStage("artifacts_copied", "Copied artifacts.");
