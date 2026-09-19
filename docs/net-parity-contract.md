@@ -8,8 +8,8 @@ Progbox forecasts one NET progression boundary from a league export. It uses the
 | Other export phases | Forecast the next season. Stats come from the export season; current ratings are the base. An in-season export is a snapshot forecast, not a completed-season result. |
 | Candidate statistics | Last regular-season row in the stats season. Reject it if PER is zero; do not fall back to an earlier stint. |
 | Published statistics | Mean PER of all nonzero regular-season rows in the stats season. A single row uses JavaScript `Math.fround`, matching the pinned Published script. |
-| Candidate reference pool | Active players and free agents (`tid >= -1`), valid birth year and base ratings, entering age at least 25, nonzero selected PER including negatives. |
-| Output targets | Entering age at least 26; not drafted in the stats season. Candidate requires positive PER. Published preserves negative nonzero PER behavior. Team filters restrict targets only. |
+| Candidate reference pool | Active players and free agents (`tid >= -1`), valid birth year and a nonempty ratings history, entering age at least 25, nonzero selected PER including negatives. |
+| Output targets | Entering age at least 26; not drafted in the stats season. A preseason snapshot requires two ratings rows before mutation; a one-row player still contributes to preparation. Candidate requires positive PER. Published preserves negative nonzero PER behavior. Team filters restrict targets only. |
 | Player identity | Preserve unique nonnegative source `pid` values. If IDs are missing or duplicated, use original source-array indices for every player. Both versions use the same mapping. |
 | Ratings | BBGM integer floor and clamp happen before OVR. Published and Candidate retain their own progression rules. |
 | Randomness | Shared fixtures replay identical draws through the full JavaScript scripts and C++ math. Production C++ uses its seeded RNG; equal numeric seeds do not imply equal BBGM random streams. |

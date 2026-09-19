@@ -35,6 +35,12 @@ describe("NET input boundary", () => {
     expect(normalize(data).data.players.filter(p => !p._progbox_pool_only).map(p => p.pid)).toEqual([27]);
     expect(normalize(data, [], "v3.2.1").data.players.filter(p => !p._progbox_pool_only).map(p => p.pid)).toEqual([91, 27]);
   });
+  it("keeps one-row preseason players in the pool but never progresses them", () => {
+    const data = league([player(1, { ratings: [{ season: 2024, spd: 40 }, { season: 2025, spd: 60 }] }), player(2, { ratings: [{ season: 2025, spd: 50 }] }), player(3)], 0, 2025);
+    const result = normalize(data);
+    expect(result.contract).toMatchObject({ pool_count: 3, target_count: 1 });
+    expect(result.data.players.map(p => [p.pid, p._progbox_pool_only])).toEqual([[1, false], [2, true], [3, true]]);
+  });
   it("rejects invalid final candidate PER instead of using earlier stints", () => {
     for (const per of [null, undefined, Number.NaN]) {
       expect(normalize(league([player(42, { stats: [{ season: 2024, per: 20 }, { season: 2024, per }] })])).contract.pool_count).toBe(0);

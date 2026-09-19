@@ -27,7 +27,9 @@ export function normalizeNetInput(
     if (age < 25 || !Array.isArray(p.ratings) || !p.ratings.length) return [];
     const ratings = p.ratings.filter((r: unknown) => object(r) && Number.isInteger(r.season) && r.season < enteringSeason);
     const base = ratings.at(-1);
-    if (!base) return [];
+    // Pool membership needs a ratings row, not the two-row mutation lifecycle.
+    const poolRating = base ?? p.ratings.filter(object).at(-1);
+    if (!poolRating) return [];
     const stats: Row[] = Array.isArray(p.stats) ? p.stats.filter((s: unknown) => object(s) && s.season === statsSeason && !s.playoffs) : [];
     const eligibleStats = version === "v3.2.1" ? stats.filter(s => typeof s.per === "number" && Number.isFinite(s.per) && s.per !== 0) : stats;
     if (!eligibleStats.length) return [];
@@ -39,12 +41,13 @@ export function normalizeNetInput(
         : eligibleStats.reduce((sum, s) => sum + s.per, 0) / eligibleStats.length;
     }
     if (selected.per === 0) return [];
-    const target = age >= 26
+    const target = Boolean(base) && (!preseason || p.ratings.length >= 2)
+      && age >= 26
       && p.draft?.year !== statsSeason
       && (version === "v3.2.1" ? selected.per !== 0 : selected.per > 0)
       && (!teams.length || teams.includes(teamLookup[String(p.tid)] ?? ""));
     if (target) targets++;
-    return [{ ...p, pid: usePids ? p.pid : index, ratings: [{ ...base }], stats: [selected], _progbox_pool_only: !target }];
+    return [{ ...p, pid: usePids ? p.pid : index, ratings: [{ ...poolRating }], stats: [selected], _progbox_pool_only: !target }];
   });
   const contract = {
     id: "net-boundary-v1",
