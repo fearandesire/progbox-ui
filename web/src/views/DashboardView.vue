@@ -454,14 +454,17 @@ function openCompare() {
             >
             <span class="run-row__id">{{ r.build }}</span>
             <StatusBadge :status="r.status" />
-            <VersionChip :version="r.requested_version ?? r.script_version" />
+            <VersionChip
+              :version="r.requested_version"
+              :script-version="r.script_version"
+            />
             <span
               v-if="isPaired(r)"
               class="run-row__paired"
               title="Part of an auto-comparison pair"
             >paired</span>
             <span
-              v-if="versionRole(r.requested_version ?? '') === 'published'"
+              v-if="versionRole(r.requested_version, r.script_version) === 'published'"
               class="run-row__paired run-row__published"
               title="Live NET script run"
             >Published</span>

@@ -36,9 +36,9 @@ describe("VersionChip", () => {
     },
     {
       version: "v4.3.2",
-      label: "v4.3",
-      chipClass: "v4-3",
-      title: "Candidate script: v4.3",
+      label: "v4.3.2",
+      chipClass: "other",
+      title: "Progression script: v4.3.2",
     },
     {
       version: "v4.1",
@@ -63,5 +63,13 @@ describe("VersionChip", () => {
     expect(wrapper.text()).toBe(label);
     expect(wrapper.classes()).toContain(`version-chip--${chipClass}`);
     expect(wrapper.attributes("title")).toBe(title);
+  });
+
+  it("uses a recognized script version after an unknown requested version", () => {
+    const wrapper = mount(VersionChip, {
+      props: { version: "foo321", scriptVersion: "v321" },
+    });
+    expect(wrapper.text()).toBe("NET 3.2");
+    expect(wrapper.classes()).toContain("version-chip--v3-2-1");
   });
 });

@@ -128,8 +128,8 @@ const kpis = computed(() => {
 const pairing = computed(() => {
   const r = run.value as PairedRun | null;
   if (!r || !r.paired_with) return null;
-  const ver = r.requested_version ?? "";
-  const vRole = versionRole(ver);
+  const ver = r.requested_version ?? r.script_version ?? "";
+  const vRole = versionRole(r.requested_version, r.script_version);
   // Never surface the API word "baseline" in the UI — map catalog roles only.
   let role: string | null = null;
   if (r.pair_role === "baseline" || r.pair_role === "primary") {
@@ -270,7 +270,10 @@ async function removeRun() {
             <div class="meta-row">
               <dt>Script</dt>
               <dd style="display: flex; align-items: center; gap: 8px">
-                <VersionChip :version="run.script_version ?? run.requested_version" />
+                <VersionChip
+                  :version="run.requested_version"
+                  :script-version="run.script_version"
+                />
                 <span
                   v-if="run.script_version && run.script_version !== 'v4.3' && run.script_version !== 'v4.1'"
                   style="font-size: 12px; color: var(--fg-mute)"

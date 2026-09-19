@@ -336,6 +336,26 @@ describe("RunDetailView", () => {
     expect(legacy.get(".paired-box__tag").text()).toMatch(/Paired run · Legacy/);
   });
 
+  it("uses a historical script version for the paired role", async () => {
+    vi.mocked(fetchSim).mockResolvedValueOnce({
+      build: "20260101120000",
+      status: "complete",
+      teams: [],
+      script_version: "v321",
+      pair_id: "historical-pair",
+      pair_role: "primary",
+      paired_with: "20260101120001",
+    } as RunMetadata);
+    const router = createRouterForBuild();
+    await router.push("/runs/20260101120000");
+    await router.isReady();
+    const wrapper = mount(RunDetailView, {
+      global: { plugins: [router], stubs: { RouterLink: RouterLinkStub } },
+    });
+    await flushPromises();
+    expect(wrapper.get(".paired-box__tag").text()).toMatch(/Paired run · Published/);
+  });
+
   it("deletes a run after confirmation and returns to the dashboard", async () => {
     vi.mocked(fetchSim).mockResolvedValueOnce({
       build: "20260101120000",

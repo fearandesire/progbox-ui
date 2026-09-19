@@ -4,6 +4,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import CompareView from "./CompareView.vue";
 import type { CompareDataResponse } from "../lib/analysisTypes";
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 vi.mock("../lib/api", () => ({
   fetchSims: vi.fn(),
   fetchCompareData: vi.fn(),
@@ -29,12 +39,12 @@ vi.mock("../components/VersionChip.vue", () => ({
   },
 }));
 
-function sampleCompareData(): CompareDataResponse {
+function sampleCompareData(title = "Progression Script Comparison"): CompareDataResponse {
   return {
     schemaVersion: 1,
     engine: "python",
     builds: ["20260101120000", "20260102120000"],
-    hero: { title: "Progression Script Comparison", subtitle: "2 scripts" },
+    hero: { title, subtitle: "2 scripts" },
     statCards: [{ label: "Scripts", value: "2", color: null }],
     sections: [
       { id: "scorecard", title: "§1 · Scorecard", intro: "KPIs.", charts: [] },
@@ -102,6 +112,129 @@ describe("CompareView", () => {
     resolve(sampleCompareData());
     await flushPromises();
     expect(wrapper.text()).not.toContain("Generating comparison");
+  });
+
+  it("rejects old comparison data as soon as navigation starts, while new metadata is pending", async () => {
+    const oldData = deferred<CompareDataResponse>();
+    const newMetadata = deferred<Awaited<ReturnType<typeof fetchSims>>>();
+    vi.mocked(fetchCompareData).mockReturnValueOnce(oldData.promise);
+    vi.mocked(fetchSims).mockResolvedValueOnce([]).mockReturnValueOnce(newMetadata.promise);
+    const { router, wrapper } = await mountAt("?builds=20260101120000,20260102120000");
+    await flushPromises();
+
+    await router.push("/compare?builds=20260103120000,20260104120000");
+    await flushPromises();
+    expect(wrapper.text()).toContain("Generating comparison");
+    oldData.resolve(sampleCompareData("Old A/B result"));
+    await flushPromises();
+    expect(wrapper.text()).not.toContain("Old A/B result");
+    expect(wrapper.text()).toContain("Generating comparison");
+
+    vi.mocked(fetchCompareData).mockResolvedValueOnce(sampleCompareData("Current C/D result"));
+    newMetadata.resolve([]);
+    await flushPromises();
+    expect(wrapper.text()).toContain("Current C/D result");
+    expect(fetchCompareData).toHaveBeenLastCalledWith(["20260103120000", "20260104120000"]);
+  });
+
+  it("ignores stale metadata failure after navigating to another comparison", async () => {
+    const oldMetadata = deferred<Awaited<ReturnType<typeof fetchSims>>>();
+    const currentMetadata = deferred<Awaited<ReturnType<typeof fetchSims>>>();
+    vi.mocked(fetchSims).mockReturnValueOnce(oldMetadata.promise).mockReturnValueOnce(currentMetadata.promise);
+    vi.mocked(fetchCompareData).mockResolvedValue(sampleCompareData("Current result"));
+    const { router, wrapper } = await mountAt("?builds=20260101120000,20260102120000");
+    await router.push("/compare?builds=20260103120000,20260104120000");
+    await flushPromises();
+
+    oldMetadata.reject(new Error("old metadata failed"));
+    await flushPromises();
+    expect(fetchCompareData).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain("Generating comparison");
+
+    currentMetadata.resolve([]);
+    await flushPromises();
+    expect(fetchCompareData).toHaveBeenCalledTimes(1);
+    expect(fetchCompareData).toHaveBeenCalledWith(["20260103120000", "20260104120000"]);
+    expect(wrapper.text()).toContain("Current result");
+  });
+
+  it("does not start an old comparison when its metadata arrives after navigation", async () => {
+    const oldMetadata = deferred<Awaited<ReturnType<typeof fetchSims>>>();
+    const currentMetadata = deferred<Awaited<ReturnType<typeof fetchSims>>>();
+    vi.mocked(fetchSims).mockReturnValueOnce(oldMetadata.promise).mockReturnValueOnce(currentMetadata.promise);
+    vi.mocked(fetchCompareData).mockResolvedValue(sampleCompareData());
+    const { router } = await mountAt("?builds=20260101120000,20260102120000");
+    await flushPromises();
+    await router.push("/compare?builds=20260103120000,20260104120000");
+    await flushPromises();
+    oldMetadata.resolve([]);
+    await flushPromises();
+    expect(fetchCompareData).not.toHaveBeenCalled();
+    currentMetadata.resolve([]);
+    await flushPromises();
+    expect(fetchCompareData).toHaveBeenCalledTimes(1);
+    expect(fetchCompareData).toHaveBeenCalledWith(["20260103120000", "20260104120000"]);
+  });
+
+  it("clears completed data while the next metadata request loads", async () => {
+    const nextMetadata = deferred<Awaited<ReturnType<typeof fetchSims>>>();
+    vi.mocked(fetchCompareData).mockResolvedValueOnce(sampleCompareData("Completed A/B"));
+    vi.mocked(fetchSims).mockResolvedValueOnce([]).mockReturnValueOnce(nextMetadata.promise);
+    const { router, wrapper } = await mountAt("?builds=20260101120000,20260102120000");
+    await flushPromises();
+    expect(wrapper.text()).toContain("Completed A/B");
+    await router.push("/compare?builds=20260103120000,20260104120000");
+    await flushPromises();
+    expect(wrapper.text()).not.toContain("Completed A/B");
+    expect(wrapper.text()).toContain("Generating comparison");
+    expect(wrapper.find("iframe").exists()).toBe(false);
+    nextMetadata.resolve([]);
+    vi.mocked(fetchCompareData).mockResolvedValueOnce(sampleCompareData("Current C/D"));
+    await flushPromises();
+    expect(wrapper.text()).toContain("Current C/D");
+  });
+
+  it("clears the old iframe fallback while the next metadata request loads", async () => {
+    const nextMetadata = deferred<Awaited<ReturnType<typeof fetchSims>>>();
+    vi.mocked(fetchCompareData).mockRejectedValueOnce(new Error("old failure"));
+    vi.mocked(fetchSims).mockResolvedValueOnce([]).mockReturnValueOnce(nextMetadata.promise);
+    const { router, wrapper } = await mountAt("?builds=20260101120000,20260102120000");
+    await flushPromises();
+    expect(wrapper.find("iframe").exists()).toBe(true);
+    await router.push("/compare?builds=20260103120000,20260104120000");
+    await flushPromises();
+    expect(wrapper.find("iframe").exists()).toBe(false);
+    expect(wrapper.text()).toContain("Generating comparison");
+    nextMetadata.resolve([]);
+    vi.mocked(fetchCompareData).mockResolvedValueOnce(sampleCompareData("Current C/D"));
+    await flushPromises();
+    expect(wrapper.text()).toContain("Current C/D");
+  });
+
+  it("invalidates an in-flight request when the query becomes too short", async () => {
+    const oldData = deferred<CompareDataResponse>();
+    vi.mocked(fetchCompareData).mockReturnValueOnce(oldData.promise);
+    const { router, wrapper } = await mountAt("?builds=20260101120000,20260102120000");
+    await flushPromises();
+    await router.push("/compare?builds=20260103120000");
+    await flushPromises();
+    oldData.reject(new Error("old request failed"));
+    await flushPromises();
+    expect(wrapper.text()).toContain("Select at least two completed runs");
+    expect(wrapper.text()).not.toContain("Generating comparison");
+    expect(wrapper.find("iframe").exists()).toBe(false);
+  });
+
+  it("does not fetch comparison data if metadata returns after unmount", async () => {
+    const metadata = deferred<Awaited<ReturnType<typeof fetchSims>>>();
+    vi.mocked(fetchSims).mockReturnValueOnce(metadata.promise);
+    const { wrapper } = await mountAt("?builds=20260101120000,20260102120000");
+    await flushPromises();
+    expect(fetchSims).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+    metadata.resolve([]);
+    await flushPromises();
+    expect(fetchCompareData).not.toHaveBeenCalled();
   });
 
   it("falls back to the iframe when the fetch fails", async () => {
@@ -176,6 +309,44 @@ describe("CompareView", () => {
     const roles = wrapper.findAll(".compare-runs__role").map((n) => n.text());
     expect(roles[0]).toBe("Published");
     expect(roles[1]).toBe("Legacy");
+  });
+
+  it("orders a historical compact-ID pair with Published as the primary", async () => {
+    vi.mocked(fetchCompareData).mockResolvedValue(sampleCompareData());
+    vi.mocked(fetchSims).mockResolvedValue([
+      { build: "20260101120000", status: "complete", teams: [], requested_version: "v321", pair_id: "old-pair", pair_role: "primary" },
+      { build: "20260102120000", status: "complete", teams: [], requested_version: "v43", pair_id: "old-pair" },
+    ]);
+    const { wrapper } = await mountAt("?builds=20260102120000,20260101120000");
+    await flushPromises();
+    expect(wrapper.text()).toContain("Published vs Candidate");
+    expect(wrapper.findAll(".compare-runs__role").map((n) => n.text())).toEqual(["Published", "Candidate"]);
+    expect(fetchCompareData).toHaveBeenCalledWith(["20260101120000", "20260102120000"]);
+  });
+
+  it("uses script versions for a historical Published and Legacy pair", async () => {
+    vi.mocked(fetchCompareData).mockResolvedValue(sampleCompareData());
+    vi.mocked(fetchSims).mockResolvedValue([
+      { build: "20260101120000", status: "complete", teams: [], script_version: "v41", pair_id: "old-pair" },
+      { build: "20260102120000", status: "complete", teams: [], script_version: "v321", pair_id: "old-pair" },
+    ]);
+    const { wrapper } = await mountAt("?builds=20260101120000,20260102120000");
+    await flushPromises();
+    expect(wrapper.text()).toContain("Published vs Legacy");
+    expect(fetchCompareData).toHaveBeenCalledWith(["20260102120000", "20260101120000"]);
+  });
+
+  it("does not assign Published to an unknown version", async () => {
+    vi.mocked(fetchCompareData).mockResolvedValue(sampleCompareData());
+    vi.mocked(fetchSims).mockResolvedValue([
+      { build: "20260101120000", status: "complete", teams: [], requested_version: "foo321", pair_id: "pair" },
+      { build: "20260102120000", status: "complete", teams: [], requested_version: "v43", pair_id: "pair" },
+    ]);
+    const { wrapper } = await mountAt("?builds=20260101120000,20260102120000");
+    await flushPromises();
+    expect(wrapper.text()).not.toContain("Published vs Candidate");
+    expect(wrapper.findAll(".compare-runs__role").map((n) => n.text())).toEqual(["Candidate"]);
+    expect(fetchCompareData).toHaveBeenCalledWith(["20260101120000", "20260102120000"]);
   });
 
   it("links the escape hatch to the original comparison HTML", async () => {

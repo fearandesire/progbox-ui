@@ -14,12 +14,45 @@ const META: Record<ProgressionVersion, { label: string; role: VersionRole }> = {
   "v4.1": { label: "v4.1", role: "legacy" },
 };
 
-export function versionLabel(v: string): string {
-  return META[v as ProgressionVersion]?.label ?? v;
+/** Display-only aliases from historical runs and the vendored engine's names. */
+const ALIASES: Record<string, ProgressionVersion> = {
+  "v3.2.1": "v3.2.1",
+  v321: "v3.2.1",
+  "net 3.2": "v3.2.1",
+  "v3.2.1, current progression script": "v3.2.1",
+  "v4.1": "v4.1",
+  "v4.1.0": "v4.1",
+  v41: "v4.1",
+  "v4.1, new progression script with ewa and dws on top of per": "v4.1",
+  "v4.3": "v4.3",
+  "v4.3.0": "v4.3",
+  v43: "v4.3",
+  "v4.3, new and improved progression script": "v4.3",
+};
+
+/** First recognized metadata field wins; unknown strings never imply a role. */
+export function resolveVersion(
+  requestedVersion?: string | null,
+  scriptVersion?: string | null,
+): ProgressionVersion | null {
+  for (const value of [requestedVersion, scriptVersion]) {
+    const version = ALIASES[value?.trim().toLowerCase() ?? ""];
+    if (version) return version;
+  }
+  return null;
 }
 
-export function versionRole(v: string): VersionRole | null {
-  return META[v as ProgressionVersion]?.role ?? null;
+export function versionLabel(v: string): string {
+  const version = resolveVersion(v);
+  return version ? META[version].label : v;
+}
+
+export function versionRole(
+  requestedVersion?: string | null,
+  scriptVersion?: string | null,
+): VersionRole | null {
+  const version = resolveVersion(requestedVersion, scriptVersion);
+  return version ? META[version].role : null;
 }
 
 /** Auto-compare partner: always published, unless published itself was picked. */

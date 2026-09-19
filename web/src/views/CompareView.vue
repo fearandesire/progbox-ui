@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import AnalysisDashboard from "../components/analysis/AnalysisDashboard.vue";
 import DeIcon from "../components/DeIcon.vue";
@@ -26,8 +26,6 @@ const data = ref<CompareDataResponse | null>(null);
 const loading = ref(false);
 const loadError = ref<string | null>(null);
 const runs = ref<RunMetadata[]>([]);
-/** Runs metadata must resolve before compare fetch so Published-first order sticks. */
-const runsReady = ref(false);
 
 // Native comparison failed → embed the original engine-rendered HTML.
 const useIframe = computed(() => loadError.value !== null && !loading.value);
@@ -41,13 +39,13 @@ function roleWord(role: VersionRole | null): string | null {
 
 function runRole(build: string): VersionRole | null {
   const r = runs.value.find((x) => x.build === build);
-  return versionRole(r?.requested_version ?? "");
+  return versionRole(r?.requested_version, r?.script_version);
 }
 
 /** Same auto-compare pair spanning published + one other catalog role. */
 const pairedRoles = computed<"published-candidate" | "published-legacy" | null>(() => {
   if (builds.value.length !== 2 || runs.value.length !== 2) return null;
-  const roles = runs.value.map((r) => versionRole(r.requested_version ?? ""));
+  const roles = runs.value.map((r) => versionRole(r.requested_version, r.script_version));
   const pairId = runs.value[0]?.pair_id;
   const samePair =
     pairId != null && pairId !== "" && runs.value.every((r) => r.pair_id === pairId);
@@ -110,13 +108,37 @@ const pairDesc = computed(() => {
 // response for a previous build set must never replace the current one.
 let requestId = 0;
 
-async function load() {
-  if (!valid.value || !runsReady.value) return;
-  const ordered = displayBuilds.value;
+async function bootstrap() {
   const token = ++requestId;
-  loading.value = true;
-  loadError.value = null;
+  const requestedBuilds = [...builds.value];
   data.value = null;
+  loadError.value = null;
+  runs.value = [];
+  loading.value = requestedBuilds.length >= 2;
+  if (!loading.value) return;
+
+  try {
+    const all = await fetchSims();
+    if (token !== requestId) return;
+    const byBuild = new Map(all.map((r) => [r.build, r]));
+    runs.value = requestedBuilds
+      .map((b) => byBuild.get(b))
+      .filter((r): r is RunMetadata => r != null);
+  } catch {
+    if (token !== requestId) return;
+    runs.value = [];
+  }
+
+  if (token !== requestId) return;
+  // Metadata now determines Published-first order; the build snapshot belongs
+  // to this token even if a later route starts another request.
+  const ordered = pairedRoles.value
+    ? [...requestedBuilds].sort((a, b) => {
+        if (runRole(a) === "published") return -1;
+        if (runRole(b) === "published") return 1;
+        return 0;
+      })
+    : requestedBuilds;
   try {
     const result = await fetchCompareData(ordered);
     if (token !== requestId) return;
@@ -129,33 +151,16 @@ async function load() {
   }
 }
 
-async function loadRuns() {
-  runsReady.value = false;
-  try {
-    const all = await fetchSims();
-    const byBuild = new Map(all.map((r) => [r.build, r]));
-    runs.value = builds.value
-      .map((b) => byBuild.get(b))
-      .filter((r): r is RunMetadata => r != null);
-  } catch {
-    runs.value = [];
-  } finally {
-    runsReady.value = true;
-  }
-}
-
-async function bootstrap() {
-  await loadRuns();
-  await load();
-}
-
 onMounted(() => {
   void bootstrap();
+});
+onUnmounted(() => {
+  ++requestId;
 });
 watch(builds, (next, prev) => {
   if (next.join(",") === prev.join(",")) return;
   void bootstrap();
-});
+}, { flush: "sync" });
 
 const containerEl = ref<HTMLElement | null>(null);
 const frameEl = ref<HTMLIFrameElement | null>(null);
@@ -213,8 +218,8 @@ function toggleFullscreen() {
             class="compare-runs__role"
           >{{ roleWord(runRole(b)) }}</span>
           <VersionChip
-            :version="runs.find((r) => r.build === b)?.requested_version
-              ?? runs.find((r) => r.build === b)?.script_version"
+            :version="runs.find((r) => r.build === b)?.requested_version"
+            :script-version="runs.find((r) => r.build === b)?.script_version"
           />
           <span class="compare-runs__id">{{ b }}</span>
         </span>

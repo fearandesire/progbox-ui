@@ -176,6 +176,18 @@ describe("DashboardView", () => {
     expect(published[0]!.attributes("title")).toBe("Live NET script run");
   });
 
+  it("recognizes historical Published script metadata without labeling unknown versions", async () => {
+    mockSimsStore.runs = [
+      { build: "20260101120000", status: "complete", teams: [], script_version: "v321" },
+      { build: "20260102120000", status: "complete", teams: [], requested_version: "foo321" },
+    ];
+    const wrapper = mount(DashboardView, {
+      global: { stubs: { RouterLink: RouterLinkStub } },
+    });
+    await flushPromises();
+    expect(wrapper.findAll(".run-row__published")).toHaveLength(1);
+  });
+
   it("enables Compare only at 2+ selected runs and navigates to the comparison", async () => {
     mockSimsStore.runs = [
       { build: "20260101120000", status: "complete", teams: [], requested_version: "v4.3" },
