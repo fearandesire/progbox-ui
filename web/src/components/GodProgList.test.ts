@@ -14,6 +14,7 @@ describe("GodProgList", () => {
   });
 
   it("renders formatted god prog rows", async () => {
+    const exactSeed = "9223372036854775807";
     vi.mocked(fetchGodprogs).mockResolvedValueOnce([
       {
         name: "Future Star",
@@ -21,7 +22,7 @@ describe("GodProgList", () => {
         ovr: 74,
         bonus: 1.2345,
         chance: 0.45678,
-        run_seed: 12345,
+        run_seed: exactSeed,
       },
     ]);
 
@@ -34,7 +35,7 @@ describe("GodProgList", () => {
     expect(wrapper.text()).toContain("Future Star");
     expect(wrapper.text()).toContain("1.23");
     expect(wrapper.text()).toContain("0.4568");
-    expect(wrapper.text()).toContain("12345");
+    expect(wrapper.text()).toContain(exactSeed);
   });
 
   it("shows an error and retries loading", async () => {

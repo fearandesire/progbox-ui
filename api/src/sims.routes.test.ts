@@ -260,10 +260,17 @@ describe("sims routes", () => {
 
   it("godprogs", async () => {
     const build = "20260101120000";
-    makeRunDir(build, { godprogs: [{ name: "Alpha One", run_seed: 1 }] });
+    const exactSeed = "9223372036854775807";
+    makeRunDir(build, { godprogs: [
+      { name: "Future Star", run_seed: exactSeed },
+      { name: "Alpha One", run_seed: 1 },
+    ] });
     const app = await buildTestApp();
     const res = await app.inject({ method: "GET", url: `/api/sims/${build}/godprogs` });
-    expect(JSON.parse(res.body)).toEqual([{ name: "Alpha One", run_seed: 1 }]);
+    expect(JSON.parse(res.body)).toEqual([
+      { name: "Future Star", run_seed: exactSeed },
+      { name: "Alpha One", run_seed: 1 },
+    ]);
   });
 
   it("download", async () => {
