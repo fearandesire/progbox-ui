@@ -247,7 +247,7 @@ Run `pnpm verify` after updating to validate the integration.
 
 | Method | Endpoint                        | Description                         |
 | ------ | ------------------------------- | ----------------------------------- |
-| POST   | `/api/sims`                     | Upload export + config, start a run. Config takes `version` (`v321`/`v41`/`v43`) and `compare` (default **true**); when `compare` is on it also runs the published script with identical inputs and links them as a pair, returning `{ build, compare_build, pair_id }` |
+| POST   | `/api/sims`                     | Upload export + config, start a run. Config takes `version` (`v321`/`v41`/`v43`) and `compare` (default **true**); when `compare` is on it also runs the published script (`v321`) with identical inputs (or candidate `v43` if published was selected) and links them as a pair, returning `{ build, compare_build, pair_id }` |
 | GET    | `/api/sims`                     | List all runs                       |
 | GET    | `/api/sims/{build}`             | Run metadata                        |
 | GET    | `/api/sims/{build}/progress`    | SSE progress stream                 |

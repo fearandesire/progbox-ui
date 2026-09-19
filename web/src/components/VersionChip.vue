@@ -10,12 +10,17 @@ import {
 const props = defineProps<{ version?: string | null }>();
 
 const kind = computed<"v321" | "v43" | "v41" | "other">(() => {
-  const v = (props.version ?? "").toLowerCase();
+  const v = (props.version ?? "").toLowerCase().trim();
   if (!v) return "other";
-  // Check 321 / 3.2 before 41/43 — engine name is "v3.2.1, current progression script".
+  // Exact ids first, then label/engine-name heuristics.
+  // Prefer 4.3 / 4.1 before 3.2 so a stray "v4.3.2" does not classify as published.
+  if (v === "v321" || v.startsWith("v321")) return "v321";
+  if (v === "v43" || v.startsWith("v43")) return "v43";
+  if (v === "v41" || v.startsWith("v41")) return "v41";
+  if (v.includes("4.3")) return "v43";
+  if (v.includes("4.1")) return "v41";
+  // Engine name is "v3.2.1, current progression script".
   if (v.includes("321") || v.includes("3.2")) return "v321";
-  if (v.includes("43") || v.includes("4.3")) return "v43";
-  if (v.includes("41") || v.includes("4.1")) return "v41";
   return "other";
 });
 

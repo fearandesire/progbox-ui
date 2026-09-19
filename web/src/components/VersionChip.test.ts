@@ -23,6 +23,18 @@ describe("VersionChip", () => {
       title: "Candidate script: v4.3",
     },
     {
+      version: "v4.3",
+      label: "v4.3",
+      kind: "v43",
+      title: "Candidate script: v4.3",
+    },
+    {
+      version: "v4.3.2",
+      label: "v4.3",
+      kind: "v43",
+      title: "Candidate script: v4.3",
+    },
+    {
       version: "v41",
       label: "v4.1",
       kind: "v41",
