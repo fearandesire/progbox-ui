@@ -32,11 +32,11 @@ export function compareBaselineFor(v: ProgressionVersion): ProgressionVersion {
 export function versionTitle(v: ProgressionVersion): string {
   switch (META[v].role) {
     case "published":
-      return "Published script — live NET 3.2";
+      return "Published script: live NET 3.2";
     case "candidate":
-      return "Candidate script — v4.3";
+      return "Candidate script: v4.3";
     case "legacy":
-      return "Legacy script — v4.1";
+      return "Legacy script: v4.1";
     default: {
       const _exhaustive: never = META[v].role;
       return _exhaustive;

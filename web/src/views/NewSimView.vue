@@ -68,8 +68,8 @@ const compareToggleLabel = computed(() =>
 
 const compareHint = computed(() =>
   version.value === PUBLISHED_PROGRESSION_VERSION
-    ? "Runs twice from one submission — published NET 3.2 and candidate v4.3 — with identical inputs, then opens the head-to-head comparison."
-    : `Runs twice from one submission — your selected script and published NET 3.2 — with identical inputs, then opens the head-to-head comparison.`,
+    ? "One submission runs published NET 3.2 and candidate v4.3 with identical inputs, then opens the head-to-head."
+    : "One submission runs your selected script and published NET 3.2 with identical inputs, then opens the head-to-head.",
 );
 
 const pairComparisonBlockedMessage = computed(() =>
@@ -293,13 +293,13 @@ async function submit() {
           class="input"
         >
           <option value="v43">
-            v4.3 — candidate (recommended)
+            v4.3, candidate (recommended)
           </option>
           <option value="v321">
-            NET 3.2 — published, what leagues run today
+            NET 3.2, published: what leagues run today
           </option>
           <option value="v41">
-            v4.1 — legacy research fork
+            v4.1, legacy research fork
           </option>
         </select>
         <span class="hint">

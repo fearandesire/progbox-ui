@@ -172,7 +172,7 @@ Progression-script identity and sim parameters for each run come from the engine
 
 ### Auto-comparison runs
 
-The New-sim form has an "also run published NET 3.2 and compare" toggle, **on by default**. When on, one submission creates **two linked runs** — the selected version (primary) and the **published** script (`v321` / NET 3.2) — with identical export, seed, iterations, and workers, so the only difference is the progression script. If you pick published itself, the pair partner is candidate `v43`. Each run is a normal, individually-viewable run; they share a `pair_id` and record `pair_role` / `paired_with` in their metadata. Once both finish, the web app opens the head-to-head comparison automatically (Published vs Candidate when the pair spans those roles). Untick the toggle for a single run. The manual dashboard "select 2+ runs → Compare" flow is unchanged.
+The New-sim form has an "also run published NET 3.2 and compare" toggle, **on by default**. When on, one submission creates **two linked runs**: the selected version (primary) and the **published** script (`v321` / NET 3.2), with identical export, seed, iterations, and workers, so the only difference is the progression script. If you pick published itself, the pair partner is candidate `v43`. Each run is a normal, individually-viewable run; they share a `pair_id` and record `pair_role` / `paired_with` in their metadata. Once both finish, the web app opens the head-to-head comparison automatically (Published vs Candidate when the pair spans those roles). Untick the toggle for a single run. The manual dashboard "select 2+ runs → Compare" flow is unchanged.
 
 ### Version catalog
 
@@ -192,7 +192,7 @@ Catalog source of truth: [`api/src/progressionVersions.ts`](api/src/progressionV
 | Published | The script live leagues use today (`v321` / NET 3.2). |
 | Candidate | The proposed next script (`v43` / v4.3). |
 | Legacy | An older selectable fork kept for research (`v41` / v4.1). |
-| Engine build | Binary identity from the vendored `VERSION` file — separate from the script version. |
+| Engine build | Binary identity from the vendored `VERSION` file, separate from the script version. |
 | Run id (CalVer) | 14-digit `YYYYMMDDHHmmss` folder under `outputs/`. |
 | Pair | Two runs from one submission (`pair_id`, `pair_role`, `paired_with`). |
 | Scorecard | Short KPI table in a comparison (Drift, PeakAge, ICC, …). |
