@@ -67,4 +67,4 @@ node api/vendor/progbox_cpp/tests/generate-net-parity.cjs \
 
 The source path for Published may instead name another byte-identical checkout
 of that commit. The current artifact has 137 cases and SHA-256
-`27420ff2a5882239e6a7db6a9933d486740834536001825ca8413b14bf42e318`.
+`0f23503bfce12d5a73376fbc37a649ea202a916642daf8b621eb9fdeea3822f5`.
