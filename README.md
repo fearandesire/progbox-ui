@@ -85,6 +85,7 @@ After `pnpm build:engine`, the API discovers the binary under `api/vendor/progbo
 web/                        Vue 3 + Vite + Tailwind v4 frontend
 api/                        TypeScript Fastify API (`src/`)
 api/vendor/progbox_cpp/     Vendored C++ Progbox engine source
+lab/                        NET Lab: runs any NET script as-is (see lab/README.md)
 data/                       Default export.json for local runs
 outputs/                    Simulation run storage (gitignored)
 e2e/                        Playwright browser tests & fixtures
@@ -131,6 +132,16 @@ Web UI → http://localhost:5173 | API → http://127.0.0.1:8000
 | --- | --- |
 | `pnpm dev:api-only` | API only — web UI will have no backend |
 | `pnpm dev:web-only` | Web only — all API calls will fail |
+
+### NET Lab
+
+Test any NET script, including a WIP file, without porting it to C++:
+
+```bash
+pnpm lab quick --script path/to/wip.js --baseline net-3.2.1
+```
+
+Writes a summary, per-player CSV, JSON report and audit manifest under `outputs/lab/`. See [lab/README.md](lab/README.md).
 
 ### CI / quality
 
