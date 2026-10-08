@@ -36,10 +36,10 @@ Modes: `deep` = every offseason, 10 seasons (default); `season` = play this seas
 - 3d241db, checks v2: a check a script can't be measured on (e.g. it progressed nobody) is left out for both sides with a `missing` reason, both scores share a total, and there is no verdict when nothing compares. CHANGELOG entry added; rules hash pinned in `verdict.test.ts`.
 - a15ac3f: the run page crashed rendering a check with a null value, which hid the verdict after a live run. It now shows n/a with the reason.
 - PR #38 description rewritten for v2.
+- Web test coverage raised past the 70% gate without touching thresholds: functions 88.3%, branches 81.1% (was 68.2% / 65.9%). New tests for labFormat, format, the Lab API client, LabSummary, LabReport, LabAudit, LabChart and Run page polling; shared fixtures in `web/src/test/labFixtures.ts`. Totals: web 261, api 128, lab 41.
 
 ## Open items, in order
-0. **CI `web` coverage** (functions and branches must be >= 70%): tests for `labFormat.ts`, `api.ts`, `LabRunView.vue`, `LabSummary.vue`, `LabReport.vue`, `LabAudit.vue` in progress. Check with `pnpm --filter web test:coverage`. Never lower the thresholds.
-1. Wait for CI on the pushed head and fix anything red.
+1. Confirm CI is green on the pushed head and fix anything red.
 2. Later, needs Fenix: hosting decision; review akshay's next NET version when supplied.
 
 ## How to run
