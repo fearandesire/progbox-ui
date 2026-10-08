@@ -86,6 +86,36 @@ jobs:
       - name: Engine smoke test
         run: pnpm run test:api:engine
 
+  lab:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.8.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run lint:lab
+
+      - name: Test
+        run: pnpm run test:lab
+
+      - name: Build C++ engine
+        run: pnpm run build:engine
+
+      - name: NET JavaScript vs C++ cross-check
+        run: pnpm run lab:crosscheck --runs 200
+
   e2e-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 20

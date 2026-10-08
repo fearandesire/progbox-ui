@@ -48,6 +48,12 @@ a { color: inherit; }
   margin-left: auto;
   display: flex; align-items: center; gap: 10px;
 }
+/* Phone widths: keep the bar on one line with no sideways scroll. */
+@media (max-width: 600px) {
+  .topbar__inner { padding: 12px 16px; gap: 14px; }
+  .brand > span:not(.brand__mark) { display: none; }
+  .theme-toggle span { display: none; }
+}
 .gh { width: 18px; height: 18px; color: var(--fg-faint); cursor: pointer; }
 .gh:hover { color: var(--fg-soft); }
 

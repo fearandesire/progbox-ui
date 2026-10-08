@@ -81,3 +81,7 @@ curl -s -X POST http://127.0.0.1:8000/api/sims \
 # Wait, then:
 curl -s http://127.0.0.1:8000/api/sims | jq '.[0].status' # → "complete"
 ```
+
+## NET Lab
+
+To test a NET progression script (any version, including WIP files), follow [lab/AGENTS.md](lab/AGENTS.md). Start with `pnpm lab setup`.

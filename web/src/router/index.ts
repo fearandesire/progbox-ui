@@ -20,6 +20,26 @@ const router = createRouter({
       props: true,
     },
     {
+      path: "/lab",
+      name: "lab-new",
+      component: () => import("../views/LabNewView.vue"),
+    },
+    {
+      path: "/lab/scripts",
+      name: "lab-scripts",
+      component: () => import("../views/LabScriptsView.vue"),
+    },
+    {
+      path: "/lab/history",
+      name: "lab-history",
+      component: () => import("../views/LabHistoryView.vue"),
+    },
+    {
+      path: "/lab/runs/:id",
+      name: "lab-run",
+      component: () => import("../views/LabRunView.vue"),
+    },
+    {
       path: "/compare",
       name: "compare",
       component: () => import("../views/CompareView.vue"),

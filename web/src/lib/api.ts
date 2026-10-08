@@ -1,6 +1,19 @@
 import { ofetch } from "ofetch";
 import type { AnalysisDataResponse, CompareDataResponse } from "./analysisTypes";
 import type { GodProg, PlayerSummary, RunMetadata } from "./types";
+import type {
+  LabEstimate,
+  LabLeague,
+  LabRunCreated,
+  LabRunDetail,
+  LabRunInput,
+  LabRunSummary,
+  LabScript,
+  LabScriptAdded,
+  LabScriptDeleted,
+  LabDiff,
+  LabValidation,
+} from "./labTypes";
 import type { ProgressionVersion } from "./versions";
 
 /** Base URL for API calls. Browser default `/api` (Vite proxy). Override with `VITE_API_BASE_URL`. */
@@ -118,4 +131,107 @@ export async function fetchCompareData(builds: string[]): Promise<CompareDataRes
   return ofetch<CompareDataResponse>(`/sims/compare-data?builds=${q}`, {
     baseURL: getApiBaseUrl(),
   });
+}
+
+/* ---------- NET Lab ---------- */
+
+export async function fetchLabScripts(): Promise<LabScript[]> {
+  return ofetch<LabScript[]>("/lab/scripts", { baseURL: getApiBaseUrl() });
+}
+
+export async function addLabScript(input: { source: string; filename?: string; family?: string }): Promise<LabScriptAdded> {
+  return ofetch<LabScriptAdded>("/lab/scripts", { method: "POST", baseURL: getApiBaseUrl(), body: input });
+}
+
+/** Delete a draft (moves it to the trash for 7 days). `runs` also trashes its runs. */
+export async function deleteLabScript(id: string, runs = false): Promise<LabScriptDeleted> {
+  return ofetch<LabScriptDeleted>(`/lab/scripts/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    baseURL: getApiBaseUrl(),
+    query: runs ? { runs: "1" } : undefined,
+  });
+}
+
+export async function restoreLabScript(id: string): Promise<unknown> {
+  return ofetch(`/lab/scripts/${encodeURIComponent(id)}/restore`, { method: "POST", baseURL: getApiBaseUrl() });
+}
+
+/** URL of the exact stored file (served as an attachment); `original` gives a bumped script's original upload. */
+export function labScriptSourceUrl(id: string, original = false): string {
+  return `${getApiBaseUrl()}/lab/scripts/${encodeURIComponent(id)}/source${original ? "?original=1" : ""}`;
+}
+
+export async function fetchLabScriptSource(id: string, original = false): Promise<string> {
+  return ofetch<string, "text">(`/lab/scripts/${encodeURIComponent(id)}/source`, {
+    baseURL: getApiBaseUrl(),
+    query: original ? { original: "1" } : undefined,
+    responseType: "text",
+  });
+}
+
+/** Line diff of a script against its original upload ("original") or another version id. */
+export async function fetchLabScriptDiff(id: string, against: string): Promise<LabDiff> {
+  return ofetch<LabDiff>(`/lab/scripts/${encodeURIComponent(id)}/diff`, { baseURL: getApiBaseUrl(), query: { against } });
+}
+
+export async function fetchLabLeagues(): Promise<LabLeague[]> {
+  return ofetch<LabLeague[]>("/lab/leagues", { baseURL: getApiBaseUrl() });
+}
+
+export async function downloadLabLeagues(): Promise<LabLeague[]> {
+  return ofetch<LabLeague[]>("/lab/leagues/fetch", { method: "POST", baseURL: getApiBaseUrl() });
+}
+
+export async function uploadLabLeague(file: File, name?: string): Promise<{ league: LabLeague; validation: LabValidation }> {
+  const form = new FormData();
+  if (name) form.append("name", name);
+  form.append("file", file);
+  return ofetch("/lab/leagues", { method: "POST", baseURL: getApiBaseUrl(), body: form });
+}
+
+export async function checkLabLeague(id: string): Promise<LabValidation> {
+  return ofetch<LabValidation>(`/lab/leagues/${encodeURIComponent(id)}/check`, { baseURL: getApiBaseUrl() });
+}
+
+export async function fetchLabEstimate(input: LabRunInput): Promise<LabEstimate> {
+  const query: Record<string, string> = { script: input.script, mode: input.mode };
+  if (input.baseline) query.baseline = input.baseline;
+  if (input.league) query.league = input.league;
+  if (input.unlock) {
+    query.unlock = "1";
+    for (const k of ["runs", "seasons", "replicates"] as const) {
+      const v = input.unlock[k];
+      if (v !== undefined) query[k] = String(v);
+    }
+  }
+  return ofetch<LabEstimate>("/lab/estimate", { baseURL: getApiBaseUrl(), query });
+}
+
+export async function createLabRun(input: LabRunInput): Promise<LabRunCreated> {
+  return ofetch<LabRunCreated>("/lab/runs", { method: "POST", baseURL: getApiBaseUrl(), body: input });
+}
+
+export async function fetchLabRuns(): Promise<LabRunSummary[]> {
+  return ofetch<LabRunSummary[]>("/lab/runs", { baseURL: getApiBaseUrl() });
+}
+
+export async function fetchLabRun(id: string): Promise<LabRunDetail> {
+  return ofetch<LabRunDetail>(`/lab/runs/${encodeURIComponent(id)}`, { baseURL: getApiBaseUrl() });
+}
+
+export function labFileUrl(runId: string, name: string): string {
+  return `${getApiBaseUrl()}/lab/runs/${encodeURIComponent(runId)}/files/${encodeURIComponent(name)}`;
+}
+
+/** Pull the API's `detail` message out of an ofetch error. */
+export function labErrorMessage(err: unknown, fallback = "Request failed"): string {
+  if (err && typeof err === "object" && "data" in err) {
+    const data = (err as { data?: unknown }).data;
+    if (data && typeof data === "object" && "detail" in data) {
+      const d = (data as { detail?: unknown }).detail;
+      if (typeof d === "string" && d) return d;
+    }
+  }
+  if (err instanceof Error) return err.message;
+  return fallback;
 }

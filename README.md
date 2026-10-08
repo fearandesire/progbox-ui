@@ -85,6 +85,7 @@ After `pnpm build:engine`, the API discovers the binary under `api/vendor/progbo
 web/                        Vue 3 + Vite + Tailwind v4 frontend
 api/                        TypeScript Fastify API (`src/`)
 api/vendor/progbox_cpp/     Vendored C++ Progbox engine source
+lab/                        NET Lab: runs any NET script as-is (see lab/README.md)
 data/                       Default export.json for local runs
 outputs/                    Simulation run storage (gitignored)
 e2e/                        Playwright browser tests & fixtures
@@ -131,6 +132,17 @@ Web UI → http://localhost:5173 | API → http://127.0.0.1:8000
 | --- | --- |
 | `pnpm dev:api-only` | API only — web UI will have no backend |
 | `pnpm dev:web-only` | Web only — all API calls will fail |
+
+### NET Lab
+
+Test any NET script, including a WIP file, without porting it to C++. In the app: **Lab** in the nav (`/lab`). From the terminal:
+
+```bash
+pnpm lab setup                                              # one time: leagues, model check, smoke test
+pnpm lab run --script path/to/wip.js --baseline net-3.2.1   # deep mode on the real 2025-26 NBA league
+```
+
+Scripts get forced version ids (`net@4.4.0-draft.1`), run sizes are locked, and every run writes a summary, JSON report, per-player CSVs, multi-season data and an audit manifest under `outputs/lab/runs/`. See [lab/README.md](lab/README.md); agents start at [lab/AGENTS.md](lab/AGENTS.md).
 
 ### CI / quality
 
