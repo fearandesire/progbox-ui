@@ -253,8 +253,11 @@ export interface LabCheckItem {
   applicable: boolean;
   /** Which data the check read (lab v2): the file's own stats, the simulated season, or all seasons. */
   basis?: "file-stats" | "simulated-season" | "multi-season";
-  script: LabCheckValue;
+  /** Null when the check couldn't be measured for this side (n/a, or see `missing`). */
+  script: LabCheckValue | null;
   baseline: LabCheckValue | null;
+  /** Why an applicable check has no value (lab checks v2), e.g. the script progressed nobody. */
+  missing?: string | null;
   noScript: { value: number | number[]; display: string } | null;
   /** Relative difference script vs baseline, in percent. */
   change: { pct: number | null; direction: LabDirection; note: string } | null;

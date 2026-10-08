@@ -100,6 +100,22 @@ describe("verdictText", () => {
     expect(verdictText({ ...WORSE, verdict: "mixed" }, "a", "b").title).toBe("Mixed against b");
   });
 
+  it("explains a missing verdict when no check could be measured on both scripts", () => {
+    const idle: LabChecks = {
+      ...WORSE,
+      verdict: null,
+      script: { passed: 0, applicable: 0 },
+      baseline: { passed: 0, applicable: 0 },
+      items: [{ ...item("god-progs", true, true, null), script: null, missing: "The script progressed nobody" }],
+    };
+    expect(verdictText(idle, "net@4.3.1-draft.1", "net@4.3.0")).toEqual({
+      tone: "neutral",
+      title: "No verdict against net@4.3.0",
+      line: "The script progressed nobody, so the two can't be compared.",
+    });
+    expect(showCheck(idle.items[0]!, "fail")).toBe(false);
+  });
+
   it("has no verdict without a baseline", () => {
     const v = verdictText({ ...WORSE, verdict: null, baseline: null }, "net@4.4.0-draft.1", null);
     expect(v.title).toBe("net@4.4.0-draft.1 passes 2 of 7 checks");

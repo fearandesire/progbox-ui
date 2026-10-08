@@ -138,7 +138,7 @@ function cellState(v: LabCheckValue | null): string {
               @click="jump($event, c)"
             >{{ c.name }}</a>
             <span
-              v-if="g.direction === 'better' && c.script.pass === false"
+              v-if="g.direction === 'better' && c.script?.pass === false"
               class="lab-meta"
             > still fails</span>
           </span>
@@ -226,7 +226,7 @@ function cellState(v: LabCheckValue | null): string {
               </div>
             </td>
             <td class="num">
-              <template v-if="c.applicable">
+              <template v-if="c.applicable && c.script">
                 <span
                   class="lab-r"
                   :class="cellState(c.script)"
@@ -239,7 +239,7 @@ function cellState(v: LabCheckValue | null): string {
               <span
                 v-else
                 class="lab-meta"
-                title="Needs a 10-season run"
+                :title="c.applicable ? (c.missing ?? 'Not enough data to measure') : 'Needs a 10-season run'"
               >n/a</span>
             </td>
             <td
@@ -259,6 +259,7 @@ function cellState(v: LabCheckValue | null): string {
               <span
                 v-else
                 class="lab-meta"
+                :title="c.applicable ? (c.missing ?? 'Not enough data to measure') : 'Needs a 10-season run'"
               >n/a</span>
             </td>
             <td
@@ -280,6 +281,7 @@ function cellState(v: LabCheckValue | null): string {
                 class="lab-meta"
               >–</span>
               <small v-if="c.change?.note">{{ c.change.note }}</small>
+              <small v-else-if="c.missing">{{ c.missing }}</small>
             </td>
           </tr>
         </tbody>

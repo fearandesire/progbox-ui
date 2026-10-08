@@ -31,7 +31,7 @@ export type CheckFilter = "all" | "fail" | "diff";
 
 export function showCheck(item: LabCheckItem, f: CheckFilter): boolean {
   if (f === "all") return true;
-  if (f === "fail") return item.script.pass === false;
+  if (f === "fail") return item.script?.pass === false;
   return !!item.change && item.change.direction !== "same";
 }
 
@@ -52,7 +52,7 @@ export function passState(v: { pass: boolean | null } | null | undefined): PassS
 
 /** Checks the baseline passes that the script fails. */
 export function brokenChecks(checks: LabChecks): LabCheckItem[] {
-  return checks.items.filter((c) => c.baseline?.pass === true && c.script.pass === false);
+  return checks.items.filter((c) => c.baseline?.pass === true && c.script?.pass === false);
 }
 
 /** Worse / Better / Same rows under the verdict, in that order, skipping empty groups. */
@@ -72,6 +72,10 @@ export interface VerdictText {
 export function verdictText(checks: LabChecks, scriptId: string, baselineId: string | null): VerdictText {
   const s = checks.script;
   const plural = (n: number) => (n === 1 ? "check" : "checks");
+  if (checks.baseline && baselineId && checks.verdict === null) {
+    const why = checks.items.find((i) => i.applicable && i.missing)?.missing ?? "No check could be measured on both scripts";
+    return { tone: "neutral", title: `No verdict against ${baselineId}`, line: `${why}, so the two can't be compared.` };
+  }
   if (!checks.baseline || !baselineId || checks.verdict === null) {
     const all = s.passed === s.applicable;
     return {
