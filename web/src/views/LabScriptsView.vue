@@ -205,7 +205,7 @@ async function onUpload(e: Event) {
           Scripts
         </h1>
         <p class="page-desc">
-          Every version uploaded to NET Lab. Download or copy any of them; delete drafts you no longer need.
+          Manage your scripts and versions.
         </p>
       </div>
       <button
