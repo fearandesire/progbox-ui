@@ -49,13 +49,18 @@
 
 .lab-error { color: var(--rd-600); font-size: 13px; margin: 0; }
 
+/* Result text: a dot plus a word, no filled pill (Fenix: pills read as generated). */
 .lab-pill {
-  display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px;
-  font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--fg-soft);
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 500; color: var(--fg-soft); white-space: nowrap;
 }
-.lab-pill.good { background: color-mix(in oklab, var(--em-600) 15%, transparent); color: var(--em-600); }
-.lab-pill.warn { background: var(--am-100); color: var(--am-700); }
-.lab-pill.bad { background: color-mix(in oklab, var(--rd-600) 15%, transparent); color: var(--rd-600); }
+.lab-pill::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--fg-faint); }
+.lab-pill.good { color: var(--em-600); }
+.lab-pill.good::before { background: var(--em-600); }
+.lab-pill.warn { color: var(--fg); }
+.lab-pill.warn::before { background: var(--am-700); }
+.lab-pill.bad { color: var(--rd-600); }
+.lab-pill.bad::before { background: var(--rd-600); }
 
 .lab-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 @media (max-width: 900px) { .lab-grid2 { grid-template-columns: 1fr; } }
@@ -90,6 +95,8 @@
 .lab-table td, .lab-table th { padding: 7px 10px; font-size: 12.5px; }
 .lab-table tbody tr { cursor: pointer; }
 .lab-table tbody tr.sel { background: var(--accent-soft); }
+/* History reads left to right; the base table right-aligns numbers it doesn't have. */
+.lab-history th, .lab-history td { text-align: left; }
 .lab-table-scroll { max-height: 560px; overflow: auto; }
 .lab-table thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
 

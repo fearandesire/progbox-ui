@@ -144,6 +144,8 @@ export interface LabRunSummary {
   seed?: number;
   /** NET Lab version that made the run (lab v2). Absent on older runs. */
   lab?: LabRunListMeta | null;
+  /** Balance-check result from status.json (lab v2). */
+  checks?: { verdict: "better" | "worse" | "mixed" | null; script: { passed: number; applicable: number }; baseline: { passed: number; applicable: number } | null } | null;
   error?: string | null;
   position?: number;
 }

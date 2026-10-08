@@ -28,6 +28,19 @@ onMounted(async () => {
   }
 });
 
+/** Balance-check verdict for lab v2 runs; the old pass/warn/fail word for older ones. */
+function resultOf(r: LabRunSummary): { text: string; cls: "good" | "warn" | "bad" | "neutral"; title: string } {
+  const c = r.checks;
+  if (c?.script) {
+    const score = `${c.script.passed}/${c.script.applicable}`;
+    const word = c.verdict === "better" ? "Better" : c.verdict === "worse" ? "Worse" : c.verdict === "mixed" ? "Mixed" : null;
+    const cls = c.verdict === "better" ? "good" : c.verdict === "worse" ? "bad" : "neutral";
+    const title = c.baseline ? `Balance checks passed: ${score}, vs ${c.baseline.passed}/${c.baseline.applicable} for ${r.baseline}` : `Balance checks passed: ${score}`;
+    return { text: word ? `${word} · ${score}` : `${score} checks`, cls, title };
+  }
+  return { text: r.verdict ?? "–", cls: verdictClass(r.verdict), title: "Graded before balance checks existed" };
+}
+
 const rows = computed(() =>
   runs.value
     .filter((r) => !scriptFilter.value || r.script === scriptFilter.value || r.baseline === scriptFilter.value)
@@ -36,6 +49,7 @@ const rows = computed(() =>
       key: r.runId ?? r.queueId ?? "",
       when: timeAgo(r.startedAt ?? r.createdAt ?? null) || "–",
       labv: labVersionText(r.lab),
+      result: resultOf(r),
       again: { script: r.script, baseline: r.baseline ?? "none", ...(r.league ? { league: r.league } : {}), mode: r.mode },
     })),
 );
@@ -89,7 +103,7 @@ const rows = computed(() =>
     >
       <div class="table-scroll">
         <table
-          class="de-table lab-table"
+          class="de-table lab-table lab-history"
           data-test="history"
         >
           <thead>
@@ -145,8 +159,10 @@ const rows = computed(() =>
                 <span
                   v-if="r.state === 'done'"
                   class="lab-pill"
-                  :class="verdictClass(r.verdict)"
-                >{{ r.verdict }}</span>
+                  :class="r.result.cls"
+                  :title="r.result.title"
+                  data-test="result"
+                >{{ r.result.text }}</span>
                 <span
                   v-else
                   class="badge"
