@@ -17,6 +17,9 @@ import {
 import type { LabCheckItem, LabCheckValue, LabChecks } from "../../lib/labTypes";
 import DeIcon from "../DeIcon.vue";
 
+/** Where each check's numbers come from, so the report says how it was measured. */
+const BASIS = { "file-stats": "From the file's stats", "simulated-season": "From the simulated season", "multi-season": "Over every simulated season" } as const;
+
 const props = defineProps<{ checks: LabChecks; scriptId: string; baselineId: string | null }>();
 
 const filter = ref<CheckFilter>("all");
@@ -217,7 +220,9 @@ function cellState(v: LabCheckValue | null): string {
             <td :title="`Passes when: ${c.rule}`">
               {{ c.name }}
               <div class="lab-meta lab-unit">
-                {{ c.unit }}. Passes: {{ c.rule }}.
+                {{ c.unit }}. Passes: {{ c.rule }}.<template v-if="c.basis">
+                  {{ BASIS[c.basis] }}.
+                </template>
               </div>
             </td>
             <td class="num">

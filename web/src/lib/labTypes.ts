@@ -251,6 +251,8 @@ export interface LabCheckItem {
   unit: string;
   rule: string;
   applicable: boolean;
+  /** Which data the check read (lab v2): the file's own stats, the simulated season, or all seasons. */
+  basis?: "file-stats" | "simulated-season" | "multi-season";
   script: LabCheckValue;
   baseline: LabCheckValue | null;
   noScript: { value: number | number[]; display: string } | null;
