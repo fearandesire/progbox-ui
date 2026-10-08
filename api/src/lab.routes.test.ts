@@ -85,7 +85,7 @@ function writeRun(runId: string, extra: Record<string, unknown> = {}) {
   const status = { runId, state: "done", mode: "quick", script: "net@4.3.0", baseline: "net@3.2.1", league: "progbox-2017", startedAt: "2026-10-08T00:00:00Z", verdict: "Review flags", ...extra };
   fs.writeFileSync(path.join(dir, "status.json"), JSON.stringify(status));
   fs.writeFileSync(path.join(dir, "report.json"), JSON.stringify({ verdict: "Review flags", flags: [{ level: "warn", text: "God progs" }] }));
-  fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({ run_id: runId }));
+  fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({ run_id: runId, lab_version: "0.2.0" }));
   fs.writeFileSync(path.join(dir, "summary.md"), "# NET Lab: net@4.3.0\n");
   fs.writeFileSync(path.join(dir, "players.csv"), 'pid,name,tid,age,per,meanDelta,d_hgt,d_spd\n1,"Doe, Jo",3,25,15.5,1.25,0.0000,2.5000\n2,Ann,4,31,,-2,0,-1\n');
   return dir;
@@ -177,6 +177,64 @@ describe("lab routes: registry and leagues", () => {
   });
 });
 
+describe("lab routes: script library", () => {
+  it("deletes a draft to the trash, optionally with its runs", async () => {
+    handler = (c) => c.finish(JSON.stringify({ id: "net@4.4.0-draft.1", trashedUntil: "2026-10-15T00:00:00.000Z", runs: ["20261008000001"] }));
+    const a = await app();
+    const res = await a.inject({ method: "DELETE", url: "/api/lab/scripts/net@4.4.0-draft.1?runs=1" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ id: "net@4.4.0-draft.1", trashedUntil: "2026-10-15T00:00:00.000Z" });
+    expect(cliArgs(children[0]!)).toEqual(["scripts", "delete", "net@4.4.0-draft.1", "--runs", "--json"]);
+    await a.inject({ method: "DELETE", url: "/api/lab/scripts/net@4.4.0-draft.2" });
+    expect(cliArgs(children[1]!)).toEqual(["scripts", "delete", "net@4.4.0-draft.2", "--json"]);
+  });
+
+  it("maps a locked script to 409 and a missing one to 404", async () => {
+    handler = (c) => c.finish("", 3, "net@3.2.1 is built in and can't be deleted.\n");
+    const a = await app();
+    const locked = await a.inject({ method: "DELETE", url: "/api/lab/scripts/net@3.2.1" });
+    expect(locked.statusCode).toBe(409);
+    expect(locked.json().detail).toBe("net@3.2.1 is built in and can't be deleted.");
+    handler = (c) => c.finish("", 4, "Unknown script net@9.9.9.\n");
+    expect((await a.inject({ method: "POST", url: "/api/lab/scripts/net@9.9.9/restore" })).statusCode).toBe(404);
+    expect(cliArgs(children[1]!)).toEqual(["scripts", "restore", "net@9.9.9", "--json"]);
+  });
+
+  it("serves the stored file, or the original upload, as a download", async () => {
+    handler = (c) => c.finish("/** NET | v4.3.1 */\nlet x = 2;\n");
+    const a = await app();
+    const res = await a.inject({ method: "GET", url: "/api/lab/scripts/net@4.3.1-draft.1/source" });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe("/** NET | v4.3.1 */\nlet x = 2;\n");
+    expect(res.headers["content-type"]).toContain("text/javascript");
+    expect(res.headers["content-disposition"]).toBe('attachment; filename="net@4.3.1-draft.1.js"');
+    expect(cliArgs(children[0]!)).toEqual(["scripts", "export", "net@4.3.1-draft.1"]);
+    const orig = await a.inject({ method: "GET", url: "/api/lab/scripts/net@4.3.1-draft.1/source?original=1" });
+    expect(orig.headers["content-disposition"]).toBe('attachment; filename="net@4.3.1-draft.1.original.js"');
+    expect(cliArgs(children[1]!)).toEqual(["scripts", "export", "net@4.3.1-draft.1", "--original"]);
+  });
+
+  it("diffs against the original upload by default, or another version", async () => {
+    const rows = [{ op: "del", a: 1, b: null, text: "/** NET | v4.3.0 */" }, { op: "add", a: null, b: 1, text: "/** NET | v4.3.1 */" }];
+    handler = (c) => c.finish(JSON.stringify({ id: "net@4.3.1-draft.1", against: cliArgs(c)[4], rows }));
+    const a = await app();
+    const res = await a.inject({ method: "GET", url: "/api/lab/scripts/net@4.3.1-draft.1/diff" });
+    expect(res.json()).toEqual({ id: "net@4.3.1-draft.1", against: "original", rows });
+    expect(cliArgs(children[0]!)).toEqual(["scripts", "diff", "net@4.3.1-draft.1", "--against", "original", "--json"]);
+    await a.inject({ method: "GET", url: "/api/lab/scripts/net@4.3.1-draft.1/diff?against=net@4.3.0" });
+    expect(cliArgs(children[1]!)).toEqual(["scripts", "diff", "net@4.3.1-draft.1", "--against", "net@4.3.0", "--json"]);
+  });
+
+  it("refuses ids and options that could reach the shell or the file system", async () => {
+    const a = await app();
+    for (const url of ["/api/lab/scripts/..%2Findex.json/source", "/api/lab/scripts/--runs", "/api/lab/scripts/net@4.3.0/diff?against=..%2Fx", "/api/lab/scripts/net@4.3.0/source?original=yes"]) {
+      const res = await a.inject({ method: url.endsWith("--runs") ? "DELETE" : "GET", url });
+      expect(res.statusCode, url).toBe(422);
+    }
+    expect(spawn).not.toHaveBeenCalled();
+  });
+});
+
 describe("lab routes: runs", () => {
   it("starts a run, queues the next one, and serves results when done", async () => {
     const runs: FakeChild[] = [];
@@ -237,6 +295,16 @@ describe("lab routes: runs", () => {
     expect(failed).toMatchObject({ state: "failed", error: "boom" });
   });
 
+  it("passes the after-one-season mode through", async () => {
+    handler = (c) => {
+      c.emitLines({ type: "run", runId: "20261008000003", dir: "/x", estimateSeconds: 30, estimateBasis: [] });
+    };
+    const res = await (await app()).inject({ method: "POST", url: "/api/lab/runs", payload: { mode: "season", script: "net-4.3.0", baseline: "net-3.2.1" } });
+    expect(res.statusCode).toBe(201);
+    expect(cliArgs(children[0]!)).toEqual(["run", "--json", "--mode", "season", "--script", "net-4.3.0", "--baseline", "net-3.2.1"]);
+    children[0]!.finish();
+  });
+
   it("returns 422 when the CLI fails before a run starts", async () => {
     handler = (c) => {
       c.emitLines({ type: "error", message: "Unknown script nope: not a registry id, builtin or file." });
@@ -258,11 +326,14 @@ describe("lab routes: runs", () => {
 
   it("lists history from status.json and serves only known files", async () => {
     writeRun("20261008000001");
-    writeRun("20261008000009", { verdict: "No flags" });
+    writeRun("20261008000009", { verdict: "No flags", lab: { version: "0.3.0", checksVersion: 1 } });
     fs.mkdirSync(path.join(dataDir, "runs", "crosscheck"), { recursive: true });
     const a = await app();
     const list = (await a.inject({ method: "GET", url: "/api/lab/runs" })).json();
     expect(list.map((r: { runId: string }) => r.runId)).toEqual(["20261008000009", "20261008000001"]);
+    // Runs from before NET Lab 0.3 get their version from the manifest.
+    expect(list[0].lab).toEqual({ version: "0.3.0", checksVersion: 1 });
+    expect(list[1].lab).toEqual({ version: "0.2.0", checksVersion: null });
 
     const file = await a.inject({ method: "GET", url: "/api/lab/runs/20261008000001/files/summary.md" });
     expect(file.statusCode).toBe(200);

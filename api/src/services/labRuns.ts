@@ -4,8 +4,11 @@ import { parse as parseCsv } from "csv-parse/sync";
 import { labDataDir, labRunsDir, streamLabRun, type LabEvent } from "./labCli.js";
 import { repoRoot } from "../paths.js";
 
+/** deep: every offseason, 10 seasons; season: after one simulated season; quick: once, right now. */
+export const LAB_MODES = ["deep", "season", "quick"] as const;
+
 export type LabRunSpec = {
-  mode: "deep" | "quick";
+  mode: (typeof LAB_MODES)[number];
   script: string;
   baseline?: string | null;
   league?: string;
@@ -43,6 +46,7 @@ export const LAB_FILES = [
   "deep.json",
   "manifest.json",
   "status.json",
+  "regrade.json",
 ] as const;
 export type LabFile = (typeof LAB_FILES)[number];
 
@@ -207,6 +211,10 @@ export function readStatus(runId: string): Record<string, unknown> | null {
   return readJson(path.join(labRunsDir(), runId, "status.json")) as Record<string, unknown> | null;
 }
 
+/**
+ * History rows from status.json. Each gains `lab` ({version, checksVersion}); runs from
+ * before NET Lab 0.3 don't record it in status.json, so it comes from their manifest.
+ */
 export function listStatuses(): Record<string, unknown>[] {
   const dir = labRunsDir();
   if (!fs.existsSync(dir)) return [];
@@ -215,7 +223,14 @@ export function listStatuses(): Record<string, unknown>[] {
     .filter((d) => RUN_ID_RE.test(d))
     .sort()
     .reverse()
-    .map((d) => readStatus(d))
+    .map((d) => {
+      const status = readStatus(d);
+      if (status && !status.lab) {
+        const m = readJson(path.join(dir, d, "manifest.json")) as { lab_version?: string; lab?: { version?: string; checks?: { version?: number } } } | null;
+        status.lab = m ? { version: m.lab?.version ?? m.lab_version ?? null, checksVersion: m.lab?.checks?.version ?? null } : null;
+      }
+      return status;
+    })
     .filter((s): s is Record<string, unknown> => s !== null);
 }
 

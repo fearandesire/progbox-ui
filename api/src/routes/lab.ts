@@ -8,6 +8,7 @@ import { z } from "zod";
 import { LabCliError, runLabCommand, runLabJson } from "../services/labCli.js";
 import {
   LAB_FILES,
+  LAB_MODES,
   LabRunQueue,
   QUEUE_ID_RE,
   RUN_ID_RE,
@@ -37,7 +38,7 @@ const Unlock = z
 
 const RunBody = z
   .object({
-    mode: z.enum(["deep", "quick"]).default("deep"),
+    mode: z.enum(LAB_MODES).default("deep"),
     script: REF,
     baseline: REF.nullable().optional(),
     league: REF.optional(),
@@ -55,7 +56,7 @@ const ScriptJsonBody = z.object({
 const EstimateQuery = z.object({
   script: REF,
   baseline: REF.optional(),
-  mode: z.enum(["deep", "quick"]).default("deep"),
+  mode: z.enum(LAB_MODES).default("deep"),
   league: REF.optional(),
   unlock: z.enum(["1", "true"]).optional(),
   runs: z.coerce.number().int().min(1).max(100_000).optional(),
@@ -74,9 +75,20 @@ function zodMessage(err: z.ZodError): string {
   return err.issues.map((i) => `${i.path.join(".") || "body"}: ${i.message}`).join("; ");
 }
 
+/** The CLI exits 3 for a locked script (409) and 4 for a missing one (404); anything else is a 422. */
 function cliFailure(reply: FastifyReply, err: unknown) {
-  if (err instanceof LabCliError) return detail(reply, 422, err.message);
+  if (err instanceof LabCliError) return detail(reply, err.code === 3 ? 409 : err.code === 4 ? 404 : 422, err.message);
   throw err;
+}
+
+const DiffQuery = z.object({ against: REF.default("original") });
+const DeleteQuery = z.object({ runs: z.enum(["0", "1", "true", "false"]).optional() });
+const SourceQuery = z.object({ original: z.enum(["0", "1", "true", "false"]).optional() });
+const yes = (v: string | undefined) => v === "1" || v === "true";
+
+function scriptId(request: FastifyRequest): string | null {
+  const id = REF.safeParse((request.params as { id: string }).id);
+  return id.success ? id.data : null;
 }
 
 /** Keep the uploaded name readable but safe; the registry records it as `file:<name>`. */
@@ -163,6 +175,57 @@ export async function registerLabRoutes(fastify: FastifyInstance): Promise<void>
         return runLabJson(["scripts", "add", file, "--family", family.data, "--json"]);
       });
       return reply.send(added);
+    } catch (err) {
+      return cliFailure(reply, err);
+    }
+  });
+
+  fastify.delete("/api/lab/scripts/:id", async (request, reply) => {
+    const id = scriptId(request);
+    if (!id) return detail(reply, 422, "Invalid script id");
+    const q = DeleteQuery.safeParse(request.query ?? {});
+    if (!q.success) return detail(reply, 422, zodMessage(q.error));
+    try {
+      return reply.send(await runLabJson(["scripts", "delete", id, ...(yes(q.data.runs) ? ["--runs"] : []), "--json"]));
+    } catch (err) {
+      return cliFailure(reply, err);
+    }
+  });
+
+  fastify.post("/api/lab/scripts/:id/restore", async (request, reply) => {
+    const id = scriptId(request);
+    if (!id) return detail(reply, 422, "Invalid script id");
+    try {
+      return reply.send(await runLabJson(["scripts", "restore", id, "--json"]));
+    } catch (err) {
+      return cliFailure(reply, err);
+    }
+  });
+
+  fastify.get("/api/lab/scripts/:id/source", async (request, reply) => {
+    const id = scriptId(request);
+    if (!id) return detail(reply, 422, "Invalid script id");
+    const q = SourceQuery.safeParse(request.query ?? {});
+    if (!q.success) return detail(reply, 422, zodMessage(q.error));
+    const original = yes(q.data.original);
+    try {
+      const text = await runLabCommand(["scripts", "export", id, ...(original ? ["--original"] : [])]);
+      return reply
+        .header("Content-Type", "text/javascript; charset=utf-8")
+        .header("Content-Disposition", `attachment; filename="${id}${original ? ".original" : ""}.js"`)
+        .send(text);
+    } catch (err) {
+      return cliFailure(reply, err);
+    }
+  });
+
+  fastify.get("/api/lab/scripts/:id/diff", async (request, reply) => {
+    const id = scriptId(request);
+    if (!id) return detail(reply, 422, "Invalid script id");
+    const q = DiffQuery.safeParse(request.query ?? {});
+    if (!q.success) return detail(reply, 422, zodMessage(q.error));
+    try {
+      return reply.send(await runLabJson(["scripts", "diff", id, "--against", q.data.against, "--json"]));
     } catch (err) {
       return cliFailure(reply, err);
     }
