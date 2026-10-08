@@ -160,6 +160,74 @@ describe("script registry", () => {
     expect(reg.add("/** NET | v4.3.0 */\nlet x = 2;").entry.id).toBe("net@4.3.1-draft.1");
     expect(reg.add("/** NET | v4.3.0 */\nlet x = 3;").entry.id).toBe("net@4.3.2-draft.1");
   });
+  it("deletes drafts to a 7-day trash, restores them, and purges them later", () => {
+    const root = dir();
+    const runsDir = path.join(root, "runs");
+    let now = new Date("2026-10-08T00:00:00Z");
+    const reg = new Registry(path.join(root, "scripts"), { trashDir: path.join(root, "trash"), runsDir, now: () => now });
+    const draft = reg.add("/** NET | v4.4.0 */\nlet x = 1;").entry;
+    const other = reg.add("/** NET | v4.4.0 */\nlet x = 2;").entry;
+    for (const [runId, script] of [["20261008000001", draft.id], ["20261008000002", other.id]]) {
+      fs.mkdirSync(path.join(runsDir, runId!), { recursive: true });
+      fs.writeFileSync(path.join(runsDir, runId!, "status.json"), JSON.stringify({ script }));
+    }
+    expect(reg.runsOf(draft.id)).toEqual(["20261008000001"]);
+
+    const del = reg.delete(draft.id, { runs: true });
+    expect(del).toEqual({ id: draft.id, trashedUntil: "2026-10-15T00:00:00.000Z", runs: ["20261008000001"] });
+    expect(reg.get(draft.id)).toBeUndefined();
+    expect(fs.existsSync(path.join(reg.dir, draft.file))).toBe(false);
+    expect(fs.existsSync(path.join(runsDir, "20261008000001"))).toBe(false);
+    expect(fs.existsSync(path.join(runsDir, "20261008000002"))).toBe(true);
+
+    const back = reg.restore(draft.id);
+    expect(back.entry.id).toBe(draft.id);
+    expect(back.runs).toEqual(["20261008000001"]);
+    expect(reg.read(back.entry)).toBe("/** NET | v4.4.0 */\nlet x = 1;");
+    expect(fs.existsSync(path.join(runsDir, "20261008000001", "status.json"))).toBe(true);
+
+    reg.delete(draft.id);
+    now = new Date("2026-10-14T23:00:00Z");
+    expect(reg.purge()).toEqual([]);
+    now = new Date("2026-10-15T00:00:01Z");
+    expect(reg.purge()).toEqual([draft.id]);
+    expect(() => reg.restore(draft.id)).toThrow(/purged/);
+    // The id is never given to other code; the same code gets it back.
+    expect(reg.add("let y = 9;").entry.id).not.toBe(draft.id);
+    const again = reg.add("/** NET | v4.4.0 */\nlet x = 1;");
+    expect(again.entry.id).toBe(draft.id);
+    expect(again.notes[0]).toContain("gets that id back");
+    expect(reg.read(again.entry)).toBe("/** NET | v4.4.0 */\nlet x = 1;");
+  });
+  it("brings a trashed draft back when the same code is uploaded again", () => {
+    const reg = new Registry(dir());
+    const draft = reg.add("let a = 1;").entry;
+    reg.delete(draft.id);
+    const re = reg.add("let a = 1;");
+    expect(re.entry.id).toBe(draft.id);
+    expect(reg.trashed()).toEqual([]);
+  });
+  it("locks candidate, published and built-in scripts", () => {
+    const reg = new Registry(dir());
+    const cand = reg.add("/** NET | v4.3.0 */", { role: "candidate" }).entry;
+    const builtin = reg.add("/** hook */", { family: "hook", role: "published", version: "1.0.0", source: "builtin:worker-console" }).entry;
+    expect(() => reg.delete(cand.id)).toThrow(expect.objectContaining({ status: 409, message: expect.stringContaining("next release") }));
+    expect(() => reg.delete(builtin.id)).toThrow(expect.objectContaining({ status: 409 }));
+    expect(() => reg.delete("net@9.9.9")).toThrow(expect.objectContaining({ status: 404 }));
+    expect(reg.get(cand.id)).toBeDefined();
+  });
+  it("exports the stored file and the original upload of a bumped version", () => {
+    const reg = new Registry(dir());
+    reg.add("/** NET | v4.3.0 */\nlet x = 1;", { role: "candidate" });
+    const b = reg.add("/** NET | v4.3.0 */\nlet x = 2;").entry;
+    expect(reg.exportSource(b.id)).toEqual({ filename: "net@4.3.1-draft.1.js", text: "/** NET | v4.3.1 */\nlet x = 2;" });
+    expect(reg.exportSource(b.id, true)).toEqual({ filename: "net@4.3.1-draft.1.original.js", text: "/** NET | v4.3.0 */\nlet x = 2;" });
+    expect(() => reg.exportSource("net@4.3.0", true)).toThrow(expect.objectContaining({ status: 404 }));
+    // Deleting a bumped draft trashes its original too, and restoring brings both back.
+    reg.delete(b.id);
+    reg.restore(b.id);
+    expect(reg.exportSource(b.id, true).text).toBe("/** NET | v4.3.0 */\nlet x = 2;");
+  });
   it("reads declared versions from headers", () => {
     expect(declaredVersion("/**\n * NoEyeTest: BBGM Prog Script | v4.3.0 (opt-in release)")).toBe("4.3.0");
     expect(declaredVersion("// version 4.4")).toBe("4.4.0");
@@ -241,6 +309,27 @@ describe("StatGen", () => {
     expect(a.seasons.map((s) => s.season)).toEqual([2017, 2018, 2019]);
     expect(a.seasons[1]!.drafted).toBeGreaterThan(0);
     expect(JSON.stringify(again.seasons)).toBe(JSON.stringify(a.seasons));
+  });
+});
+
+describe("after one season", () => {
+  const modelFile = path.join(import.meta.dirname, "../models/statgen.json");
+  const djob = (phase: number) => {
+    const b = boundaryFrom({ data: { players: league(), gameAttributes: { season: 2016, phase } }, sha256: "x" });
+    const { players: ps, ...meta } = b;
+    return { meta, playersBuf: packPlayers(ps), pre: script("worker-console"), script: script("net-4.3.0"), seasons: 1, modelFile, playFirst: true };
+  };
+  it("plays the season first, then runs NET once at the next preseason", async () => {
+    // Preseason file: plays 2016, NET runs entering 2017.
+    const pre = await runReplicate(djob(PHASE.PRESEASON), 0, 7);
+    expect(pre.error).toBeUndefined();
+    expect(pre.seasons.map((s) => s.season)).toEqual([2017]);
+    expect(pre.seasons[0]!.progressed).toBeGreaterThan(0);
+    // Mid-season file: plays out 2016 itself, NET runs entering 2017 on the simulated stats.
+    const mid = await runReplicate(djob(PHASE.REGULAR_SEASON), 0, 7);
+    const now = await runReplicate({ ...djob(PHASE.REGULAR_SEASON), playFirst: false }, 0, 7);
+    expect(mid.seasons.map((s) => s.season)).toEqual([2017]);
+    expect(mid.seasons[0]!.sumDelta).not.toBe(now.seasons[0]!.sumDelta);
   });
 });
 

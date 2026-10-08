@@ -34,14 +34,19 @@ export type Kpis = {
   sdDelta: number;
   pctPositive: number;
   pctNegative: number;
-  deltaByAge: Record<string, { n: number; meanDelta: number }>;
+  /** Mean ΔOVR by age band; `se` is the standard error across runs (per-run band means). */
+  deltaByAge: Record<string, { n: number; meanDelta: number; se?: number }>;
   godProgsPerRun: number;
+  /** Standard error of god progs per offseason across runs. */
+  godProgsSe?: number;
   medianPlayerSd: number;
   over80Before: number;
   over80After: number;
   p99OvrAfter: number;
   /** OLS coefficients of a player's mean ΔOVR on 1 SD of production, holding age and base OVR fixed. */
   perEffect: number | null;
+  /** Monte Carlo standard error of perEffect (from each player's per-run spread). */
+  perEffectSe?: number | null;
   bpmEffect: number | null;
 };
 
@@ -61,7 +66,7 @@ const AGE_BANDS: [string, number, number][] = [
   ["34+", 34, 200],
 ];
 
-const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+export const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 const sd = (xs: number[]) => {
   if (xs.length < 2) return 0;
   const m = mean(xs);
@@ -104,6 +109,8 @@ export function analyze(boundary: Boundary, results: RunResult[]): Analysis {
   const over80After: number[] = [];
   const p99: number[] = [];
   let god = 0;
+  const godPerRun: number[] = [];
+  const bandRunMeans = new Map<string, number[]>(AGE_BANDS.map(([b]) => [b, []]));
   let invalidRows = 0;
   const errors: Analysis["errors"] = [];
   const activeBase = boundary.players.filter((p) => Number.isInteger(p.tid) && p.tid >= -1 && info.has(p.pid));
@@ -112,6 +119,8 @@ export function analyze(boundary: Boundary, results: RunResult[]): Analysis {
   for (const r of results) {
     if (r.error) errors.push({ run: r.run, stage: r.error.stage, name: r.error.name, message: r.error.message });
     const after = new Map(activeBase.map((p) => [p.pid, info.get(p.pid)!.baseOvr]));
+    const godBefore = god;
+    const runBands = new Map<string, [number, number]>();
     for (const o of r.outcomes) {
       const i = info.get(o.pid);
       if (!i) continue;
@@ -128,9 +137,15 @@ export function analyze(boundary: Boundary, results: RunResult[]): Analysis {
       perPlayer.set(o.pid, acc);
       allDeltas.push(d);
       const band = AGE_BANDS.find(([, lo, hi]) => i.age >= lo && i.age <= hi);
-      if (band) byAge.get(band[0])!.push(d);
+      if (band) {
+        byAge.get(band[0])!.push(d);
+        const acc = runBands.get(band[0]) ?? [0, 0];
+        runBands.set(band[0], [acc[0] + 1, acc[1] + d]);
+      }
       after.set(o.pid, o.ovr);
     }
+    godPerRun.push(god - godBefore);
+    for (const [b, [n, sum]] of runBands) bandRunMeans.get(b)!.push(sum / n);
     const values = [...after.values()].sort((a, b) => a - b);
     over80After.push(values.filter((v) => v >= 80).length);
     p99.push(quantile(values, 0.99));
@@ -163,6 +178,7 @@ export function analyze(boundary: Boundary, results: RunResult[]): Analysis {
   });
   players.sort((a, b) => b.meanDelta - a.meanDelta);
 
+  const per = productionEffect(players, "per");
   const sds = players.map((p) => p.sdDelta).sort((a, b) => a - b);
   const apiCalls: Record<string, number> = {};
   const eventTypes: Record<string, number> = {};
@@ -182,14 +198,16 @@ export function analyze(boundary: Boundary, results: RunResult[]): Analysis {
       sdDelta: sd(allDeltas),
       pctPositive: allDeltas.length ? allDeltas.filter((d) => d > 0).length / allDeltas.length : 0,
       pctNegative: allDeltas.length ? allDeltas.filter((d) => d < 0).length / allDeltas.length : 0,
-      deltaByAge: Object.fromEntries([...byAge].map(([b, xs]) => [b, { n: xs.length, meanDelta: mean(xs) }])),
+      deltaByAge: Object.fromEntries([...byAge].map(([b, xs]) => [b, { n: xs.length, meanDelta: mean(xs), se: seOf(bandRunMeans.get(b)!) }])),
       godProgsPerRun: results.length ? god / results.length : 0,
+      godProgsSe: seOf(godPerRun),
       medianPlayerSd: quantile(sds, 0.5),
       over80Before,
       over80After: mean(over80After),
       p99OvrAfter: mean(p99),
-      perEffect: productionEffect(players, "per"),
-      bpmEffect: productionEffect(players, "bpm"),
+      perEffect: per?.beta ?? null,
+      perEffectSe: per?.se ?? null,
+      bpmEffect: productionEffect(players, "bpm")?.beta ?? null,
     },
     players,
     errors,
@@ -199,8 +217,16 @@ export function analyze(boundary: Boundary, results: RunResult[]): Analysis {
   };
 }
 
-/** Coefficient on the standardized stat in meanDelta ~ 1 + age + baseOvr + z(stat). */
-function productionEffect(players: PlayerSummary[], key: "per" | "bpm"): number | null {
+const seOf = (xs: number[]) => (xs.length > 1 ? sd(xs) / Math.sqrt(xs.length) : 0);
+
+export type EffectRow = { age: number; baseOvr: number; meanDelta: number; sdDelta: number; runs: number; per?: number | null; bpm?: number | null };
+
+/**
+ * Coefficient on the standardized stat in meanDelta ~ 1 + age + baseOvr + z(stat), plus its
+ * Monte Carlo standard error: the coefficient is linear in the player means, each of which
+ * has variance sdDelta² / runs, so Var(beta) = Σ a_i² sdDelta_i² / runs_i.
+ */
+export function productionEffect(players: EffectRow[], key: "per" | "bpm"): { beta: number; se: number } | null {
   const rows = players.filter((p) => typeof p[key] === "number" && Number.isFinite(p[key]));
   if (rows.length < 20) return null;
   const xs = rows.map((p) => p[key] as number);
@@ -209,7 +235,34 @@ function productionEffect(players: PlayerSummary[], key: "per" | "bpm"): number 
   const X = rows.map((p, i) => [1, p.age, p.baseOvr, (xs[i]! - m) / s]);
   const y = rows.map((p) => p.meanDelta);
   const beta = ols(X, y);
-  return beta ? beta[3]! : null;
+  if (!beta) return null;
+  const inv = invert(X[0]!.map((_, i) => X[0]!.map((__, j) => X.reduce((a, row) => a + row[i]! * row[j]!, 0))));
+  let v = 0;
+  if (inv) rows.forEach((p, i) => {
+    const a = inv[3]!.reduce((acc, mij, j) => acc + mij * X[i]![j]!, 0);
+    v += (a * a * p.sdDelta ** 2) / Math.max(1, p.runs);
+  });
+  return { beta: beta[3]!, se: Math.sqrt(v) };
+}
+
+/** Gauss-Jordan inverse of a small square matrix; null when singular. */
+function invert(a: number[][]): number[][] | null {
+  const n = a.length;
+  const m = a.map((row, i) => [...row, ...Array.from({ length: n }, (_, j) => (i === j ? 1 : 0))]);
+  for (let c = 0; c < n; c++) {
+    let pivot = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(m[r]![c]!) > Math.abs(m[pivot]![c]!)) pivot = r;
+    if (Math.abs(m[pivot]![c]!) < 1e-12) return null;
+    [m[c], m[pivot]] = [m[pivot]!, m[c]!];
+    const d = m[c]![c]!;
+    for (let j = 0; j < 2 * n; j++) m[c]![j]! /= d;
+    for (let r = 0; r < n; r++) {
+      if (r === c) continue;
+      const f = m[r]![c]!;
+      for (let j = 0; j < 2 * n; j++) m[r]![j]! -= f * m[c]![j]!;
+    }
+  }
+  return m.map((row) => row.slice(n));
 }
 
 /** Ordinary least squares via normal equations (4 columns, so plain Gaussian elimination is fine). */

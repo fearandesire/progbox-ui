@@ -15,7 +15,12 @@ import type { StatGenModel } from "./statgen/schema.ts";
  * the export's real stats; every later one gets a season of StatGen stats,
  * BBGM-style development, retirements, a draft and roster moves first.
  */
-export type DeepJob = Job & { seasons: number; modelFile: string };
+export type DeepJob = Job & {
+  seasons: number;
+  modelFile: string;
+  /** Play a StatGen season before the first offseason too ("After one season" mode). */
+  playFirst?: boolean;
+};
 
 export type SeasonStats = {
   season: number;
@@ -71,9 +76,12 @@ export async function runReplicate(job: DeepJob, run: number, seed: number): Pro
   let meta = { ...job.meta };
   let churned = { retired: [] as number[], drafted: [] as number[] };
   for (let s = 0; s < job.seasons; s++) {
-    if (s > 0) {
+    if (s > 0 || job.playFirst) {
       // Play the season just entered, then move to the next preseason the way BBGM does.
-      const played = meta.enteringSeason;
+      // A mid-season file plays out its own season first: its partial stats give way to a full simulated one.
+      const midSeason = s === 0 && meta.baseDevelop !== "export";
+      const played = midSeason ? meta.statsSeason : meta.enteringSeason;
+      if (midSeason) for (const p of players) if (Array.isArray(p.stats)) p.stats = p.stats.filter((r) => r.season !== played || r.playoffs);
       simulateSeason(model, players, played, simRng);
       churned = churn(model, players, played, nextPid, simRng);
       for (const p of players) if (p.tid >= -1 && p.ratings.at(-1)!.season === played) develop(model, p, played + 1, simRng);

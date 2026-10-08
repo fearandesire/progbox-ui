@@ -100,3 +100,11 @@ export function prepareLeague(ref: string): PreparedLeague {
   const boundary = boundaryFrom({ data, sha256: digest });
   return { info, boundary, validation, data };
 }
+
+/** SHA-256 of a league's file without validating it (estimates and cache keys). */
+export function leagueSha256(ref: string): string | null {
+  const known = listLeagues().find((l) => l.id === ref);
+  if (known?.sha256) return known.sha256;
+  const file = known ? fileFor(known) : path.resolve(ref);
+  return fs.existsSync(file) ? sha(fs.readFileSync(file)) : null;
+}

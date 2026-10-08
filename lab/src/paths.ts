@@ -12,3 +12,7 @@ export const REGISTRY_DIR = path.join(DATA_DIR, "scripts");
 export const LEAGUES_DIR = path.join(DATA_DIR, "leagues");
 export const TIMINGS_FILE = path.join(DATA_DIR, "timings.jsonl");
 export const MODELS_DIR = path.join(LAB_DIR, "models");
+/** Deleted drafts (and their runs, when asked) wait here for 7 days. */
+export const TRASH_DIR = path.join(DATA_DIR, "trash");
+/** Cached no-script reference runs, one per league, Lab version, StatGen model, mode and size. */
+export const REFERENCE_DIR = path.join(DATA_DIR, "reference");

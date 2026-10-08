@@ -14,5 +14,14 @@ export const PRESETS = {
   },
 } as const;
 
-export type Mode = keyof typeof PRESETS;
+/**
+ * When NET runs:
+ * - deep: every offseason for `deep.seasons` seasons ("Every offseason, 10 seasons");
+ * - season: plays out this season with StatGen, then NET once ("After one season"; deep with one season, same replicates);
+ * - quick: once, right now, on the file's own stats ("Right now").
+ */
+export const MODES = ["deep", "season", "quick"] as const;
+export type Mode = (typeof MODES)[number];
+/** Seasons the multi-season part plays (0: quick has none). */
+export const seasonsOf = (mode: Mode, deepSeasons: number = PRESETS.deep.seasons) => (mode === "deep" ? deepSeasons : mode === "season" ? 1 : 0);
 export const DEFAULT_MODE: Mode = "deep";

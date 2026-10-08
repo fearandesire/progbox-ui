@@ -24,12 +24,31 @@ pnpm lab run --script <file> --baseline net-3.2.1 --json > events.ndjson
 
 - The script gets a forced id like `net@4.4.0-draft.1`; quote that id, not the filename. If the header's version already holds other code, the id is bumped (for example `net@4.3.1-draft.1`) and an `issue` event with code `version-bumped` says so; report the bumped id.
 - `--json` prints one event per line: `run` (id, measured estimate), `stage`, `progress`, `issue` (league checks), `done` or `error`.
-- Read results from the run folder named in the `done` event: start with `report.json` (`verdict`, `flags`, `script.kpis`, `deep.script.seasons`), then `summary.md` for people.
+- Pick when NET runs with `--mode`: `deep` (default, every offseason for 10 seasons), `season` (plays out this season, then NET once) or `quick` (once, right now, on the file's stats). Only `deep` grades the three league-level checks.
+- The first deep or season run on a league also builds a cached no-script reference (60 replicates); later runs reuse it. `--no-reference` skips it.
+- Read results from the run folder named in the `done` event: start with `report.json` (`checks.verdict`, `checks.items`, `runDetails`, `lab`, then `flags`, `script.kpis`, `deep.script.seasons`), then `summary.md` for people.
 - Don't pass `--runs`, `--seasons` or `--replicates`; sizes are locked. Use `--unlock` only when asked, and say so in your write-up.
 
 ## 3. Report back
 
-Lead with the verdict and flags. Then the numbers that changed most vs the baseline (mean ΔOVR, god progs per offseason, 75+ players after 10 seasons, age curve). Link `summary.md` and quote the run id and script ids so anyone can `pnpm lab replay <manifest>`.
+Lead with the checks verdict (`checks.verdict`: better, worse or mixed vs the baseline) and which checks pass or fail, then the flags. Then the numbers that changed most vs the baseline (mean ΔOVR, god progs per offseason, 75+ players after 10 seasons, age curve). Link `summary.md` and quote the run id, the script ids and the Lab and checks versions (`report.lab`) so anyone can `pnpm lab replay <manifest>`.
+
+## 4. Old runs and rule changes
+
+- `pnpm lab regrade <runId>` grades a saved run with today's checks and prints the old and new verdict side by side (`--json` for the object; it also writes `regrade.json`). Nothing is re-simulated.
+- Changing a pass rule in `src/verdict.ts` means: bump `CHECKS_VERSION`, update the pinned hash in `src/verdict.test.ts`, and add a line to `CHANGELOG.md` saying what changed and why. Changing the simulation or how numbers are computed bumps `LAB_VERSION` in `src/version.ts`, with a CHANGELOG line too.
+
+## 5. Manage scripts
+
+| Command | Does |
+| --- | --- |
+| `pnpm lab scripts list` | Every version with role, source, upload name, runs, hash, header line and bump details (JSON) |
+| `pnpm lab scripts export <id> [--original] [--out f]` | The exact stored file, or the original upload of a bumped version |
+| `pnpm lab scripts diff <id> [--against original\|<id>]` | Line diff vs the original upload (default for bumped versions) or another version |
+| `pnpm lab scripts delete <id> [--runs]` | Drafts only. Moves the file (and with `--runs`, the runs that tested it) to the trash for 7 days. Exit code 3 means locked (candidate, published or built in), 4 means not found |
+| `pnpm lab scripts restore <id>` | Undo a delete within 7 days |
+
+Don't delete scripts or runs unless asked. A deleted id never points at different code; the same code uploaded again gets it back.
 
 ## When something fails
 
@@ -40,6 +59,7 @@ Lead with the verdict and flags. Then the numbers that changed most vs the basel
 | `League ... isn't downloaded yet` | `pnpm lab leagues fetch` |
 | StatGen gate failed | Rebuild the model on a machine you own: `bash lab/local-runner/run-corpus.sh` (Node 24, about 15 minutes, runs BBGM locally). Never run BBGM on a server other people can reach. |
 | `REPLAY MISMATCH` | Something non-deterministic slipped in. Treat it as a bug; compare the two `report.json` files. |
+| `... is built in and can't be deleted` / `only drafts can be deleted` | Expected: releases are locked. Change the status with `scripts promote` first, and only if asked. |
 
 ## Host it (cloud)
 
@@ -53,3 +73,4 @@ docker run -p 8080:8080 -v progbox-data:/data progbox-ui
 - The app has no login. Put it behind an auth proxy (Cloudflare Access or similar) before sharing the URL.
 - The image contains no BBGM code. Deep mode uses `lab/models/statgen.json`; rebuild that model only on your own machine.
 - Run estimates come from timings on the host they ran on, so the first run on a new host probes briefly.
+- The image has no `.git`, so pass the commit at build or run time (`-e LAB_COMMIT=$(git rev-parse --short HEAD)`) to record it in each run.

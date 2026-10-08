@@ -22,6 +22,8 @@ export type DeepAnalysis = {
   seasons: DeepSeason[];
   /** Mean script ΔOVR by age band, over all seasons. */
   ageCurve: Record<string, number>;
+  /** Standard error of each age band's mean, across replicates. */
+  ageCurveSe: Record<string, number>;
   /** Players on a team at the start: OVR after each offseason (mean, p10, p90; null once mostly retired). */
   trajectories: { pid: number; ovr: { mean: number; p10: number; p90: number; active: number }[] }[];
   calls: Record<string, number>;
@@ -39,7 +41,7 @@ const stat = (xs: number[]): Stat => {
 export function analyzeDeep(results: DeepResult[]): DeepAnalysis {
   const ok = results.filter((r) => !r.error);
   const seasons = Math.max(0, ...ok.map((r) => r.seasons.length));
-  const out: DeepAnalysis = { replicates: results.length, failed: results.length - ok.length, errors: [], seasons: [], ageCurve: {}, trajectories: [], calls: {}, events: {} };
+  const out: DeepAnalysis = { replicates: results.length, failed: results.length - ok.length, errors: [], seasons: [], ageCurve: {}, ageCurveSe: {}, trajectories: [], calls: {}, events: {} };
   for (const r of results) {
     if (r.error) out.errors.push({ run: r.run, season: r.error.season, name: r.error.name, message: r.error.message });
     for (const [k, v] of Object.entries(r.calls)) out.calls[k] = (out.calls[k] ?? 0) + v;
@@ -62,12 +64,19 @@ export function analyzeDeep(results: DeepResult[]): DeepAnalysis {
     });
   }
   const bands: Record<string, [number, number]> = {};
-  for (const r of ok) for (const s of r.seasons) for (const [b, [n, sum]] of Object.entries(s.byAge)) {
-    const acc = (bands[b] ??= [0, 0]);
-    acc[0] += n;
-    acc[1] += sum;
+  const perReplicate: Record<string, number[]> = {};
+  for (const r of ok) {
+    const mine: Record<string, [number, number]> = {};
+    for (const s of r.seasons) for (const [b, [n, sum]] of Object.entries(s.byAge)) {
+      for (const acc of [(bands[b] ??= [0, 0]), (mine[b] ??= [0, 0])]) {
+        acc[0] += n;
+        acc[1] += sum;
+      }
+    }
+    for (const [b, [n, sum]] of Object.entries(mine)) if (n) (perReplicate[b] ??= []).push(sum / n);
   }
   out.ageCurve = Object.fromEntries(Object.entries(bands).sort().map(([b, [n, sum]]) => [b, n ? sum / n : 0]));
+  out.ageCurveSe = Object.fromEntries(Object.keys(out.ageCurve).map((b) => [b, stat(perReplicate[b] ?? []).se]));
 
   const pids = ok[0]?.tracked.map((t) => t.pid) ?? [];
   out.trajectories = pids.map((pid, i) => ({
