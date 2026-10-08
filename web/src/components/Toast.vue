@@ -9,11 +9,13 @@ const props = withDefaults(
     message: string;
     show: boolean;
     duration?: number;
+    /** Optional button label (e.g. "Undo"); clicking it emits `action`. */
+    action?: string;
   }>(),
-  { duration: 4000 },
+  { duration: 4000, action: undefined },
 );
 
-const emit = defineEmits<{ close: [] }>();
+const emit = defineEmits<{ close: []; action: [] }>();
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -45,7 +47,15 @@ onUnmounted(clear);
       role="status"
       aria-live="polite"
     >
-      {{ message }}
+      <span>{{ message }}</span>
+      <button
+        v-if="action"
+        type="button"
+        class="toast__action"
+        @click="emit('action')"
+      >
+        {{ action }}
+      </button>
     </div>
   </Transition>
 </template>
@@ -66,7 +76,24 @@ onUnmounted(clear);
   font-size: 13.5px;
   line-height: 1.4;
   box-shadow: 0 8px 28px -8px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
+.toast__action {
+  flex: none;
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent-text);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: scale 0.15s ease;
+}
+.toast__action:active { scale: 0.96; }
+.toast__action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .toast-enter-active,
 .toast-leave-active {
   transition: opacity 0.2s ease, transform 0.2s ease;

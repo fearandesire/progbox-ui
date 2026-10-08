@@ -3,21 +3,16 @@ import { computed, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import DeIcon from "../components/DeIcon.vue";
 import LabAudit from "../components/lab/LabAudit.vue";
+import LabChecks from "../components/lab/LabChecks.vue";
 import LabPlayers from "../components/lab/LabPlayers.vue";
 import LabReport from "../components/lab/LabReport.vue";
+import LabSubnav from "../components/lab/LabSubnav.vue";
 import LabSummary from "../components/lab/LabSummary.vue";
 import "../components/lab/lab.css";
-import { fetchLabRun, labErrorMessage } from "../lib/api";
-import { expectedStages, secondsText, verdictClass } from "../lib/labFormat";
+import { fetchLabRun, labErrorMessage, labFileUrl } from "../lib/api";
+import { runDetailRows } from "../lib/labChecks";
+import { expectedStages, modeLabel, secondsText } from "../lib/labFormat";
 import type { LabRunDetail } from "../lib/labTypes";
-
-type Tab = "summary" | "report" | "players" | "audit";
-const TABS: { id: Tab; label: string }[] = [
-  { id: "summary", label: "Summary" },
-  { id: "report", label: "Full report" },
-  { id: "players", label: "Players" },
-  { id: "audit", label: "Agent & audit" },
-];
 
 const route = useRoute();
 const router = useRouter();
@@ -25,7 +20,6 @@ const id = computed(() => String(route.params.id ?? ""));
 
 const run = ref<LabRunDetail | null>(null);
 const error = ref<string | null>(null);
-const tab = ref<Tab>("summary");
 const now = ref(Date.now());
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
 let clock: ReturnType<typeof setInterval> | null = null;
@@ -64,7 +58,6 @@ watch(
   id,
   () => {
     run.value = null;
-    tab.value = "summary";
     void load();
   },
   { immediate: true },
@@ -115,6 +108,42 @@ const stageRows = computed(() => {
 });
 
 const results = computed(() => run.value?.results ?? null);
+const report = computed(() => results.value?.report ?? null);
+const checks = computed(() => report.value?.checks ?? null);
+const details = computed(() => report.value?.runDetails ?? null);
+const detailRows = computed(() => runDetailRows(details.value, report.value?.lab));
+
+const desc = computed(() => {
+  const r = run.value;
+  if (!r) return "";
+  const parts = [details.value?.netRuns ?? modeLabel(r.mode), details.value?.league.name ?? report.value?.league.name ?? r.league ?? "default league"];
+  if (details.value) parts.push(`${details.value.runs.toLocaleString("en-US")} runs`);
+  const when = r.startedAt ?? r.createdAt;
+  if (when) parts.push(new Date(when).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }));
+  if (r.state === "done") parts.push(secondsText(r.seconds ?? elapsed.value));
+  return parts.join(" · ");
+});
+
+const sections = computed(() => {
+  const out: { id: string; label: string; count?: number }[] = [];
+  if (checks.value) {
+    out.push({ id: "r-verdict", label: "Verdict" }, { id: "r-checks", label: "Checks", count: checks.value.items.length });
+    if (detailRows.value.length) out.push({ id: "r-details", label: "Run details" });
+  } else out.push({ id: "r-summary", label: "Summary" });
+  out.push({ id: "r-charts", label: "Charts" }, { id: "r-players", label: "Players" }, { id: "r-audit", label: "Audit" });
+  return out;
+});
+
+function jumpTo(e: Event, id: string) {
+  e.preventDefault();
+  document.getElementById(id)?.scrollIntoView({ block: "start" });
+}
+
+const againQuery = computed(() => {
+  const r = run.value;
+  if (!r) return {};
+  return { script: r.script, baseline: r.baseline ?? "none", ...(r.league ? { league: r.league } : {}), mode: r.mode };
+});
 const title = computed(() => {
   const r = run.value;
   if (!r) return id.value;
@@ -124,23 +153,7 @@ const title = computed(() => {
 
 <template>
   <div class="page">
-    <nav
-      class="lab-subnav"
-      aria-label="Lab"
-    >
-      <RouterLink
-        to="/lab"
-        class="chip"
-      >
-        New test
-      </RouterLink>
-      <RouterLink
-        to="/lab/history"
-        class="chip"
-      >
-        History
-      </RouterLink>
-    </nav>
+    <LabSubnav />
 
     <p
       v-if="error && !run"
@@ -162,21 +175,33 @@ const title = computed(() => {
           >
             {{ title }}
           </h1>
-          <p class="page-desc">
-            {{ run.mode }} · {{ run.league ?? "default league" }}
-            <template v-if="run.runId">
-              · run {{ run.runId }}
-            </template>
-            <template v-if="run.state === 'done'">
-              · {{ secondsText(run.seconds ?? elapsed) }}
-            </template>
+          <p
+            class="page-desc"
+            :title="run.runId ? `Run ${run.runId}` : undefined"
+          >
+            {{ desc }}
           </p>
         </div>
-        <span
-          v-if="run.state === 'done'"
-          class="lab-pill"
-          :class="verdictClass(run.verdict)"
-        >{{ run.verdict }}</span>
+        <div
+          v-if="run.state !== 'queued' && run.state !== 'running'"
+          class="actions"
+        >
+          <RouterLink
+            class="btn ghost lab-press"
+            :to="{ path: '/lab', query: againQuery }"
+            data-test="run-again"
+          >
+            <DeIcon name="rotate" />Run again
+          </RouterLink>
+          <a
+            v-if="run.runId && report"
+            class="btn ghost lab-press"
+            :href="labFileUrl(run.runId, 'report.json')"
+            download="report.json"
+          >
+            <DeIcon name="download" />Download report
+          </a>
+        </div>
       </div>
 
       <!-- Queued / running -->
@@ -270,49 +295,113 @@ const title = computed(() => {
       </section>
 
       <!-- Results -->
-      <template v-else-if="results && results.report">
-        <div
-          class="tabs"
-          role="tablist"
+      <div
+        v-else-if="results && report"
+        class="lab-report"
+      >
+        <nav
+          class="lab-jump"
+          aria-label="Report sections"
+          data-test="jump"
         >
-          <button
-            v-for="t in TABS"
-            :key="t.id"
-            type="button"
-            role="tab"
-            class="tab"
-            :class="{ active: tab === t.id }"
-            :aria-selected="tab === t.id"
-            @click="tab = t.id"
+          <a
+            v-for="sec in sections"
+            :key="sec.id"
+            :href="`#${sec.id}`"
+            @click="jumpTo($event, sec.id)"
+          >{{ sec.label }}<b v-if="sec.count !== undefined">{{ sec.count }}</b></a>
+        </nav>
+
+        <template v-if="checks">
+          <LabChecks
+            :checks="checks"
+            :script-id="report.script.id"
+            :baseline-id="report.baseline?.id ?? null"
+          />
+          <section
+            v-if="detailRows.length"
+            id="r-details"
+            class="panel lab-section"
+            data-test="run-details"
           >
-            {{ t.label }}
-          </button>
-        </div>
-        <LabSummary
-          v-if="tab === 'summary'"
-          :report="results.report"
-          :players="results.players.script"
-          :summary="results.summary"
-        />
-        <LabReport
-          v-else-if="tab === 'report'"
-          :report="results.report"
-          :players="results.players"
-          :deep="results.deep"
-        />
-        <LabPlayers
-          v-else-if="tab === 'players'"
-          :script-id="results.report.script.id"
-          :baseline-id="results.report.baseline?.id ?? null"
-          :players="results.players"
-          :deep="results.deep"
-        />
-        <LabAudit
+            <h2 class="panel-title">
+              Run details
+            </h2>
+            <dl
+              class="lab-kv"
+              style="margin-top: 10px"
+            >
+              <template
+                v-for="[k, v] in detailRows"
+                :key="k"
+              >
+                <dt>{{ k }}</dt>
+                <dd>{{ v }}</dd>
+              </template>
+            </dl>
+          </section>
+        </template>
+        <section
           v-else
-          :run-id="run.runId ?? id"
-          :results="results"
-        />
-      </template>
+          id="r-summary"
+          class="lab-section lab-stack"
+        >
+          <p
+            class="lab-note"
+            data-test="old-report"
+          >
+            This run was made before NET Lab 0.3.0, so it has no balance checks or Run details. Run it again to get them.
+          </p>
+          <LabSummary
+            :report="report"
+            :players="results.players.script"
+            :summary="results.summary"
+          />
+        </section>
+
+        <section
+          id="r-charts"
+          class="lab-section"
+        >
+          <h2 class="lab-h2">
+            Charts
+          </h2>
+          <LabReport
+            :report="report"
+            :players="results.players"
+            :deep="results.deep"
+            style="margin-top: 12px"
+          />
+        </section>
+        <section
+          id="r-players"
+          class="lab-section"
+        >
+          <h2 class="lab-h2">
+            Players
+          </h2>
+          <LabPlayers
+            :script-id="report.script.id"
+            :baseline-id="report.baseline?.id ?? null"
+            :players="results.players"
+            :deep="results.deep"
+            style="margin-top: 12px"
+          />
+        </section>
+        <section
+          id="r-audit"
+          class="lab-section"
+        >
+          <h2 class="lab-h2">
+            Audit
+          </h2>
+          <LabAudit
+            :run-id="run.runId ?? id"
+            :results="results"
+            style="margin-top: 12px"
+          />
+        </section>
+      </div>
       <p
         v-else
         class="page-desc"

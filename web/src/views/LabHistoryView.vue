@@ -1,10 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useRoute } from "vue-router";
+import DeIcon from "../components/DeIcon.vue";
+import LabSubnav from "../components/lab/LabSubnav.vue";
 import "../components/lab/lab.css";
 import { fetchLabRuns, labErrorMessage } from "../lib/api";
 import { timeAgo } from "../lib/format";
-import { secondsText, verdictClass } from "../lib/labFormat";
+import { labVersionText } from "../lib/labChecks";
+import { modeLabel, secondsText, verdictClass } from "../lib/labFormat";
 import type { LabRunSummary } from "../lib/labTypes";
+
+const route = useRoute();
+/** Scripts tab links here with ?script=<id> to show that version's runs. */
+const scriptFilter = computed(() => (typeof route.query.script === "string" && route.query.script ? route.query.script : null));
 
 const runs = ref<LabRunSummary[]>([]);
 const loading = ref(true);
@@ -21,40 +29,35 @@ onMounted(async () => {
 });
 
 const rows = computed(() =>
-  runs.value.map((r) => ({
-    ...r,
-    key: r.runId ?? r.queueId ?? "",
-    when: timeAgo(r.startedAt ?? r.createdAt ?? null) || "–",
-  })),
+  runs.value
+    .filter((r) => !scriptFilter.value || r.script === scriptFilter.value || r.baseline === scriptFilter.value)
+    .map((r) => ({
+      ...r,
+      key: r.runId ?? r.queueId ?? "",
+      when: timeAgo(r.startedAt ?? r.createdAt ?? null) || "–",
+      labv: labVersionText(r.lab),
+      again: { script: r.script, baseline: r.baseline ?? "none", ...(r.league ? { league: r.league } : {}), mode: r.mode },
+    })),
 );
 </script>
 
 <template>
   <div class="page">
-    <nav
-      class="lab-subnav"
-      aria-label="Lab"
-    >
-      <RouterLink
-        to="/lab"
-        class="chip"
-      >
-        New test
-      </RouterLink>
-      <RouterLink
-        to="/lab/history"
-        class="chip active"
-      >
-        History
-      </RouterLink>
-    </nav>
+    <LabSubnav current="history" />
     <div class="section-head">
       <div>
         <h1 class="page-title">
           Lab history
         </h1>
         <p class="page-desc">
-          Every NET Lab run on this server, newest first.
+          <template v-if="scriptFilter">
+            Runs of {{ scriptFilter }}, newest first. <RouterLink to="/lab/history">
+              Show all
+            </RouterLink>
+          </template>
+          <template v-else>
+            Every NET Lab run on this server, newest first.
+          </template>
         </p>
       </div>
     </div>
@@ -112,6 +115,12 @@ const rows = computed(() =>
               <th class="no-sort">
                 Time
               </th>
+              <th class="no-sort">
+                Lab
+              </th>
+              <th class="no-sort">
+                <span class="sr-only">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -130,7 +139,7 @@ const rows = computed(() =>
               <td class="cell-mono">
                 {{ r.baseline ?? "–" }}
               </td>
-              <td>{{ r.mode }}</td>
+              <td>{{ modeLabel(r.mode) }}</td>
               <td>{{ r.league ?? "–" }}</td>
               <td>
                 <span
@@ -146,6 +155,27 @@ const rows = computed(() =>
               </td>
               <td class="cell-mono">
                 {{ r.state === "done" ? secondsText(r.seconds) : "–" }}
+              </td>
+              <td
+                class="cell-mono"
+                :title="r.labv.title"
+                data-test="lab-version"
+              >
+                {{ r.labv.text }}
+              </td>
+              <td>
+                <RouterLink
+                  class="lab-icon"
+                  :to="{ path: '/lab', query: r.again }"
+                  title="Run again with the same settings"
+                  :aria-label="`Run again: ${r.script}`"
+                  data-test="run-again"
+                >
+                  <DeIcon
+                    name="rotate"
+                    :size="16"
+                  />
+                </RouterLink>
               </td>
             </tr>
           </tbody>

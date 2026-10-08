@@ -8,7 +8,16 @@ export const SCRIPT_COLOR = "#ea580c";
 export const LAB_PRESETS = {
   quick: { runs: 1000 },
   deep: { seasons: 10, replicates: 200 },
+  season: { seasons: 1, replicates: 200 },
 } as const;
+
+/** Short name of a run mode, as the New test cards say it. */
+export function modeLabel(mode: string): string {
+  if (mode === "deep") return "Every offseason, 10 seasons";
+  if (mode === "season") return "After one season";
+  if (mode === "quick") return "Right now";
+  return mode;
+}
 
 export const DEFAULT_LEAGUE_ID = "nba-2025-26";
 
@@ -55,9 +64,10 @@ export function verdictClass(v: string | null | undefined): "good" | "warn" | "b
 export function sizeText(mode: LabMode, unlock?: { runs?: number; seasons?: number; replicates?: number } | null): string {
   const runs = unlock?.runs ?? LAB_PRESETS.quick.runs;
   if (mode === "quick") return `${runs} offseasons`;
-  const reps = unlock?.replicates ?? LAB_PRESETS.deep.replicates;
-  const seasons = unlock?.seasons ?? LAB_PRESETS.deep.seasons;
-  return `${reps} replicates × ${seasons} seasons, plus ${runs} single offseasons`;
+  const preset = mode === "season" ? LAB_PRESETS.season : LAB_PRESETS.deep;
+  const reps = unlock?.replicates ?? preset.replicates;
+  const seasons = unlock?.seasons ?? preset.seasons;
+  return `${reps} replicates × ${seasons} season${seasons === 1 ? "" : "s"}, plus ${runs} single offseasons`;
 }
 
 /** The CLI's stage ids in the order it runs them, for the progress checklist. */
@@ -65,7 +75,7 @@ export function expectedStages(run: Pick<LabRunDetail, "mode" | "script" | "base
   const list = [{ stage: "ingest", label: "Check the league" }];
   const sides = [run.script, ...(run.baseline ? [run.baseline] : [])];
   for (const s of sides) list.push({ stage: `quick:${s}`, label: `${s}: single offseasons` });
-  if (run.mode === "deep") for (const s of sides) list.push({ stage: `deep:${s}`, label: `${s}: multi-season replicates` });
+  if (run.mode !== "quick") for (const s of sides) list.push({ stage: `deep:${s}`, label: `${s}: multi-season replicates` });
   list.push({ stage: "report", label: "Write the report" });
   return list;
 }

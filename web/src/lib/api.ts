@@ -10,6 +10,8 @@ import type {
   LabRunSummary,
   LabScript,
   LabScriptAdded,
+  LabScriptDeleted,
+  LabDiff,
   LabValidation,
 } from "./labTypes";
 import type { ProgressionVersion } from "./versions";
@@ -139,6 +141,37 @@ export async function fetchLabScripts(): Promise<LabScript[]> {
 
 export async function addLabScript(input: { source: string; filename?: string; family?: string }): Promise<LabScriptAdded> {
   return ofetch<LabScriptAdded>("/lab/scripts", { method: "POST", baseURL: getApiBaseUrl(), body: input });
+}
+
+/** Delete a draft (moves it to the trash for 7 days). `runs` also trashes its runs. */
+export async function deleteLabScript(id: string, runs = false): Promise<LabScriptDeleted> {
+  return ofetch<LabScriptDeleted>(`/lab/scripts/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    baseURL: getApiBaseUrl(),
+    query: runs ? { runs: "1" } : undefined,
+  });
+}
+
+export async function restoreLabScript(id: string): Promise<unknown> {
+  return ofetch(`/lab/scripts/${encodeURIComponent(id)}/restore`, { method: "POST", baseURL: getApiBaseUrl() });
+}
+
+/** URL of the exact stored file (served as an attachment); `original` gives a bumped script's original upload. */
+export function labScriptSourceUrl(id: string, original = false): string {
+  return `${getApiBaseUrl()}/lab/scripts/${encodeURIComponent(id)}/source${original ? "?original=1" : ""}`;
+}
+
+export async function fetchLabScriptSource(id: string, original = false): Promise<string> {
+  return ofetch<string, "text">(`/lab/scripts/${encodeURIComponent(id)}/source`, {
+    baseURL: getApiBaseUrl(),
+    query: original ? { original: "1" } : undefined,
+    responseType: "text",
+  });
+}
+
+/** Line diff of a script against its original upload ("original") or another version id. */
+export async function fetchLabScriptDiff(id: string, against: string): Promise<LabDiff> {
+  return ofetch<LabDiff>(`/lab/scripts/${encodeURIComponent(id)}/diff`, { baseURL: getApiBaseUrl(), query: { against } });
 }
 
 export async function fetchLabLeagues(): Promise<LabLeague[]> {

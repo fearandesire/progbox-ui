@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import DeIcon from "../components/DeIcon.vue";
-import InfoTip from "../components/InfoTip.vue";
+import LabSubnav from "../components/lab/LabSubnav.vue";
 import "../components/lab/lab.css";
 import {
   addLabScript,
@@ -15,10 +15,25 @@ import {
   labErrorMessage,
   uploadLabLeague,
 } from "../lib/api";
-import { DEFAULT_LEAGUE_ID, LAB_PRESETS, secondsText, sizeText } from "../lib/labFormat";
+import { DEFAULT_LEAGUE_ID, LAB_PRESETS, sizeText } from "../lib/labFormat";
+import {
+  MODES,
+  ROLE_NAME,
+  baselineDrafts,
+  defaultBaseline,
+  etaText,
+  isMidSeason,
+  modeInfo,
+  releases,
+  statsReadText,
+  uploadedAt,
+  uploadedText,
+  uploads,
+} from "../lib/labScripts";
 import type { LabEstimate, LabLeague, LabMode, LabRunInput, LabScript, LabScriptAdded, LabValidation } from "../lib/labTypes";
 
 const router = useRouter();
+const route = useRoute();
 
 const scripts = ref<LabScript[]>([]);
 const leagues = ref<LabLeague[]>([]);
@@ -53,9 +68,37 @@ const estimateError = ref<string | null>(null);
 const submitting = ref(false);
 const submitError = ref<string | null>(null);
 
-/** Hook scripts (the pre-progs hook family) aren't progression scripts to test. */
-const progScripts = computed(() => scripts.value.filter((s) => !s.id.startsWith("hook@")));
-const roleLabel = (r: string) => (r === "published" ? "Published" : r === "candidate" ? "Candidate" : "Draft");
+/** Script to test lists uploads only; a script handed over by Run again or Run test stays pickable. */
+const uploadList = computed(() => uploads(scripts.value));
+const extraScript = computed(() =>
+  script.value && !uploadList.value.some((s) => s.id === script.value) ? scripts.value.find((s) => s.id === script.value) ?? null : null,
+);
+const releaseList = computed(() => releases(scripts.value));
+const draftList = computed(() => baselineDrafts(scripts.value));
+const uploadLabel = (s: LabScript) => {
+  const when = uploadedText(uploadedAt(s));
+  return when === "–" ? s.id : `${s.id} · uploaded ${when}`;
+};
+
+const info = computed(() => modeInfo(mode.value, validation.value?.season ?? null));
+const cards = computed(() => MODES.map((m) => modeInfo(m, validation.value?.season ?? null)));
+const midSeason = computed(() => mode.value === "quick" && isMidSeason(validation.value));
+const runsPerScript = computed(() =>
+  mode.value === "quick"
+    ? (unlocked.value ? unlockRuns.value : LAB_PRESETS.quick.runs)
+    : unlocked.value
+      ? unlockReplicates.value
+      : LAB_PRESETS[mode.value].replicates,
+);
+const preview = computed<[string, string][]>(() => [
+  ["Script", script.value || "–"],
+  ["Compare to", baseline.value || "None"],
+  ["League", selectedLeague.value?.name ?? "–"],
+  ["NET runs", unlocked.value && mode.value === "deep" ? `Every offseason, ${unlockSeasons.value} seasons` : info.value.netRuns],
+  ["Games", info.value.games],
+  ["Stats NET reads", statsReadText(mode.value, validation.value, unlocked.value ? unlockSeasons.value : LAB_PRESETS.deep.seasons)],
+  ["Runs", `${runsPerScript.value.toLocaleString("en-US")} per script`],
+]);
 
 const selectedLeague = computed(() => leagues.value.find((l) => l.id === league.value) ?? null);
 const leagueErrors = computed(() => validation.value?.issues.filter((i) => i.level === "error") ?? []);
@@ -66,6 +109,7 @@ const unlock = computed(() =>
     ? {
         runs: unlockRuns.value,
         ...(mode.value === "deep" ? { seasons: unlockSeasons.value, replicates: unlockReplicates.value } : {}),
+        ...(mode.value === "season" ? { replicates: unlockReplicates.value } : {}),
       }
     : undefined,
 );
@@ -84,7 +128,7 @@ const runInput = computed<LabRunInput | null>(() => {
 
 const blockers = computed(() => {
   const out: string[] = [];
-  if (!script.value) out.push("Drop a script or pick one from the registry.");
+  if (!script.value) out.push("Drop a script to test, or pick one of your uploads.");
   if (selectedLeague.value && !selectedLeague.value.available) out.push("This league isn't downloaded on the server yet.");
   if (leagueErrors.value.length) out.push("The league has errors that block a run.");
   if (validating.value) out.push("Checking the league…");
@@ -100,12 +144,27 @@ async function loadCatalog() {
     const [s, l] = await Promise.all([fetchLabScripts(), fetchLabLeagues()]);
     scripts.value = s;
     leagues.value = l;
-    if (!baseline.value) baseline.value = s.find((x) => x.role === "published" && x.id.startsWith("net@"))?.id ?? "";
-    if (!script.value) script.value = s.find((x) => x.role === "candidate")?.id ?? "";
+    applyQuery();
+    if (baselineFromQuery === null) baseline.value = defaultBaseline(s);
+    if (!script.value) script.value = uploads(s)[0]?.id ?? "";
     if (!l.some((x) => x.id === league.value)) league.value = l.find((x) => x.isDefault)?.id ?? l[0]?.id ?? "";
   } catch (e) {
     loadError.value = labErrorMessage(e, "Could not reach the NET Lab API");
   }
+}
+/** Run test (Scripts) and Run again (History, report) hand settings over in the query. */
+let baselineFromQuery: string | null = null;
+function applyQuery() {
+  const q = route.query;
+  const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+  const s = str(q.script);
+  if (s) script.value = s;
+  const b = str(q.baseline);
+  if (b) baselineFromQuery = baseline.value = b === "none" ? "" : b;
+  const l = str(q.league);
+  if (l) league.value = l;
+  const m = str(q.mode);
+  if (m === "deep" || m === "season" || m === "quick") mode.value = m;
 }
 onMounted(loadCatalog);
 
@@ -230,38 +289,21 @@ async function submit() {
     submitting.value = false;
   }
 }
+
+const etaTitle = computed(() => estimate.value?.basis.join("\n") ?? "");
 </script>
 
 <template>
   <div class="page">
-    <nav
-      class="lab-subnav"
-      aria-label="Lab"
-    >
-      <RouterLink
-        to="/lab"
-        class="chip active"
-      >
-        New test
-      </RouterLink>
-      <RouterLink
-        to="/lab/history"
-        class="chip"
-      >
-        History
-      </RouterLink>
-    </nav>
+    <LabSubnav current="new" />
 
-    <div
-      class="section-head"
-      style="margin-bottom: 8px"
-    >
+    <div class="section-head lab-head">
       <div>
         <h1 class="page-title">
           Test a NET script
         </h1>
         <p class="page-desc">
-          NET Lab runs your progression script, unchanged, against a league and reports what it does.
+          Pick a script, a league and how NET runs. The preview on the right is saved with the run.
         </p>
       </div>
     </div>
@@ -276,139 +318,160 @@ async function submit() {
     </p>
 
     <form
-      class="form-card"
+      class="lab-newgrid"
       @submit.prevent="submit"
     >
-      <!-- Script -->
-      <div class="field">
-        <label for="lab-script-file">Script</label>
-        <label
-          class="lab-drop"
-          :class="{ over: dragOver }"
-          data-test="drop"
-          @dragenter.prevent="dragOver = true"
-          @dragover.prevent="dragOver = true"
-          @dragleave.prevent="dragOver = false"
-          @drop.prevent="onDrop"
-        >
-          <input
-            id="lab-script-file"
-            type="file"
-            accept=".js,.mjs,.txt"
-            @change="onScriptInput"
+      <div class="form-card lab-form">
+        <!-- Script -->
+        <div class="field">
+          <label for="lab-script">Script to test</label>
+          <label
+            class="lab-drop"
+            :class="{ over: dragOver }"
+            data-test="drop"
+            @dragenter.prevent="dragOver = true"
+            @dragover.prevent="dragOver = true"
+            @dragleave.prevent="dragOver = false"
+            @drop.prevent="onDrop"
           >
-          <span v-if="adding">Registering…</span>
-          <span v-else><b>Drop a .js file</b> or click to choose</span>
-          <span style="font-size: 12px">Every script gets a family name and an immutable version id.</span>
-        </label>
-        <div class="lab-row2">
-          <div class="field">
-            <label for="lab-family">Family name</label>
             <input
-              id="lab-family"
-              v-model="family"
-              class="input mono"
-              type="text"
-              maxlength="40"
-              placeholder="net"
+              id="lab-script-file"
+              type="file"
+              accept=".js,.mjs,.txt"
+              aria-label="Upload a script"
+              @change="onScriptInput"
             >
-            <span class="hint">Versions are numbered within a family, e.g. net@4.4.0-draft.1.</span>
+            <span v-if="adding">Saving…</span>
+            <span v-else><b>Drop a .js file</b> or click to choose</span>
+            <span class="lab-meta">It gets a version id like net@4.4.0-draft.4. A taken version is bumped, never overwritten.</span>
+          </label>
+          <select
+            id="lab-script"
+            v-model="script"
+            class="input mono"
+          >
+            <option
+              v-if="!uploadList.length && !extraScript"
+              value=""
+              disabled
+            >
+              No uploads yet. Drop a script above.
+            </option>
+            <option
+              v-else
+              value=""
+              disabled
+            >
+              Pick one of your uploads
+            </option>
+            <option
+              v-for="s in uploadList"
+              :key="s.id"
+              :value="s.id"
+            >
+              {{ uploadLabel(s) }}
+            </option>
+            <option
+              v-if="extraScript"
+              :value="extraScript.id"
+            >
+              {{ extraScript.id }} · {{ ROLE_NAME[extraScript.role] }}
+            </option>
+          </select>
+          <div
+            v-if="added"
+            class="lab-assigned"
+            data-test="assigned"
+            role="status"
+          >
+            <span>{{ added.filename }} is saved as</span>
+            <span class="lab-id">{{ added.entry.id }}</span>
+            <span
+              v-if="!added.created"
+              class="hint"
+            >Identical code was already saved, so the existing id {{ added.entry.id }} is reused.</span>
+            <span
+              v-for="n in added.notes.filter((x) => !x.startsWith('Saved as') && !x.startsWith('Same code'))"
+              :key="n"
+              class="hint"
+            >{{ n }}</span>
           </div>
+          <p
+            v-if="addError"
+            role="alert"
+            class="lab-error"
+          >
+            {{ addError }}
+          </p>
+        </div>
+
+        <div class="lab-row2">
+          <!-- Baseline -->
           <div class="field">
-            <label for="lab-script">Script to test</label>
+            <label for="lab-baseline">Compare against</label>
             <select
-              id="lab-script"
-              v-model="script"
+              id="lab-baseline"
+              v-model="baseline"
               class="input mono"
             >
-              <option
-                value=""
-                disabled
+              <optgroup
+                v-if="releaseList.length"
+                label="Releases"
               >
-                Pick a registered script
-              </option>
-              <option
-                v-for="s in progScripts"
-                :key="s.id"
-                :value="s.id"
+                <option
+                  v-for="s in releaseList"
+                  :key="s.id"
+                  :value="s.id"
+                >
+                  {{ s.id }} · {{ ROLE_NAME[s.role] }}
+                </option>
+              </optgroup>
+              <optgroup
+                v-if="draftList.length"
+                label="Your drafts"
               >
-                {{ s.id }} · {{ roleLabel(s.role) }}
+                <option
+                  v-for="s in draftList"
+                  :key="s.id"
+                  :value="s.id"
+                >
+                  {{ s.id }}
+                </option>
+              </optgroup>
+              <option value="">
+                None
               </option>
             </select>
+            <span class="hint">Defaults to the newest release. Releases are only offered here.</span>
+          </div>
+
+          <!-- League -->
+          <div class="field">
+            <label for="lab-league">League</label>
+            <select
+              id="lab-league"
+              v-model="league"
+              class="input"
+            >
+              <option
+                v-for="l in leagues"
+                :key="l.id"
+                :value="l.id"
+              >
+                {{ l.name }}{{ l.available ? "" : " · not downloaded" }}
+              </option>
+            </select>
+            <span
+              v-if="selectedLeague?.credit"
+              class="lab-credit"
+              data-test="credit"
+            >{{ selectedLeague.credit }}</span>
           </div>
         </div>
-        <div
-          v-if="added"
-          class="lab-assigned"
-          data-test="assigned"
-          role="status"
-        >
-          <span>{{ added.filename }} is registered as</span>
-          <span class="lab-id">{{ added.entry.id }}</span>
-          <span
-            v-if="!added.created"
-            class="hint"
-          >Identical code was already registered, so the existing id {{ added.entry.id }} is reused.</span>
-          <span
-            v-for="n in added.notes.filter((x) => !x.startsWith('Saved as') && !x.startsWith('Same code'))"
-            :key="n"
-            class="hint"
-          >{{ n }}</span>
-        </div>
-        <p
-          v-if="addError"
-          role="alert"
-          class="lab-error"
-        >
-          {{ addError }}
-        </p>
-      </div>
 
-      <!-- Baseline -->
-      <div class="field">
-        <label for="lab-baseline">Compare against</label>
-        <select
-          id="lab-baseline"
-          v-model="baseline"
-          class="input mono"
-        >
-          <option value="">
-            None
-          </option>
-          <option
-            v-for="s in progScripts"
-            :key="s.id"
-            :value="s.id"
-          >
-            {{ s.id }} · {{ roleLabel(s.role) }}
-          </option>
-        </select>
-      </div>
-
-      <!-- League -->
-      <div class="field">
-        <label for="lab-league">League</label>
-        <select
-          id="lab-league"
-          v-model="league"
-          class="input"
-        >
-          <option
-            v-for="l in leagues"
-            :key="l.id"
-            :value="l.id"
-          >
-            {{ l.name }}{{ l.isDefault ? " (default)" : "" }}{{ l.available ? "" : " · not downloaded" }}
-          </option>
-        </select>
-        <span
-          v-if="selectedLeague?.credit"
-          class="lab-credit"
-          data-test="credit"
-        >{{ selectedLeague.credit }}</span>
         <div
           v-if="selectedLeague && !selectedLeague.available"
-          style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap"
+          class="lab-inline-row"
         >
           <span class="hint">This league isn't on the server yet.</span>
           <button
@@ -421,22 +484,6 @@ async function submit() {
             {{ downloading ? "Downloading…" : "Download built-in leagues" }}
           </button>
         </div>
-        <label class="lab-inline">
-          <span>{{ uploadingLeague ? "Uploading and validating…" : "Or upload a BBGM export:" }}</span>
-          <input
-            type="file"
-            accept=".json,application/json"
-            data-test="league-upload"
-            :disabled="uploadingLeague"
-            @change="onLeagueUpload"
-          >
-        </label>
-        <p
-          v-if="validating"
-          class="hint"
-        >
-          Checking the league…
-        </p>
         <ul
           v-if="validation"
           class="lab-issues"
@@ -465,167 +512,214 @@ async function submit() {
           </li>
         </ul>
         <p
+          v-else-if="validating"
+          class="hint"
+          style="margin: 0"
+        >
+          Checking the league…
+        </p>
+        <p
           v-if="leagueError"
           role="alert"
           class="lab-error"
         >
           {{ leagueError }}
         </p>
-      </div>
 
-      <!-- Mode and sizes -->
-      <div class="field">
-        <label id="lab-mode-label">Mode</label>
-        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap">
+        <!-- When NET runs -->
+        <div class="field">
+          <label id="lab-mode-label">When NET runs</label>
           <div
-            class="lab-seg"
+            class="lab-modes"
             role="radiogroup"
             aria-labelledby="lab-mode-label"
           >
             <button
+              v-for="c in cards"
+              :key="c.mode"
               type="button"
               role="radio"
-              :aria-checked="mode === 'deep'"
-              @click="mode = 'deep'"
+              class="lab-mode"
+              :class="{ on: mode === c.mode }"
+              :aria-checked="mode === c.mode"
+              :data-mode="c.mode"
+              @click="mode = c.mode"
             >
-              Deep · multi-season
-            </button>
-            <button
-              type="button"
-              role="radio"
-              :aria-checked="mode === 'quick'"
-              @click="mode = 'quick'"
-            >
-              Quick · one offseason
+              <span class="lab-mode__top"><b>{{ c.title }}</b><span class="lab-mode__tag">{{ c.tag }}</span></span>
+              <span class="lab-mode__line">{{ c.line }}</span>
             </button>
           </div>
-          <span
-            v-if="!unlocked"
-            class="lab-locked"
-            data-test="locked-sizes"
+          <p
+            class="lab-tip"
+            data-test="mode-tip"
           >
-            Locked: {{ sizeText(mode) }}
-          </span>
+            {{ info.tip }}
+          </p>
         </div>
-        <label class="lab-inline">
-          <input
-            v-model="unlocked"
-            type="checkbox"
-            data-test="unlock"
-          >
-          Unlock (advanced)
-        </label>
-        <div
-          v-if="unlocked"
-          class="field-row"
-        >
-          <div class="field">
-            <label for="lab-runs">Offseasons</label>
-            <input
-              id="lab-runs"
-              v-model.number="unlockRuns"
-              class="input mono"
-              type="number"
-              min="1"
-            >
-          </div>
-          <div
-            v-if="mode === 'deep'"
-            class="field"
-          >
-            <label for="lab-replicates">Replicates</label>
-            <input
-              id="lab-replicates"
-              v-model.number="unlockReplicates"
-              class="input mono"
-              type="number"
-              min="1"
-            >
-          </div>
-          <div
-            v-if="mode === 'deep'"
-            class="field"
-          >
-            <label for="lab-seasons">Seasons</label>
-            <input
-              id="lab-seasons"
-              v-model.number="unlockSeasons"
-              class="input mono"
-              type="number"
-              min="1"
-              max="50"
-            >
-          </div>
-        </div>
-        <span
-          v-if="unlocked"
-          class="hint"
-        >Locked sizes keep results stable and comparable. Unlocked runs say so in their manifest.</span>
-      </div>
 
-      <div class="field-row">
-        <div class="field">
-          <label for="lab-seed">Seed</label>
-          <input
-            id="lab-seed"
-            v-model.number="seed"
-            class="input mono"
-            type="number"
-            min="0"
-          >
-        </div>
-      </div>
-
-      <div style="display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 16px">
-        <span
-          v-if="estimate"
-          class="lab-estimate"
-          data-test="estimate"
-          :title="estimate.basis.join('\n')"
-        >
-          Estimated ~{{ secondsText(estimate.seconds) }}
-          <InfoTip label="How this estimate was measured">
+        <!-- Advanced -->
+        <details class="lab-advanced">
+          <summary>Advanced</summary>
+          <div class="lab-advanced__body">
+            <div class="field-row">
+              <div class="field">
+                <label for="lab-family">Family for uploads</label>
+                <input
+                  id="lab-family"
+                  v-model="family"
+                  class="input mono"
+                  type="text"
+                  maxlength="40"
+                  placeholder="net"
+                >
+              </div>
+              <div class="field">
+                <label for="lab-seed">Seed</label>
+                <input
+                  id="lab-seed"
+                  v-model.number="seed"
+                  class="input mono"
+                  type="number"
+                  min="0"
+                >
+              </div>
+            </div>
+            <label class="lab-inline">
+              <input
+                v-model="unlocked"
+                type="checkbox"
+                data-test="unlock"
+              >
+              Unlock run sizes
+            </label>
             <span
-              v-for="b in estimate.basis"
-              :key="b"
-              style="display: block"
-            >{{ b }}</span>
-          </InfoTip>
-        </span>
-        <span
-          v-else-if="estimating"
-          class="lab-estimate"
-        >Measuring estimate…</span>
-        <span
-          v-else-if="estimateError"
-          class="hint"
-        >{{ estimateError }}</span>
-        <span v-else />
+              v-if="!unlocked"
+              class="hint"
+              data-test="locked-sizes"
+            >Locked: {{ sizeText(mode) }}</span>
+            <div
+              v-if="unlocked"
+              class="field-row"
+            >
+              <div class="field">
+                <label for="lab-runs">Offseasons</label>
+                <input
+                  id="lab-runs"
+                  v-model.number="unlockRuns"
+                  class="input mono"
+                  type="number"
+                  min="1"
+                >
+              </div>
+              <div
+                v-if="mode !== 'quick'"
+                class="field"
+              >
+                <label for="lab-replicates">Replicates</label>
+                <input
+                  id="lab-replicates"
+                  v-model.number="unlockReplicates"
+                  class="input mono"
+                  type="number"
+                  min="1"
+                >
+              </div>
+              <div
+                v-if="mode === 'deep'"
+                class="field"
+              >
+                <label for="lab-seasons">Seasons</label>
+                <input
+                  id="lab-seasons"
+                  v-model.number="unlockSeasons"
+                  class="input mono"
+                  type="number"
+                  min="1"
+                  max="50"
+                >
+              </div>
+            </div>
+            <span
+              v-if="unlocked"
+              class="hint"
+            >Locked sizes keep results comparable. Unlocked runs say so in their manifest.</span>
+            <label class="lab-inline">
+              <span>{{ uploadingLeague ? "Uploading and checking…" : "Upload a BBGM league export:" }}</span>
+              <input
+                type="file"
+                accept=".json,application/json"
+                data-test="league-upload"
+                :disabled="uploadingLeague"
+                @change="onLeagueUpload"
+              >
+            </label>
+          </div>
+        </details>
+      </div>
+
+      <aside
+        class="panel lab-preview"
+        aria-label="Run preview"
+      >
+        <span class="lab-lbl">Run preview</span>
+        <dl
+          class="lab-kv"
+          data-test="preview"
+        >
+          <template
+            v-for="[k, v] in preview"
+            :key="k"
+          >
+            <dt>{{ k }}</dt>
+            <dd>{{ v }}</dd>
+          </template>
+        </dl>
+        <p
+          v-if="midSeason"
+          class="lab-warnline"
+          data-test="mid-season"
+        >
+          This file is mid-season. NET will read partial-season stats.
+        </p>
         <button
           type="submit"
-          class="btn primary lg"
+          class="btn primary lg lab-press"
           data-test="run"
           :disabled="!canRun"
           :title="blockers.join(' ')"
         >
-          <DeIcon name="plus" />
+          <DeIcon name="play" />
           {{ submitting ? "Starting…" : "Run test" }}
         </button>
-      </div>
-      <p
-        v-if="submitError"
-        role="alert"
-        class="lab-error"
-      >
-        {{ submitError }}
-      </p>
-      <p
-        v-else-if="blockers.length && !validating"
-        class="hint"
-        style="margin: 0"
-      >
-        {{ blockers[0] }}
-      </p>
+        <span
+          v-if="estimate"
+          class="lab-meta lab-eta"
+          data-test="estimate"
+          :title="etaTitle"
+        >{{ etaText(estimate.seconds) }}</span>
+        <span
+          v-else-if="estimating"
+          class="lab-meta"
+        >Estimating…</span>
+        <span
+          v-else-if="estimateError"
+          class="lab-meta"
+        >{{ estimateError }}</span>
+        <p
+          v-if="submitError"
+          role="alert"
+          class="lab-error"
+        >
+          {{ submitError }}
+        </p>
+        <p
+          v-else-if="blockers.length && !validating"
+          class="lab-meta"
+          style="margin: 0"
+        >
+          {{ blockers[0] }}
+        </p>
+      </aside>
     </form>
   </div>
 </template>

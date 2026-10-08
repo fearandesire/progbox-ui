@@ -1,13 +1,53 @@
 /** Shapes returned by /api/lab (they mirror the NET Lab CLI's JSON output). */
 
-export type LabMode = "deep" | "quick";
+/** deep = every offseason for N seasons, season = after one season, quick = right now. */
+export type LabMode = "deep" | "season" | "quick";
 
+export type LabRole = "draft" | "candidate" | "published";
+
+/** Set when the header's version was taken by other code and NET Lab forced it up. */
+export interface LabBump {
+  from: string;
+  to?: string;
+  /** The id that already held `from` (family@from). */
+  collidedWith?: string;
+  originalSha256?: string;
+  originalFile?: string;
+}
+
+/** GET /api/lab/scripts entry (lab v2 contract). Older APIs only send id/role/sha256/createdAt/source. */
 export interface LabScript {
   id: string;
-  role: "draft" | "candidate" | "published";
+  role: LabRole;
   sha256: string;
-  createdAt: string;
   source: string;
+  family?: string;
+  builtin?: boolean;
+  uploadedFile?: string | null;
+  uploadedAt?: string | null;
+  createdAt?: string;
+  runs?: number;
+  header?: string | null;
+  bumped?: LabBump | null;
+}
+
+export interface LabScriptDeleted {
+  id: string;
+  trashedUntil: string;
+}
+
+export type LabDiffOp = "ctx" | "add" | "del";
+
+export interface LabDiffRow {
+  op: LabDiffOp;
+  a: number | null;
+  b: number | null;
+  text: string;
+}
+
+export interface LabDiff {
+  against: string;
+  rows: LabDiffRow[];
 }
 
 export interface LabScriptEntry {
@@ -101,6 +141,9 @@ export interface LabRunSummary {
   finishedAt?: string;
   verdict?: string | null;
   seconds?: number;
+  seed?: number;
+  /** NET Lab version that made the run (lab v2). Absent on older runs. */
+  lab?: LabRunListMeta | null;
   error?: string | null;
   position?: number;
 }
@@ -161,8 +204,72 @@ export interface LabDeepSide {
   trajectories: LabTrajectory[];
 }
 
+/** Version stamp written by every run since NET Lab 0.3.0. */
+export interface LabMeta {
+  version: string;
+  commit: string | null;
+  checks: { version: number; rulesSha256: string };
+  statgen: string | null;
+}
+
+/** History list entries carry a short form of LabMeta; accept either shape. */
+export interface LabRunListMeta {
+  version: string | null;
+  checksVersion?: number | null;
+  checks?: number | { version: number; rulesSha256?: string } | null;
+}
+
+export interface LabRunDetails {
+  mode: LabMode;
+  netRuns: string;
+  gamesSimulated: boolean;
+  statsRead: string;
+  league: { id: string; name: string };
+  runs: number;
+  seasons: number | null;
+  seed: number;
+  scripts: { id: string; sha256: string }[];
+  pre: { id: string; sha256: string } | null;
+}
+
+export type LabCheckId = "league-ovr" | "star-count" | "superstars" | "god-progs" | "production" | "predictable" | "aging";
+export type LabDirection = "better" | "worse" | "same";
+
+export interface LabCheckValue {
+  value: number | number[];
+  display: string;
+  pass: boolean | null;
+  /** Change from the start of the run, in percent (68 means +68%). */
+  pctFromStart: number | null;
+}
+
+export interface LabCheckItem {
+  id: LabCheckId | string;
+  name: string;
+  unit: string;
+  rule: string;
+  applicable: boolean;
+  script: LabCheckValue;
+  baseline: LabCheckValue | null;
+  noScript: { value: number | number[]; display: string } | null;
+  /** Relative difference script vs baseline, in percent. */
+  change: { pct: number | null; direction: LabDirection; note: string } | null;
+}
+
+export interface LabChecks {
+  version: number;
+  rulesSha256: string;
+  verdict: "better" | "worse" | "mixed" | null;
+  script: { passed: number; applicable: number };
+  baseline: { passed: number; applicable: number } | null;
+  items: LabCheckItem[];
+}
+
 export interface LabReport {
   verdict: string;
+  lab?: LabMeta | null;
+  runDetails?: LabRunDetails | null;
+  checks?: LabChecks | null;
   flags: LabFlag[];
   mode: LabMode;
   league: { id: string; name: string; credit: string | null; issues: LabIssue[]; imputedRows: number };
