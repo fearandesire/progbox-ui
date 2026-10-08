@@ -33,9 +33,10 @@ Modes: `deep` = every offseason, 10 seasons (default); `season` = play this seas
 - One real season run started from the UI (net@4.3.1-draft.1 vs net@4.3.0) finished in 78 s with verdict Mixed.
 
 ## Open items, in order
+0. **CI red on 97c42c1, job `web`:** `vitest run --coverage` misses the global thresholds: functions 68.2% and branches 66.09%, both need 70%. Lowest-covered new code is `web/src/views/LabRunView.vue` (60% lines, 41% branches), `web/src/lib/labFormat.ts` (30% functions), `web/src/components/lab/LabReport.vue` and `LabSummary.vue`. Add real tests there (run view polling to done, formatting helpers, old-run summary). Never lower the thresholds. Check locally with `pnpm --filter web test:coverage`.
 1. **Run page after a live run:** in the end-to-end test the run finished (`status.json` state done, verdict mixed) but the page did not show the verdict heading within 4 minutes. Check that `LabRunView.vue` reloads the report when polling sees `done`, and what the heading text is for `mixed`. Reproduce: `LAB_DATA_DIR=<dir> pnpm dev`, open `/lab`, pick "After one season", Run test.
 2. **Applicable counts differ between scripts** in that run (script 2/3, baseline 2/4). Find which check is n/a for one side only in `lab/src/verdict.ts` (likely aging with too few players in a band, or a missing SE) and make applicability the same for both sides, or explain it in the report.
-3. Push nothing else to the PR description until checked: update the PR #38 body to cover v2 (modes, checks, Scripts tab, versions, regrade).
+3. Update the PR #38 body to cover v2 (modes, checks, Scripts tab, versions, regrade).
 4. Wait for CI on the pushed head and fix anything red.
 5. Later, needs Fenix: hosting decision; review akshay's next NET version when supplied.
 
