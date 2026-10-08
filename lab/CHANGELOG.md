@@ -9,7 +9,7 @@ After a checks change, `pnpm lab regrade <runId>` shows any saved run under the 
 
 ## NET Lab 0.3.0 (2026-10-08)
 
-- New run mode `season` ("After one season"): plays out the season in progress with StatGen, then runs NET once at the next preseason. Same replicates as deep mode. A mid-season file's partial stats give way to a full simulated season.
+- New run mode `season` ("After one season"): plays out the season in progress with StatGen, then runs NET once at the next preseason. Same replicates as deep mode. A mid-season file's partial stats give way to a full simulated season. Its checks, KPIs and player tables come from that post-season offseason (no quick pass), and each check item records its `basis` (`file-stats`, `simulated-season` or `multi-season`).
 - Balance checks and a Better / Worse / Mixed verdict against the baseline (`report.checks`, top of `summary.md`). The flags verdict (`Hold`, `Review flags`, `No flags`) stays as `report.verdict`.
 - No-script reference: the same league with the pre-progs hook and BBGM-style development only, cached per league, Lab version, StatGen model, mode and size under `reference/` in the data dir. Fills the "No script" column. Skip it with `--no-reference`.
 - `report.runDetails`: when NET runs, whether games were simulated, which stats NET read, league, runs, seed and script hashes.

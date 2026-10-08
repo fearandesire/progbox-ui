@@ -2,11 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import v8 from "node:v8";
 import { RATING_KEYS } from "./compat.ts";
-import { baseRow, ovrOf } from "./league.ts";
+import { baseRow, ovrOf, ratingsOf, statsRow } from "./league.ts";
 import { MODELS_DIR } from "./paths.ts";
 import { createRng, seededMath } from "./rng.ts";
 import { PHASE, type Player } from "./shim.ts";
-import { offseason, type Job, type RunResult } from "./simulate.ts";
+import { offseason, type Job, type PlayerOutcome, type RunResult } from "./simulate.ts";
 import { ageOf, churn, develop, simulateSeason } from "./statgen/model.ts";
 import type { StatGenModel } from "./statgen/schema.ts";
 
@@ -45,6 +45,8 @@ export type DeepResult = {
   calls: Record<string, number>;
   events: Record<string, number>;
   console: string[];
+  /** "After one season" only: who NET progressed after the simulated season, with the ratings, age and PER it read. */
+  outcomes?: PlayerOutcome[];
   error?: RunResult["error"] & { season: number };
 };
 
@@ -103,6 +105,16 @@ export async function runReplicate(job: DeepJob, run: number, seed: number): Pro
 
     const stats: SeasonStats = { season: meta.enteringSeason, progressed: 0, sumDelta: 0, god: 0, leagueMeanOvr: 0, count75: 0, count80: 0, maxOvr: 0, retired: churned.retired.length, drafted: churned.drafted.length, byAge: {} };
     const byPid = new Map(players.map((p) => [p.pid, p]));
+    if (s === 0 && job.playFirst) {
+      out.outcomes = result.outcomes.flatMap((o) => {
+        const base = bases.get(o.pid);
+        const p = byPid.get(o.pid);
+        if (!base || !p) return [];
+        const r = ratingsOf(base);
+        const per = statsRow(p, meta.statsSeason)?.per;
+        return [{ ...o, base: RATING_KEYS.map((k) => r[k]!), baseOvr: ovrOf(base), age: ageOf(p, meta.enteringSeason), per: typeof per === "number" ? per : null }];
+      });
+    }
     for (const o of result.outcomes) {
       const base = bases.get(o.pid);
       const p = byPid.get(o.pid);

@@ -25,9 +25,23 @@ pnpm lab run --script <file> --baseline net-3.2.1 --json > events.ndjson
 - The script gets a forced id like `net@4.4.0-draft.1`; quote that id, not the filename. If the header's version already holds other code, the id is bumped (for example `net@4.3.1-draft.1`) and an `issue` event with code `version-bumped` says so; report the bumped id.
 - `--json` prints one event per line: `run` (id, measured estimate), `stage`, `progress`, `issue` (league checks), `done` or `error`.
 - Pick when NET runs with `--mode`: `deep` (default, every offseason for 10 seasons), `season` (plays out this season, then NET once) or `quick` (once, right now, on the file's stats). Only `deep` grades the three league-level checks.
+- Each check in `report.checks.items` has a `basis`: `file-stats` (the file's own stats over many seeds, the quick part), `simulated-season` (NET's run after the simulated season; `season` mode grades everything from it and skips the quick part) or `multi-season`. Say which when you quote a number.
 - The first deep or season run on a league also builds a cached no-script reference (60 replicates); later runs reuse it. `--no-reference` skips it.
 - Read results from the run folder named in the `done` event: start with `report.json` (`checks.verdict`, `checks.items`, `runDetails`, `lab`, then `flags`, `script.kpis`, `deep.script.seasons`), then `summary.md` for people.
 - Don't pass `--runs`, `--seasons` or `--replicates`; sizes are locked. Use `--unlock` only when asked, and say so in your write-up.
+
+## How the deep and season loop plays a year
+
+Each simulated year in `deep` and `season` mode (`src/deep.ts`) runs in BBGM's order, checked against zengm at commit `f3dac650b3250ed324eca5210feeb3ca5b441de5`, the commit StatGen was fit on:
+
+1. **Season stats**: StatGen draws a regular season's box score and advanced stats for every rostered player (BBGM plays the games; the Lab can't host BBGM).
+2. **Retirements**: StatGen's retirement rates by age and OVR. In BBGM: `player.shouldRetire` / `player.retire` in [newPhaseBeforeDraft.ts](https://github.com/zengm-games/zengm/blob/f3dac650b3250ed324eca5210feeb3ca5b441de5/src/worker/core/phase/newPhaseBeforeDraft.ts).
+3. **Draft**: a class resampled from real BBGM classes, two rounds, worst teams first. In BBGM: [newPhaseDraft.ts](https://github.com/zengm-games/zengm/blob/f3dac650b3250ed324eca5210feeb3ca5b441de5/src/worker/core/phase/newPhaseDraft.ts).
+4. **Develop**: each player gets a new ratings row for the next season with a development step resampled from real BBGM progs for his age (StatGen's model fit to BBGM's progs). In BBGM: `player.addRatingsRow` then `player.develop(p, 1, false, coachingLevel)` in [newPhasePreseason.ts](https://github.com/zengm-games/zengm/blob/f3dac650b3250ed324eca5210feeb3ca5b441de5/src/worker/core/phase/newPhasePreseason.ts).
+5. **Hook**: the Worker Console pre-progs hook (`hook@1.0.0`) runs with last season's ages.
+6. **NET**: the script runs in the new preseason, after BBGM-style progression.
+
+That matches what NET's own README asks for: run the Worker Console code before progs, and NET in the preseason after BBGM's progression. `deep` runs NET at the file's own preseason first (real stats), then repeats steps 1 to 6 for each later season. `season` runs steps 1 to 6 once and grades that offseason. The links are references only; no zengm code is in this repo.
 
 ## 3. Report back
 

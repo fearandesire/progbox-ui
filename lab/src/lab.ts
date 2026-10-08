@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { analyze, productionEffect, type Analysis } from "./analyze.ts";
 import { COMPAT_TARGET } from "./compat.ts";
-import { loadModel, runReplicate, type DeepJob } from "./deep.ts";
+import { loadModel, runReplicate, type DeepJob, type DeepResult } from "./deep.ts";
 import { analyzeDeep, deepFlags, deepMarkdown, type DeepAnalysis, type DeepSeason } from "./deepAnalyze.ts";
 import { defaultWorkers, estimate, recordTiming } from "./estimate.ts";
 import { ovrOf } from "./league.ts";
@@ -15,7 +15,7 @@ import { DEFAULT_MODE, PRESETS, seasonsOf, type Mode } from "./presets.ts";
 import { Registry, type Entry } from "./registry.ts";
 import { flagsFor, playersCsv, summaryMarkdown, verdictOf, writeJson, type Flag } from "./report.ts";
 import type { Player } from "./shim.ts";
-import { packPlayers, runOnce, type Job, type Script } from "./simulate.ts";
+import { packPlayers, runOnce, type Job, type RunResult, type Script } from "./simulate.ts";
 import { imputeStats } from "./statgen/model.ts";
 import { checksMarkdown, gradeChecks, verdictText, type CheckInput, type Checks, type SideInput } from "./verdict.ts";
 import { LAB_VERSION, labMeta, type LabMeta } from "./version.ts";
@@ -161,8 +161,9 @@ export async function estimateRun(spec: RunSpec): Promise<{ seconds: number; bas
     }
     return { ...job, script: s };
   };
+  // "After one season" grades the offseason after the simulated season, so it has no quick pass.
   const parts = scripts.flatMap((s) => [
-    { mode: "quick" as const, units: p.runs, scriptSha: sha(s.source), league, s },
+    ...(mode === "season" ? [] : [{ mode: "quick" as const, units: p.runs, scriptSha: sha(s.source), league, s }]),
     ...(seasons ? [{ mode: "deep" as const, units: seasons * p.replicates, scriptSha: sha(s.source), league, s }] : []),
   ]);
   const leagueSha = seasons && !spec.noReference ? leagueSha256(league) : null;
@@ -244,6 +245,10 @@ export function checkInputOf(report: ReportLike, start: CheckInput["start"] = re
     script: sideOf(report.script?.kpis, deep?.script),
     baseline: report.baseline ? sideOf(report.baseline.kpis, deep?.baseline) : null,
     noScript: deep?.noScript ? sideOf(null, deep.noScript) : null,
+    basis:
+      report.mode === "season"
+        ? { perOffseason: "simulated-season", aging: "simulated-season" }
+        : { perOffseason: "file-stats", aging: report.mode === "deep" && deep ? "multi-season" : "file-stats" },
   };
 }
 
@@ -320,20 +325,30 @@ export async function runLab(spec: RunSpec, emit: (e: LabEvent) => void = () => 
       recordTiming({ mode: "quick", scriptSha: sha(s.source), league: spec.league ?? DEFAULT_LEAGUE, units: preset.runs, workers: Math.min(workers, preset.runs), ms: Date.now() - t });
       return analyze(league.boundary, results);
     };
-    const deepOf = async (s: Script, replicates: number, runSeed: number, stage: string, text: string): Promise<DeepAnalysis> => {
+    const deepOf = async (s: Script, replicates: number, runSeed: number, stage: string, text: string): Promise<DeepAnalysis & { results: DeepResult[] }> => {
       send({ type: "stage", stage, text });
       const t = Date.now();
       const djob: DeepJob = { ...job, script: s, seasons, modelFile, playFirst: mode === "season" };
       const results = await runMany(djob, { runs: replicates, seed: runSeed, workers, deep: true, onProgress: progress(stage, replicates) });
       recordTiming({ mode: "deep", scriptSha: sha(s.source), league: spec.league ?? DEFAULT_LEAGUE, units: replicates * seasons, workers: Math.min(workers, replicates), ms: Date.now() - t });
-      return analyzeDeep(results);
+      return { ...analyzeDeep(results), results };
+    };
+    /** "After one season": the per-offseason analysis (KPIs, players) of NET's run after the simulated season. */
+    const afterSeason = (d: { results: DeepResult[] }): Analysis => {
+      const runs: RunResult[] = d.results.map((r) => ({ run: r.run, seed: r.seed, outcomes: r.outcomes ?? [], events: [], calls: r.calls, console: r.console, error: r.error }));
+      const a = analyze(league.boundary, runs);
+      a.eventTypes = { ...(d.results[0]?.events ?? {}) };
+      return a;
     };
     const deepText = (label: string) => (mode === "season" ? `${label}: ${preset.replicates} replicates, one simulated season then NET once` : `${label}: ${preset.replicates} replicates × ${seasons} seasons`);
 
-    const qMain = await quickOf(main.script, main.entry.id);
-    const qBase = base ? await quickOf(base.script, base.entry.id) : undefined;
+    const season = mode === "season";
+    const qMainQuick = season ? undefined : await quickOf(main.script, main.entry.id);
+    const qBaseQuick = season || !base ? undefined : await quickOf(base.script, base.entry.id);
     const dMain = seasons ? await deepOf(main.script, preset.replicates, seed, `deep:${main.entry.id}`, deepText(main.entry.id)) : undefined;
     const dBase = seasons && base ? await deepOf(base.script, preset.replicates, seed, `deep:${base.entry.id}`, deepText(base.entry.id)) : undefined;
+    const qMain = qMainQuick ?? afterSeason(dMain!);
+    const qBase = base ? (qBaseQuick ?? afterSeason(dBase!)) : undefined;
 
     let reference: (Reference & { cached: boolean }) | null = null;
     if (seasons && !spec.noReference) {
@@ -377,8 +392,9 @@ export async function runLab(spec: RunSpec, emit: (e: LabEvent) => void = () => 
     const checks = gradeChecks(checkInputOf(report));
     report.checks = checks;
 
-    const boundaryText = `stats ${league.boundary.statsSeason} → preseason ${league.boundary.enteringSeason}`;
-    let summary = summaryMarkdown({ title: `NET Lab: ${main.entry.id}`, a: qMain, base: qBase && base ? { name: base.entry.id, analysis: qBase } : undefined, scriptName: main.entry.id, boundaryText, flags });
+    const played = league.boundary.baseDevelop === "export" ? league.boundary.enteringSeason : league.boundary.statsSeason;
+    const boundaryText = season ? `simulated ${played} stats → preseason ${played + 1}` : `stats ${league.boundary.statsSeason} → preseason ${league.boundary.enteringSeason}`;
+    let summary = summaryMarkdown({ title: `NET Lab: ${main.entry.id}`, a: qMain, base: qBase && base ? { name: base.entry.id, analysis: qBase } : undefined, scriptName: main.entry.id, boundaryText, flags, seasonMode: season });
     if (dMain) summary = summary.replace("## Biggest risers", `${deepMarkdown(dMain, main.entry.id, dBase && base ? { name: base.entry.id, analysis: dBase } : undefined)}\n## Biggest risers`);
     const top = [
       `# NET Lab: ${main.entry.id}${base ? ` vs ${base.entry.id}` : ""}`,
@@ -389,7 +405,7 @@ export async function runLab(spec: RunSpec, emit: (e: LabEvent) => void = () => 
       runDetailsMarkdown(runDetails, lab),
       `League: ${league.info.name}${league.info.credit ? ` (${league.info.credit})` : ""}.${league.imputedRows ? ` ${league.validation.imputed.join(", ")} estimated for ${league.imputedRows} stat rows the export lacked.` : ""}${reference ? ` No script: ${reference.replicates} replicates${reference.cached ? ", cached" : ""}.` : ""}`,
       "",
-      "## First offseason, many seeds",
+      season ? "## The offseason after the simulated season" : "## First offseason, many seeds",
       "",
       "",
     ].join("\n");
@@ -422,8 +438,9 @@ export async function runLab(spec: RunSpec, emit: (e: LabEvent) => void = () => 
     fs.writeFileSync(path.join(dir, "players.csv"), playersCsv(qMain.players));
     if (qBase) fs.writeFileSync(path.join(dir, "players.baseline.csv"), playersCsv(qBase.players));
     if (dMain) {
-      const traj = (d: DeepAnalysis) => d.trajectories.map((t) => ({ ...t, name: names.get(t.pid) ?? String(t.pid) }));
-      writeJson(path.join(dir, "deep.json"), { script: { ...dMain, trajectories: traj(dMain) }, baseline: dBase ? { ...dBase, trajectories: traj(dBase) } : null });
+      // Raw replicate results stay out of deep.json; it keeps the analysis and named trajectories.
+      const named = ({ results: _raw, ...d }: DeepAnalysis & { results: DeepResult[] }) => ({ ...d, trajectories: d.trajectories.map((t) => ({ ...t, name: names.get(t.pid) ?? String(t.pid) })) });
+      writeJson(path.join(dir, "deep.json"), { script: named(dMain), baseline: dBase ? named(dBase) : null });
     }
     fs.writeFileSync(path.join(dir, "summary.md"), summary);
     const seconds = Math.round((Date.now() - started) / 1000);

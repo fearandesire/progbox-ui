@@ -103,7 +103,9 @@ export function analyze(boundary: Boundary, results: RunResult[]): Analysis {
     });
   }
 
-  const perPlayer = new Map<number, { ovr: number[]; attr: number[]; god: number }>();
+  const perPlayer = new Map<number, { ovr: number[]; deltas: number[]; attr: number[]; god: number; pers: number[]; ages: number[]; baseOvrs: number[] }>();
+  // Per-outcome rows for the pooled PER effect when each run read its own (simulated) stats.
+  const pooled: PooledRow[] = [];
   const allDeltas: number[] = [];
   const byAge = new Map<string, number[]>(AGE_BANDS.map(([b]) => [b, []]));
   const over80After: number[] = [];
@@ -125,10 +127,20 @@ export function analyze(boundary: Boundary, results: RunResult[]): Analysis {
       const i = info.get(o.pid);
       if (!i) continue;
       if (o.ratings.some((v) => !Number.isInteger(v) || v < 0 || v > 100)) invalidRows++;
-      const delta = o.ratings.map((v, k) => v - i.base[k]!);
-      const d = o.ovr - i.baseOvr;
-      const acc = perPlayer.get(o.pid) ?? { ovr: [], attr: RATING_KEYS.map(() => 0), god: 0 };
+      const base = o.base ?? i.base;
+      const baseOvr = o.baseOvr ?? i.baseOvr;
+      const age = o.age ?? i.age;
+      const delta = o.ratings.map((v, k) => v - base[k]!);
+      const d = o.ovr - baseOvr;
+      const acc = perPlayer.get(o.pid) ?? { ovr: [], deltas: [], attr: RATING_KEYS.map(() => 0), god: 0, pers: [], ages: [], baseOvrs: [] };
       acc.ovr.push(o.ovr);
+      acc.deltas.push(d);
+      acc.ages.push(age);
+      acc.baseOvrs.push(baseOvr);
+      if (typeof o.per === "number" && Number.isFinite(o.per)) {
+        acc.pers.push(o.per);
+        pooled.push({ run: r.run, age, baseOvr, per: o.per, d });
+      }
       delta.forEach((v, k) => (acc.attr[k]! += v));
       if (isGodLike(delta)) {
         acc.god++;
@@ -136,7 +148,7 @@ export function analyze(boundary: Boundary, results: RunResult[]): Analysis {
       }
       perPlayer.set(o.pid, acc);
       allDeltas.push(d);
-      const band = AGE_BANDS.find(([, lo, hi]) => i.age >= lo && i.age <= hi);
+      const band = AGE_BANDS.find(([, lo, hi]) => age >= lo && age <= hi);
       if (band) {
         byAge.get(band[0])!.push(d);
         const acc = runBands.get(band[0]) ?? [0, 0];
@@ -153,15 +165,16 @@ export function analyze(boundary: Boundary, results: RunResult[]): Analysis {
 
   const players: PlayerSummary[] = [...perPlayer.entries()].map(([pid, acc]) => {
     const i = info.get(pid)!;
-    const deltas = acc.ovr.map((o) => o - i.baseOvr).sort((a, b) => a - b);
+    const deltas = [...acc.deltas].sort((a, b) => a - b);
+    const varies = acc.pers.length > 0;
     return {
       pid,
       name: i.name,
       tid: i.tid,
-      age: i.age,
-      per: i.per,
-      bpm: i.bpm,
-      baseOvr: i.baseOvr,
+      age: varies ? Math.round(mean(acc.ages)) : i.age,
+      per: varies ? mean(acc.pers) : i.per,
+      bpm: varies ? null : i.bpm,
+      baseOvr: varies ? mean(acc.baseOvrs) : i.baseOvr,
       runs: acc.ovr.length,
       meanOvr: mean(acc.ovr),
       meanDelta: mean(deltas),
@@ -178,7 +191,7 @@ export function analyze(boundary: Boundary, results: RunResult[]): Analysis {
   });
   players.sort((a, b) => b.meanDelta - a.meanDelta);
 
-  const per = productionEffect(players, "per");
+  const per = pooled.length ? pooledEffect(pooled) : productionEffect(players, "per");
   const sds = players.map((p) => p.sdDelta).sort((a, b) => a - b);
   const apiCalls: Record<string, number> = {};
   const eventTypes: Record<string, number> = {};
@@ -215,6 +228,30 @@ export function analyze(boundary: Boundary, results: RunResult[]): Analysis {
     eventTypes,
     console: first?.console ?? [],
   };
+}
+
+type PooledRow = { run: number; age: number; baseOvr: number; per: number; d: number };
+
+/**
+ * PER effect when every run read different stats: each run's PER against that run's
+ * ΔOVR, pooled over all runs (PER standardized over the pool). The SE is the spread of
+ * the same regression fit run by run.
+ */
+function pooledEffect(rows: PooledRow[]): { beta: number; se: number } | null {
+  if (rows.length < 20) return null;
+  const m = mean(rows.map((r) => r.per));
+  const s = sd(rows.map((r) => r.per)) || 1;
+  const fit = (rs: PooledRow[]) => (rs.length >= 20 ? ols(rs.map((r) => [1, r.age, r.baseOvr, (r.per - m) / s]), rs.map((r) => r.d))?.[3] ?? null : null);
+  const beta = fit(rows);
+  if (beta === null) return null;
+  const byRun = new Map<number, PooledRow[]>();
+  for (const r of rows) {
+    const list = byRun.get(r.run);
+    if (list) list.push(r);
+    else byRun.set(r.run, [r]);
+  }
+  const betas = [...byRun.values()].map(fit).filter((b): b is number => b !== null);
+  return { beta, se: betas.length > 1 ? sd(betas) / Math.sqrt(betas.length) : 0 };
 }
 
 const seOf = (xs: number[]) => (xs.length > 1 ? sd(xs) / Math.sqrt(xs.length) : 0);

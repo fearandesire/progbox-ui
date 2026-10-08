@@ -15,7 +15,19 @@ export type Job = {
   script: Script;
 };
 
-export type PlayerOutcome = { pid: number; ovr: number; ratings: number[] };
+export type PlayerOutcome = {
+  pid: number;
+  ovr: number;
+  ratings: number[];
+  /**
+   * Set by "After one season" replicates, where each replicate's starting ratings,
+   * age and PER differ from the file's: the row NET rebuilt from, and the simulated PER it read.
+   */
+  base?: number[];
+  baseOvr?: number;
+  age?: number;
+  per?: number | null;
+};
 
 export type RunResult = {
   run: number;

@@ -65,6 +65,8 @@ export function summaryMarkdown(opts: {
   scriptName: string;
   boundaryText: string;
   flags: Flag[];
+  /** "After one season": the per-offseason tables come from the offseason after the simulated season. */
+  seasonMode?: boolean;
 }): string {
   const { a, base, flags } = opts;
   const lines: string[] = [];
@@ -101,9 +103,11 @@ export function summaryMarkdown(opts: {
     lines.push("");
   }
   lines.push("## Notes", "");
-  lines.push("- Quick mode: one offseason on this export, many seeds. Stats are the export's own; only the script's randomness varies.");
+  if (opts.seasonMode) lines.push("- One offseason per replicate, after a simulated season. Each replicate's stats, development and ages differ, so a player's PER, base OVR and spread are averaged over replicates.");
+  else lines.push("- Quick mode: one offseason on this export, many seeds. Stats are the export's own; only the script's randomness varies.");
   lines.push("- Flags are heuristics for where to look, not release gates. Thresholds live in `lab/src/report.ts`.");
-  lines.push("- PER/BPM effects are OLS coefficients on each player's mean ΔOVR, holding age and base OVR fixed.");
+  if (opts.seasonMode) lines.push("- The PER effect pools every replicate: each replicate's simulated PER against that replicate's ΔOVR, holding age and base OVR fixed. Its SE is the spread of the same fit replicate by replicate.");
+  else lines.push("- PER/BPM effects are OLS coefficients on each player's mean ΔOVR, holding age and base OVR fixed.");
   lines.push("- God progs are counted as every rating except height rising by 7 or more.");
   return lines.join("\n") + "\n";
 }

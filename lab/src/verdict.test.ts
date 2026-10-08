@@ -87,6 +87,21 @@ describe("balance checks", () => {
     expect(by).toMatchObject({ "league-ovr": "−4.9", "star-count": "1 → 2.6", "god-progs": "0.0", production: null, aging: null });
   });
 
+  it("says which data each check used", () => {
+    const deep = gradeChecks(input(net430, net321));
+    expect(Object.fromEntries(deep.items.map((i) => [i.id, i.basis]))).toEqual({
+      "league-ovr": "multi-season",
+      "star-count": "multi-season",
+      superstars: "multi-season",
+      "god-progs": "file-stats",
+      production: "file-stats",
+      predictable: "file-stats",
+      aging: "multi-season",
+    });
+    const season = gradeChecks({ ...input(net430, net321, 1), basis: { perOffseason: "simulated-season", aging: "simulated-season" } });
+    expect(season.items.filter((i) => i.applicable).map((i) => i.basis)).toEqual(["simulated-season", "simulated-season", "simulated-season", "simulated-season"]);
+  });
+
   it("pins the rules: editing a threshold needs a new checks version and a CHANGELOG line", () => {
     // If this fails you changed RULES. Bump CHECKS_VERSION, add a lab/CHANGELOG.md entry, then update both values here.
     expect(CHECKS_VERSION).toBe(1);

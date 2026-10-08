@@ -39,6 +39,16 @@ export function rulesSha256(): string {
 
 export type CheckId = "league-ovr" | "star-count" | "superstars" | "god-progs" | "production" | "predictable" | "aging";
 export type Direction = "better" | "worse" | "same";
+/**
+ * What data a check used: the file's own stats over many seeds (quick part), the offseason
+ * after one simulated season ("After one season"), or the multi-season run.
+ */
+export type Basis = "file-stats" | "simulated-season" | "multi-season";
+export const BASIS_TEXT: Record<Basis, string> = {
+  "file-stats": "the file's stats, many seeds",
+  "simulated-season": "after a simulated season",
+  "multi-season": "every offseason of the run",
+};
 export type CheckValue = { value: number | number[]; display: string; pass: boolean | null; pctFromStart: number | null };
 export type CheckItem = {
   id: CheckId;
@@ -46,6 +56,7 @@ export type CheckItem = {
   unit: string;
   rule: string;
   applicable: boolean;
+  basis: Basis;
   script: CheckValue | null;
   baseline: CheckValue | null;
   noScript: { value: number | number[]; display: string } | null;
@@ -86,6 +97,8 @@ export type CheckInput = {
   script: SideInput;
   baseline: SideInput | null;
   noScript: SideInput | null;
+  /** Where the per-offseason checks (god progs, production, predictability) and aging read from. Defaults: file stats, and aging from the multi-season part when there is one. */
+  basis?: { perOffseason: Basis; aging: Basis };
 };
 
 const M = "−";
@@ -104,6 +117,8 @@ type Def = {
   unit: string;
   rule: string;
   multiSeason?: boolean;
+  /** Which data a check reads: multi-season checks always the multi-season run; others per input. */
+  kind?: "per-offseason" | "aging";
   /** No-script reference values make sense for this check. */
   noScript?: boolean;
   measure: (side: SideInput, input: CheckInput) => Measure | null;
@@ -170,6 +185,7 @@ const DEFS: Def[] = [
     name: "God progs stay rare",
     unit: "per offseason",
     rule: `${RULES.godProgsMax} or fewer`,
+    kind: "per-offseason",
     noScript: true,
     measure: (side) => {
       let g: Stat | null = null;
@@ -188,6 +204,7 @@ const DEFS: Def[] = [
     name: "Production drives progs",
     unit: "OVR gained per 1 SD better PER",
     rule: `+${RULES.productionMinEffect} OVR or more`,
+    kind: "per-offseason",
     measure: (side) => {
       const v = side.quick?.perEffect;
       if (v === null || v === undefined) return null;
@@ -200,6 +217,7 @@ const DEFS: Def[] = [
     name: "Progs are predictable",
     unit: "spread of a typical player's prog, OVR",
     rule: `${RULES.predictableMaxSd} OVR or less`,
+    kind: "per-offseason",
     measure: (side) => {
       const q = side.quick;
       if (!q || !q.runs) return null;
@@ -214,6 +232,7 @@ const DEFS: Def[] = [
     name: "Players age normally",
     unit: "mean OVR change, ages 25 to 27 / 34+",
     rule: `25 to 27 at ${num(RULES.aging25to27Min, 1)} or better, 34+ at ${num(RULES.aging34PlusMax, 0)} or worse`,
+    kind: "aging",
     measure: (side) => {
       const young = ageOf(side, "25-27");
       const old = ageOf(side, "34+");
@@ -249,6 +268,8 @@ function compare(def: Def, s: Measure, b: Measure): NonNullable<CheckItem["chang
 
 export function gradeChecks(input: CheckInput): Checks {
   const multi = input.seasons >= RULES.multiSeasonMinSeasons;
+  const basis = input.basis ?? { perOffseason: "file-stats", aging: input.script.deep ? "multi-season" : "file-stats" };
+  const basisOf = (def: Def): Basis => (def.kind === "per-offseason" ? basis.perOffseason : def.kind === "aging" ? basis.aging : "multi-season");
   const items: CheckItem[] = DEFS.map((def) => {
     const applicable = !def.multiSeason || multi;
     const s = applicable ? def.measure(input.script, input) : null;
@@ -260,6 +281,7 @@ export function gradeChecks(input: CheckInput): Checks {
       unit: def.unit,
       rule: def.rule,
       applicable,
+      basis: basisOf(def),
       script: asValue(s),
       baseline: asValue(b),
       noScript: n ? { value: n.value, display: n.display } : null,
@@ -302,16 +324,16 @@ export function checksMarkdown(c: Checks, scriptId: string, baselineId: string |
   lines.push(`${scriptId}: ${c.script.passed}/${c.script.applicable} checks pass${c.baseline && baselineId ? ` · ${baselineId}: ${c.baseline.passed}/${c.baseline.applicable}` : ""}`, "");
   lines.push("## Balance checks", "");
   const mark = (v: CheckValue | null) => (v ? `${v.pass ? "✓" : "✗"} ${v.display}${v.pctFromStart !== null ? ` (${num(v.pctFromStart, Math.abs(v.pctFromStart) >= 10 ? 0 : 1, true)}%)` : ""}` : "n/a");
-  const head = [`Check`, scriptId, ...(baselineId ? [baselineId] : []), "No script", ...(baselineId ? [`Change vs ${baselineId}`] : [])];
+  const head = [`Check`, "Data", scriptId, ...(baselineId ? [baselineId] : []), "No script", ...(baselineId ? [`Change vs ${baselineId}`] : [])];
   lines.push(`| ${head.join(" | ")} |`, `|${head.map(() => "---").join("|")}|`);
   for (const i of c.items) {
     const name = `${i.name} (${i.unit}; passes: ${i.rule})`;
     if (!i.applicable) {
-      lines.push(`| ${[name, "n/a", ...(baselineId ? ["n/a"] : []), "n/a", ...(baselineId ? ["needs a 10-season run"] : [])].join(" | ")} |`);
+      lines.push(`| ${[name, "n/a", "n/a", ...(baselineId ? ["n/a"] : []), "n/a", ...(baselineId ? ["needs a 10-season run"] : [])].join(" | ")} |`);
       continue;
     }
     const change = i.change ? `${i.change.pct === null ? "" : `${num(i.change.pct, 0, true)}% `}${i.change.direction}: ${i.change.note}` : "n/a";
-    lines.push(`| ${[name, mark(i.script), ...(baselineId ? [mark(i.baseline)] : []), i.noScript?.display ?? "n/a", ...(baselineId ? [change] : [])].join(" | ")} |`);
+    lines.push(`| ${[name, BASIS_TEXT[i.basis], mark(i.script), ...(baselineId ? [mark(i.baseline)] : []), i.noScript?.display ?? "n/a", ...(baselineId ? [change] : [])].join(" | ")} |`);
   }
   lines.push("", `Gaps under ${RULES.tieSe} standard errors count as a tie. % in a value cell is its change from the start of the run. Rules: lab/src/verdict.ts (checks v${c.version}, rules ${c.rulesSha256.slice(0, 8)}).`, "");
   return lines.join("\n");

@@ -10,7 +10,7 @@ Three modes, chosen by when NET runs. **Deep** is the default:
 | `season` | Once, after one season | Plays out the season in progress with StatGen (development, retirements, draft), then runs NET once at the next preseason. A mid-season file's partial stats give way to a full simulated season | 200 replicates × 1 season |
 | `quick` | Once, right now | The next offseason only, on the stats in the file; no games played | 1000 offseasons |
 
-Every mode also runs the quick part (1000 offseasons on the file's own stats); it feeds the per-player tables and three of the checks below. Sizes are locked so every report is comparable; `--unlock` overrides them. Why these numbers: `src/presets.ts` (also printed in every manifest).
+`deep` and `quick` both run the quick part (1000 offseasons on the file's own stats); it feeds the per-player tables and three of the checks below. `season` has no quick part: its tables and checks all come from NET's run after the simulated season. How a simulated year maps to BBGM's phases, with zengm links: [AGENTS.md](AGENTS.md#how-the-deep-and-season-loop-plays-a-year). Sizes are locked so every report is comparable; `--unlock` overrides them. Why these numbers: `src/presets.ts` (also printed in every manifest).
 
 ## Set it up
 
@@ -114,7 +114,9 @@ Seven pass rules, in `src/verdict.ts`:
 | Players age normally | mean OVR change, ages 25 to 27 / 34+ | 25 to 27 at -0.5 or better, 34+ at -2 or worse |
 
 - The first three need a 10-season run (`deep`); other modes mark them n/a. "Start" is the league before the first offseason.
-- God progs, production and predictability come from the quick part (the file's own stats, many seeds) in every mode; aging comes from the multi-season part when there is one.
+- Each check records its `basis`, also shown as the Data column in `summary.md`:
+  - `deep` and `quick`: god progs, production and predictability come from the quick part (`file-stats`); aging comes from the multi-season run in `deep` (`multi-season`).
+  - `season`: god progs, production, predictability and aging all come from NET's run after the simulated season (`simulated-season`). Production pools every replicate's simulated PER against that replicate's ΔOVR, with its SE from the replicate-to-replicate spread. Predictability is each player's SD across replicates, so it also includes the spread of the simulated stats and is not directly comparable with the quick-mode number.
 - Against a baseline: **Better** when no check the baseline passes is broken, **Worse** when more are broken than fixed, otherwise **Mixed**. A script vs baseline gap under 2 standard errors is a tie ("same"), so noise can't break a check. `change.pct` is the relative difference in size between the two scripts.
 - The **No script** column comes from a reference run with the hook and BBGM-style development only (60 replicates), cached under `reference/` per league, Lab version, StatGen model, mode and size. `--no-reference` skips it.
 

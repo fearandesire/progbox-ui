@@ -325,11 +325,50 @@ describe("after one season", () => {
     expect(pre.error).toBeUndefined();
     expect(pre.seasons.map((s) => s.season)).toEqual([2017]);
     expect(pre.seasons[0]!.progressed).toBeGreaterThan(0);
+    // Each outcome carries the ratings, age and simulated PER NET read in that replicate.
+    expect(pre.outcomes!.length).toBe(pre.seasons[0]!.progressed);
+    expect(pre.outcomes!.every((o) => o.base!.length === RATING_KEYS.length && typeof o.age === "number" && (o.per === null || Number.isFinite(o.per)))).toBe(true);
+    expect(pre.outcomes!.some((o) => typeof o.per === "number")).toBe(true);
     // Mid-season file: plays out 2016 itself, NET runs entering 2017 on the simulated stats.
     const mid = await runReplicate(djob(PHASE.REGULAR_SEASON), 0, 7);
     const now = await runReplicate({ ...djob(PHASE.REGULAR_SEASON), playFirst: false }, 0, 7);
     expect(mid.seasons.map((s) => s.season)).toEqual([2017]);
     expect(mid.seasons[0]!.sumDelta).not.toBe(now.seasons[0]!.sumDelta);
+  });
+});
+
+describe("after-one-season analysis", () => {
+  it("pools each replicate's own PER against that replicate's ΔOVR, with a replicate-to-replicate SE", () => {
+    const players = league();
+    const boundary = boundaryFrom({ data: { gameAttributes: { season: 2016, phase: PHASE.REGULAR_SEASON }, players }, sha256: "fixture" });
+    const rng = createRng(5);
+    const slope = 0.25;
+    const results = Array.from({ length: 40 }, (_, run) => ({
+      run,
+      seed: run,
+      events: [],
+      calls: {},
+      console: [],
+      outcomes: players.slice(0, 30).map((p) => {
+        const per = 10 + 8 * rng();
+        const d = slope * (per - 14) + (rng() - 0.5);
+        const baseOvr = 40 + ((p.pid * 7) % 20);
+        return { pid: p.pid, ovr: baseOvr + d, ratings: RATING_KEYS.map(() => 50), base: RATING_KEYS.map(() => 50), baseOvr, age: 26 + (p.pid % 9), per };
+      }),
+    }));
+    const a = analyze(boundary, results);
+    const pers = results.flatMap((r) => r.outcomes.map((o) => o.per));
+    const m = pers.reduce((x, y) => x + y, 0) / pers.length;
+    const sdPer = Math.sqrt(pers.reduce((x, y) => x + (y - m) ** 2, 0) / (pers.length - 1));
+    expect(a.kpis.perEffectSe).toBeGreaterThan(0);
+    expect(Math.abs(a.kpis.perEffect! - slope * sdPer)).toBeLessThan(3 * a.kpis.perEffectSe!);
+    // A player's PER and spread come from the replicates, not the file.
+    const p0 = a.players.find((p) => p.pid === 0)!;
+    expect(p0.per).toBeCloseTo(results.reduce((x, r) => x + r.outcomes[0]!.per, 0) / 40, 6);
+    expect(p0.runs).toBe(40);
+    // Spread across replicates: the PER draws (0.25 × 2.3) plus the noise (0.29), about 0.64.
+    expect(a.kpis.medianPlayerSd).toBeGreaterThan(0.5);
+    expect(a.kpis.medianPlayerSd).toBeLessThan(0.8);
   });
 });
 
