@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { RATING_KEYS } from "./bbgmHelpers.ts";
+import { RATING_KEYS } from "./compat.ts";
 import type { Analysis, Kpis, PlayerSummary } from "./analyze.ts";
 
 export type Flag = { level: "error" | "warn"; text: string };

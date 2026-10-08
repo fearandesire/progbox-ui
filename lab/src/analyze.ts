@@ -1,4 +1,4 @@
-import { RATING_KEYS } from "./bbgmHelpers.ts";
+import { RATING_KEYS } from "./compat.ts";
 import { baseRow, ovrOf, ratingsOf, statsRow, type Boundary } from "./league.ts";
 import type { RunResult } from "./simulate.ts";
 
@@ -88,7 +88,7 @@ export function analyze(boundary: Boundary, results: RunResult[]): Analysis {
     const s = statsRow(p, boundary.statsSeason);
     const r = ratingsOf(row);
     info.set(p.pid, {
-      name: `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() || String(p.pid),
+      name: `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() || p.name || String(p.pid),
       tid: p.tid,
       age: boundary.enteringSeason - Number(p.born?.year),
       per: typeof s?.per === "number" ? s.per : null,

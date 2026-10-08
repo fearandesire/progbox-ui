@@ -1,5 +1,5 @@
 import v8 from "node:v8";
-import { RATING_KEYS } from "./bbgmHelpers.ts";
+import { RATING_KEYS } from "./compat.ts";
 import { baseRow, enterPreseason, ovrOf, type Boundary } from "./league.ts";
 import { createRng, seededMath } from "./rng.ts";
 import { runScript } from "./runScript.ts";
@@ -35,9 +35,21 @@ export function packPlayers(players: Player[]): Uint8Array {
 export async function runOnce(job: Job, run: number, seed: number): Promise<RunResult> {
   const players = v8.deserialize(job.playersBuf) as Player[];
   const math = seededMath(createRng(seed));
-  const { meta } = job;
   const result: RunResult = { run, seed, outcomes: [], events: [], calls: {}, console: [] };
+  await offseason(players, job.meta, job, math, result);
+  // Only the first run's events and console are reported; dropping the rest keeps 1000-run jobs small.
+  if (run !== 0) {
+    result.events = [];
+    result.console = [];
+  }
+  return result;
+}
 
+/**
+ * Run the hook and the script for one boundary on `players` (mutated in place),
+ * filling `result` with what the script did.
+ */
+export async function offseason(players: Player[], meta: Job["meta"], job: Pick<Job, "pre" | "script">, math: Math, result: RunResult): Promise<void> {
   if (job.pre) {
     const preseasonExport = meta.baseDevelop === "export";
     const { bbgm, log } = createBbgm({
@@ -51,7 +63,7 @@ export async function runOnce(job: Job, run: number, seed: number): Promise<RunR
     mergeCalls(result.calls, log.calls, "pre:");
     if (out.error) {
       result.error = { ...out.error, stage: "pre" };
-      return result;
+      return;
     }
   }
 
@@ -66,8 +78,8 @@ export async function runOnce(job: Job, run: number, seed: number): Promise<RunR
   });
   const out = await runScript(job.script.source, { bbgm, math, filename: job.script.name });
   mergeCalls(result.calls, log.calls, "");
-  result.events = log.events;
-  result.console = out.console.slice(0, 200);
+  result.events.push(...log.events);
+  if (!result.console.length) result.console = out.console.slice(0, 200);
   if (out.error) result.error = { ...out.error, stage: "script" };
 
   // A player counts as progressed when the script wrote them back with an entering-season row.
@@ -79,7 +91,6 @@ export async function runOnce(job: Job, run: number, seed: number): Promise<RunR
     if (!written.has(p.pid) && before.get(p.pid) === JSON.stringify(row)) continue;
     result.outcomes.push({ pid: p.pid, ovr: ovrOf(row), ratings: RATING_KEYS.map((k) => Number(row[k])) });
   }
-  return result;
 }
 
 function mergeCalls(into: Record<string, number>, from: Record<string, number>, prefix: string) {

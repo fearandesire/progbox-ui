@@ -1,4 +1,4 @@
-import { bbgmHelpers, bbgmRandom } from "./bbgmHelpers.ts";
+import { compatRandom, limitRating, ovr } from "./compat.ts";
 
 /**
  * Stand-in for the `bbgm` global that BBGM's Worker Console gives scripts.
@@ -65,8 +65,7 @@ function inRange(tid: unknown, key: unknown): boolean {
 
 export function createBbgm(opts: ShimOptions): { bbgm: Record<string, unknown>; log: ShimLog } {
   const { players, math } = opts;
-  const helpers = bbgmHelpers();
-  const random = bbgmRandom(math);
+  const random = compatRandom(math);
   const log: ShimLog = { calls: {}, writes: [], events: [], notes: [] };
   const attrs: Record<string, unknown> = { ...(opts.gameAttributes ?? {}), season: opts.season, phase: opts.phase };
   const byPid = () => new Map(players.map((p, i) => [p.pid, i]));
@@ -105,8 +104,8 @@ export function createBbgm(opts: ShimOptions): { bbgm: Record<string, unknown>; 
       },
     },
     player: {
-      limitRating: helpers.limitRating,
-      ovr: (r: Record<string, number>) => helpers.ovr(r),
+      limitRating,
+      ovr: (r: Record<string, number>) => ovr(r),
       addRatingsRow: (p: Player) => {
         const last = p.ratings.at(-1);
         if (!last) throw new Error(`player ${p.pid} has no ratings row to copy`);
@@ -117,7 +116,7 @@ export function createBbgm(opts: ShimOptions): { bbgm: Record<string, unknown>; 
         // develop(p, 0) only recomputes derived values. ovr is exact; pot for 29+ equals ovr in BBGM,
         // younger pot needs BBGM's career simulation and is left unchanged here.
         const row = p.ratings.at(-1)!;
-        row.ovr = helpers.ovr(row);
+        row.ovr = ovr(row);
         const age = Number(attrs.season) - Number(p.born?.year);
         if (age >= 29) row.pot = row.ovr;
       },

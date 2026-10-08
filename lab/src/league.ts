@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
-import { bbgmHelpers, RATING_KEYS, type Ratings } from "./bbgmHelpers.ts";
+import { ovr, RATING_KEYS, type Ratings } from "./compat.ts";
 import { PHASE, type Player } from "./shim.ts";
 
 /**
@@ -44,7 +44,7 @@ export function gameAttributesOf(data: Record<string, any>): Record<string, unkn
 
 export function boundaryFrom(file: ExportFile): Boundary {
   const gameAttributes = gameAttributesOf(file.data);
-  const season = Number(attr(gameAttributes.season));
+  const season = Number(attr(gameAttributes.season) ?? file.data.startingSeason);
   const phase = Number(attr(gameAttributes.phase));
   if (!Number.isInteger(season)) throw new Error("export has no integer gameAttributes.season");
   const preseason = phase === PHASE.PRESEASON;
@@ -89,7 +89,7 @@ export function ratingsOf(row: Record<string, any>): Ratings {
 }
 
 export function ovrOf(row: Record<string, any>): number {
-  return bbgmHelpers().ovr(ratingsOf(row));
+  return ovr(ratingsOf(row));
 }
 
 /** Last regular-season stats row for a season (what NET 4.3 reads); used for report context only. */

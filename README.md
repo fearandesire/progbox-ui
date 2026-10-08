@@ -135,13 +135,14 @@ Web UI → http://localhost:5173 | API → http://127.0.0.1:8000
 
 ### NET Lab
 
-Test any NET script, including a WIP file, without porting it to C++:
+Test any NET script, including a WIP file, without porting it to C++. In the app: **Lab** in the nav (`/lab`). From the terminal:
 
 ```bash
-pnpm lab quick --script path/to/wip.js --baseline net-3.2.1
+pnpm lab setup                                              # one time: leagues, model check, smoke test
+pnpm lab run --script path/to/wip.js --baseline net-3.2.1   # deep mode on the real 2025-26 NBA league
 ```
 
-Writes a summary, per-player CSV, JSON report and audit manifest under `outputs/lab/`. See [lab/README.md](lab/README.md).
+Scripts get forced version ids (`net@4.4.0-draft.1`), run sizes are locked, and every run writes a summary, JSON report, per-player CSVs, multi-season data and an audit manifest under `outputs/lab/runs/`. See [lab/README.md](lab/README.md); agents start at [lab/AGENTS.md](lab/AGENTS.md).
 
 ### CI / quality
 
