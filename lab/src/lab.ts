@@ -231,7 +231,7 @@ export function leagueStart(players: Player[]): { leagueMeanOvr: number; count75
 
 type ReportLike = Record<string, any>;
 const sideOf = (kpis: any, deep: any): SideInput => ({
-  quick: kpis ? { runs: kpis.runs, godProgsPerRun: kpis.godProgsPerRun, godProgsSe: kpis.godProgsSe, medianPlayerSd: kpis.medianPlayerSd, perEffect: kpis.perEffect, perEffectSe: kpis.perEffectSe, deltaByAge: kpis.deltaByAge ?? {} } : null,
+  quick: kpis ? { runs: kpis.runs, progressedPerRun: kpis.progressedPerRun, godProgsPerRun: kpis.godProgsPerRun, godProgsSe: kpis.godProgsSe, medianPlayerSd: kpis.medianPlayerSd, perEffect: kpis.perEffect, perEffectSe: kpis.perEffectSe, deltaByAge: kpis.deltaByAge ?? {} } : null,
   deep: deep?.seasons?.length ? { seasons: deep.seasons, ageCurve: deep.ageCurve ?? {}, ageCurveSe: deep.ageCurveSe } : null,
 });
 

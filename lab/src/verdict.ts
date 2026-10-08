@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
  * changes, bump CHECKS_VERSION and add a line to lab/CHANGELOG.md saying what
  * changed and why; `pnpm lab regrade <run>` then shows old runs under the new rules.
  */
-export const CHECKS_VERSION = 1;
+export const CHECKS_VERSION = 2;
 
 export const RULES = {
   /** League average OVR after the run stays within this many OVR of the start. */
@@ -61,6 +61,8 @@ export type CheckItem = {
   baseline: CheckValue | null;
   noScript: { value: number | number[]; display: string } | null;
   change: { pct: number | null; direction: Direction; note: string } | null;
+  /** Why a side has no value for an applicable check (e.g. the script progressed nobody). Such checks count for neither side. */
+  missing?: string | null;
 };
 export type Checks = {
   version: number;
@@ -76,6 +78,8 @@ type Stat = { mean: number; se: number };
 export type SideInput = {
   quick: {
     runs: number;
+    /** Players the script progressed per run; 0 means the per-offseason checks have nothing to measure. */
+    progressedPerRun?: number;
     godProgsPerRun: number;
     godProgsSe?: number;
     medianPlayerSd: number;
@@ -266,14 +270,30 @@ function compare(def: Def, s: Measure, b: Measure): NonNullable<CheckItem["chang
   return { pct, direction, note: base + suffix };
 }
 
+/** A script that progressed nobody gives zeros, not measurements, for the checks that read its progs. */
+const noProgs = (side: SideInput | null, def: Def) => !!def.kind && side?.quick?.progressedPerRun === 0;
+
 export function gradeChecks(input: CheckInput): Checks {
   const multi = input.seasons >= RULES.multiSeasonMinSeasons;
   const basis = input.basis ?? { perOffseason: "file-stats", aging: input.script.deep ? "multi-season" : "file-stats" };
   const basisOf = (def: Def): Basis => (def.kind === "per-offseason" ? basis.perOffseason : def.kind === "aging" ? basis.aging : "multi-season");
   const items: CheckItem[] = DEFS.map((def) => {
     const applicable = !def.multiSeason || multi;
-    const s = applicable ? def.measure(input.script, input) : null;
-    const b = applicable && input.baseline ? def.measure(input.baseline, input) : null;
+    const sNone = noProgs(input.script, def);
+    const bNone = noProgs(input.baseline, def);
+    const s = applicable && !sNone ? def.measure(input.script, input) : null;
+    const b = applicable && input.baseline && !bNone ? def.measure(input.baseline, input) : null;
+    const missing = !applicable
+      ? null
+      : sNone && bNone
+        ? "Neither script progressed anybody"
+        : sNone
+          ? "The script progressed nobody"
+          : bNone
+            ? "The baseline progressed nobody"
+            : !s || (input.baseline && !b)
+              ? "Not enough data to measure"
+              : null;
     const n = applicable && def.noScript && input.noScript ? def.measure(input.noScript, input) : null;
     return {
       id: def.id,
@@ -286,10 +306,12 @@ export function gradeChecks(input: CheckInput): Checks {
       baseline: asValue(b),
       noScript: n ? { value: n.value, display: n.display } : null,
       change: s && b ? compare(def, s, b) : null,
+      missing,
     };
   });
+  // With a baseline, only checks both sides could be measured on count, so the two scores are out of the same total.
   const graded = (side: "script" | "baseline") => {
-    const xs = items.filter((i) => i.applicable && i[side]);
+    const xs = items.filter((i) => i.applicable && i[side] && (!input.baseline || (i.script && i.baseline)));
     return { passed: xs.filter((i) => i[side]!.pass).length, applicable: xs.length };
   };
   let verdict: Checks["verdict"] = null;
@@ -298,7 +320,8 @@ export function gradeChecks(input: CheckInput): Checks {
     const breaks = paired.filter((i) => i.baseline!.pass && !i.script!.pass && i.change!.direction === "worse").length;
     const fixes = paired.filter((i) => !i.baseline!.pass && i.script!.pass && i.change!.direction === "better").length;
     // Ties (under 2 SE) neither break nor fix, so passes are counted as if tied checks matched the baseline.
-    verdict = breaks === 0 ? "better" : fixes < breaks ? "worse" : "mixed";
+    // Nothing measurable on both sides means nothing to compare, not a win.
+    verdict = !paired.length ? null : breaks === 0 ? "better" : fixes < breaks ? "worse" : "mixed";
   }
   return { version: CHECKS_VERSION, rulesSha256: rulesSha256(), verdict, script: graded("script"), baseline: input.baseline ? graded("baseline") : null, items };
 }
@@ -308,7 +331,10 @@ export function verdictText(c: Checks, scriptId: string, baselineId: string | nu
   const pairs = c.items.filter((i) => i.change);
   const breaks = pairs.filter((i) => i.baseline!.pass && !i.script!.pass && i.change!.direction === "worse").length;
   const fixes = pairs.filter((i) => !i.baseline!.pass && i.script!.pass && i.change!.direction === "better").length;
-  if (!c.verdict || !baselineId) return { title: `${scriptId} passes ${c.script.passed} of ${c.script.applicable} checks`, text: "No baseline, so there is no comparison." };
+  if (!c.verdict || !baselineId) {
+    const why = baselineId ? (c.items.find((i) => i.applicable && i.missing)?.missing ?? "No check could be measured on both scripts") : null;
+    return { title: baselineId ? `No verdict against ${baselineId}` : `${scriptId} passes ${c.script.passed} of ${c.script.applicable} checks`, text: why ? `${why}, so the two can't be compared.` : "No baseline, so there is no comparison." };
+  }
   const title = { better: `Better than ${baselineId}`, worse: `Worse than ${baselineId}`, mixed: `Mixed against ${baselineId}` }[c.verdict];
   const lead = c.script.passed < c.baseline!.passed ? "Passes fewer checks" : c.script.passed > c.baseline!.passed ? "Passes more checks" : "Passes as many checks";
   const broke = `breaks ${breaks || "none"} that ${baselineId} passes`;
@@ -332,7 +358,7 @@ export function checksMarkdown(c: Checks, scriptId: string, baselineId: string |
       lines.push(`| ${[name, "n/a", "n/a", ...(baselineId ? ["n/a"] : []), "n/a", ...(baselineId ? ["needs a 10-season run"] : [])].join(" | ")} |`);
       continue;
     }
-    const change = i.change ? `${i.change.pct === null ? "" : `${num(i.change.pct, 0, true)}% `}${i.change.direction}: ${i.change.note}` : "n/a";
+    const change = i.change ? `${i.change.pct === null ? "" : `${num(i.change.pct, 0, true)}% `}${i.change.direction}: ${i.change.note}` : (i.missing ?? "n/a");
     lines.push(`| ${[name, BASIS_TEXT[i.basis], mark(i.script), ...(baselineId ? [mark(i.baseline)] : []), i.noScript?.display ?? "n/a", ...(baselineId ? [change] : [])].join(" | ")} |`);
   }
   lines.push("", `Gaps under ${RULES.tieSe} standard errors count as a tie. % in a value cell is its change from the start of the run. Rules: lab/src/verdict.ts (checks v${c.version}, rules ${c.rulesSha256.slice(0, 8)}).`, "");

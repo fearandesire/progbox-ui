@@ -18,6 +18,13 @@ After a checks change, `pnpm lab regrade <runId>` shows any saved run under the 
 - `pnpm lab regrade <runId>` writes `regrade.json` beside the run.
 - Script library: delete drafts to a 7-day trash (optionally with their runs), restore, export the stored file or the original upload, and line diffs (`pnpm lab scripts delete|restore|export|diff`, and the matching API routes). Deleted ids are never reused for other code; uploading the same code brings the id back.
 
+## Checks v2 (2026-10-08)
+
+Same thresholds as v1. What changed is which checks count:
+
+- A script that progressed nobody no longer gets zeros graded as passes or fails on the checks that read its progs (god progs, production, predictability, aging). Those checks show why they're missing (`missing` on the item) instead.
+- With a comparison script, a check counts toward either score only when both scripts could be measured on it, so the two "passed of" totals always match. Before, a check missing on one side left the scores out of different totals (for example 2/3 vs 2/4).
+
 ## Checks v1 (2026-10-08)
 
 First set of pass rules, taken from the approved Lab v2 prototype. On the 2025-26 NBA league, NET 3.2.1 (the published script) passes all but the star-count check:

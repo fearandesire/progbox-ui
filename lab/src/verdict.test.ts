@@ -102,10 +102,22 @@ describe("balance checks", () => {
     expect(season.items.filter((i) => i.applicable).map((i) => i.basis)).toEqual(["simulated-season", "simulated-season", "simulated-season", "simulated-season"]);
   });
 
+  it("leaves out checks one side can't be measured on, so both scores share a total", () => {
+    const idle: SideInput = { ...net430, quick: { ...net430.quick!, progressedPerRun: 0, godProgsPerRun: 0, medianPlayerSd: 0, perEffect: null } };
+    const c = gradeChecks(input(idle, net321, 1));
+    const graded = c.items.filter((i) => i.applicable);
+    expect(graded.map((i) => i.missing)).toEqual(["The script progressed nobody", "The script progressed nobody", "The script progressed nobody", "The script progressed nobody"]);
+    expect(graded.every((i) => i.script === null && i.change === null)).toBe(true);
+    expect(c.script).toEqual({ passed: 0, applicable: 0 });
+    expect(c.baseline).toEqual({ passed: 0, applicable: 0 });
+    // Without a baseline the script's own measurable checks still count.
+    expect(gradeChecks(input(net321, null)).script).toEqual({ passed: 6, applicable: 7 });
+  });
+
   it("pins the rules: editing a threshold needs a new checks version and a CHANGELOG line", () => {
     // If this fails you changed RULES. Bump CHECKS_VERSION, add a lab/CHANGELOG.md entry, then update both values here.
-    expect(CHECKS_VERSION).toBe(1);
-    expect(rulesSha256()).toBe("47844f2a32585667d4041683dd85ab3d635e21417aaddc549acb9c6b2415add9");
+    expect(CHECKS_VERSION).toBe(2);
+    expect(rulesSha256()).toBe("cfbec5b9e08f641b870f89edb9a010f2b41a99e73cc8241446275cb93044d5e2");
     expect(RULES.tieSe).toBe(2);
   });
 });
