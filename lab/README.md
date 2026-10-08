@@ -38,7 +38,8 @@ The web app has the same flow at `/lab` (`pnpm dev`). Locally and in the cloud i
 
 Every script that enters the Lab gets an immutable id, `family@version`:
 
-- `| v4.4.0` in the header names the version. Without one, or when that version already holds other code, the script becomes the next draft: `net@4.4.0-draft.3`.
+- `| v4.4.0` in the header names the version; uploads are drafts of it (`net@4.4.0-draft.1`). Without a header version, the script becomes the next draft of the latest version.
+- If the header names a version that already holds different code, the version is forced up to the next free patch (`v4.3.0` → `net@4.3.1-draft.1`). The stored copy's header is rewritten to match, your original upload is kept beside it, and the upload response, the run's events and its manifest all say so.
 - The same code always maps to the same id, and an id never points at different code.
 - Builtins: `net@3.2.1` (published), `net@4.3.0` (candidate), `hook@1.0.0` (the WorkerConsole pre-progs hook). The old names `net-3.2.1`, `net-4.3.0` and `worker-console` still work.
 

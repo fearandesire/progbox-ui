@@ -7,8 +7,11 @@ import path from "node:path";
  * a family name and an immutable version id, e.g. `net@4.4.0-draft.3`:
  * - identical code (same SHA-256) always resolves to the version it already has;
  * - a version id never points at different code;
- * - a header like `| v4.4.0` names the version; without one, or when that
- *   version already holds other code, the script becomes the next draft.
+ * - a header like `| v4.4.0` names the version; without one, the script becomes
+ *   the next draft of the family's latest version;
+ * - when the named version already holds other code, the version is forced up to
+ *   the next free patch (v4.3.0 → v4.3.1). The stored copy's header is rewritten to
+ *   match, the upload is kept unchanged beside it, and the entry records both.
  */
 export type Role = "draft" | "candidate" | "published";
 export type Entry = {
@@ -22,19 +25,38 @@ export type Entry = {
   source: string;
   declared: string | null;
   note?: string;
+  /** Set when the header's version was taken by other code and was forced up. */
+  bumped?: { from: string; to: string; originalSha256: string; originalFile: string };
 };
 type Index = { entries: Entry[] };
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
+const VERSION_RE = [/(?:\|\s*|\bversion\s*)v?(\d+\.\d+(?:\.\d+)?)/i, /\bv(\d+\.\d+(?:\.\d+)?)\b/];
+
+function versionMatch(source: string): { text: string; at: number } | null {
+  const head = source.slice(0, 2000);
+  for (const re of VERSION_RE) {
+    const m = head.match(re);
+    if (m) return { text: m[1]!, at: m.index! + m[0].lastIndexOf(m[1]!) };
+  }
+  return null;
+}
+
 /** `| v4.3.0`, `v4.3`, `version 4.4.1` in the first comment block. */
 export function declaredVersion(source: string): string | null {
-  const head = source.slice(0, 2000);
-  const m = head.match(/(?:\|\s*|\bversion\s*)v?(\d+\.\d+(?:\.\d+)?)/i) ?? head.match(/\bv(\d+\.\d+(?:\.\d+)?)\b/);
+  const m = versionMatch(source);
   if (!m) return null;
-  const parts = m[1]!.split(".");
+  const parts = m.text.split(".");
   while (parts.length < 3) parts.push("0");
   return parts.join(".");
+}
+
+/** The source with its header version replaced, or a header line added when it has none. */
+export function withVersion(source: string, version: string): string {
+  const m = versionMatch(source);
+  if (!m) return `// NET Lab version: v${version}\n${source}`;
+  return source.slice(0, m.at) + version + source.slice(m.at + m.text.length);
 }
 
 export function slug(name: string): string {
@@ -74,26 +96,41 @@ export class Registry {
     const entries = this.list();
     const digest = sha(source);
     const notes: string[] = [];
-    const existing = entries.find((e) => e.sha256 === digest);
+    const existing = entries.find((e) => e.sha256 === digest || e.bumped?.originalSha256 === digest);
     if (existing) return { entry: existing, created: false, notes: [`Same code as ${existing.id}; reusing it.`] };
 
     const family = slug(opts.family ?? "net");
     const declared = opts.version ?? declaredVersion(source);
-    const taken = new Set(entries.filter((e) => e.family === family).map((e) => e.version));
+    const familyEntries = entries.filter((e) => e.family === family);
+    const taken = new Set(familyEntries.map((e) => e.version));
+    const takenBases = new Set(familyEntries.map((e) => baseOf(e.version)));
+    const draft = !(opts.role === "published" || opts.role === "candidate");
     let version: string;
-    if (declared && !taken.has(declared)) {
-      version = opts.role === "published" || opts.role === "candidate" ? declared : `${declared}-draft.1`;
-      if (taken.has(version)) version = nextDraft(declared, taken);
+    let stored = source;
+    let bumpedTo: string | undefined;
+    if (declared) {
+      let base = declared;
+      if (takenBases.has(base)) {
+        while (takenBases.has(base)) base = nextPatch(base);
+        bumpedTo = base;
+        stored = withVersion(source, base);
+      }
+      version = draft ? nextDraft(base, taken) : base;
     } else {
-      const base = declared ?? latestBase(family, entries) ?? "0.0.0";
-      if (declared) notes.push(`Header says v${declared}, but that version already holds different code, so this is a draft of it.`);
-      version = nextDraft(base, taken);
+      version = nextDraft(latestBase(family, entries) ?? "0.0.0", taken);
     }
     const id = `${family}@${version}`;
     const file = path.join(family, `${version}.js`);
     fs.mkdirSync(path.join(this.dir, family), { recursive: true });
-    fs.writeFileSync(path.join(this.dir, file), source, { flag: "wx" });
-    const entry: Entry = { id, family, version, role: opts.role ?? "draft", sha256: digest, file, createdAt: new Date().toISOString(), source: opts.source ?? "upload", declared, note: opts.note };
+    fs.writeFileSync(path.join(this.dir, file), stored, { flag: "wx" });
+    let bumped: Entry["bumped"];
+    if (bumpedTo && declared) {
+      const originalFile = path.join(family, `${version}.original.js`);
+      fs.writeFileSync(path.join(this.dir, originalFile), source, { flag: "wx" });
+      bumped = { from: declared, to: bumpedTo, originalSha256: digest, originalFile };
+      notes.push(`Version forced up: the header said v${declared}, but ${family}@${declared} already holds different code. This script is now v${bumpedTo}; its header was rewritten to match and your original upload is kept at ${originalFile}.`);
+    }
+    const entry: Entry = { id, family, version, role: opts.role ?? "draft", sha256: sha(stored), file, createdAt: new Date().toISOString(), source: opts.source ?? "upload", declared, note: opts.note, bumped };
     this.write([...entries, entry]);
     notes.unshift(`Saved as ${id}.`);
     return { entry, created: true, notes };
@@ -117,6 +154,13 @@ export class Registry {
   }
 }
 
+const baseOf = (version: string) => version.replace(/-draft\.\d+$/, "");
+
+function nextPatch(version: string): string {
+  const [major, minor, patch] = version.split(".").map(Number);
+  return `${major}.${minor}.${patch! + 1}`;
+}
+
 function nextDraft(base: string, taken: Set<string>): string {
   let n = 1;
   while (taken.has(`${base}-draft.${n}`)) n++;
@@ -124,6 +168,6 @@ function nextDraft(base: string, taken: Set<string>): string {
 }
 
 function latestBase(family: string, entries: Entry[]): string | undefined {
-  const bases = entries.filter((e) => e.family === family).map((e) => e.version.replace(/-draft\.\d+$/, ""));
+  const bases = entries.filter((e) => e.family === family).map((e) => baseOf(e.version));
   return bases.sort((a, b) => semverKey(a).localeCompare(semverKey(b))).at(-1);
 }

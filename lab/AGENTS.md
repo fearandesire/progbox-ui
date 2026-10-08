@@ -22,7 +22,7 @@ Data lives in `outputs/lab/` unless `LAB_DATA_DIR` points elsewhere (use a persi
 pnpm lab run --script <file> --baseline net-3.2.1 --json > events.ndjson
 ```
 
-- The script gets a forced id like `net@4.4.0-draft.1`; quote that id, not the filename.
+- The script gets a forced id like `net@4.4.0-draft.1`; quote that id, not the filename. If the header's version already holds other code, the id is bumped (for example `net@4.3.1-draft.1`) and an `issue` event with code `version-bumped` says so; report the bumped id.
 - `--json` prints one event per line: `run` (id, measured estimate), `stage`, `progress`, `issue` (league checks), `done` or `error`.
 - Read results from the run folder named in the `done` event: start with `report.json` (`verdict`, `flags`, `script.kpis`, `deep.script.seasons`), then `summary.md` for people.
 - Don't pass `--runs`, `--seasons` or `--replicates`; sizes are locked. Use `--unlock` only when asked, and say so in your write-up.

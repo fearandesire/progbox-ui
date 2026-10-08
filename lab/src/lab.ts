@@ -149,6 +149,7 @@ export async function runLab(spec: RunSpec, emit: (e: LabEvent) => void = () => 
     const est = await estimateRun({ ...spec, mode });
     Object.assign(status, { estimateSeconds: est.seconds, estimateBasis: est.basis });
     send({ type: "run", runId, dir, estimateSeconds: est.seconds, estimateBasis: est.basis });
+    for (const r of [main, base]) for (const text of r?.notes.filter((n) => n.startsWith("Version forced up")) ?? []) send({ type: "issue", level: "fix", code: "version-bumped", text });
     send({ type: "stage", stage: "ingest", text: "Checking the league" });
     const league = ingest(spec.league ?? DEFAULT_LEAGUE);
     for (const i of league.validation.issues) send({ type: "issue", level: i.level, code: i.code, text: i.text });
@@ -203,8 +204,8 @@ export async function runLab(spec: RunSpec, emit: (e: LabEvent) => void = () => 
       created_at: new Date().toISOString(),
       spec: { ...spec, mode, seed, script: main.entry.id, baseline: base?.entry.id ?? null, pre: pre?.entry.id ?? "none", league: league.info.id },
       presets: { ...preset, why: { quick: PRESETS.quick.why, deep: PRESETS.deep.why } },
-      script: { id: main.entry.id, sha256: main.entry.sha256 },
-      baseline: base ? { id: base.entry.id, sha256: base.entry.sha256 } : null,
+      script: { id: main.entry.id, sha256: main.entry.sha256, declared: main.entry.declared, bumped: main.entry.bumped ?? null },
+      baseline: base ? { id: base.entry.id, sha256: base.entry.sha256, declared: base.entry.declared, bumped: base.entry.bumped ?? null } : null,
       pre: pre ? { id: pre.entry.id, sha256: pre.entry.sha256 } : null,
       league: { id: league.info.id, name: league.info.name, url: league.info.url ?? null, sha256: league.boundary.exportSha256, fixes: league.validation.issues.filter((i) => i.level === "fix").map((i) => i.code), imputed: league.validation.imputed },
       input: { source_season: meta.sourceSeason, source_phase: meta.sourcePhase, stats_season: meta.statsSeason, entering_season: meta.enteringSeason, base_develop: meta.baseDevelop },

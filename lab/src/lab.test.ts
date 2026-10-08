@@ -142,13 +142,23 @@ describe("script registry", () => {
     const a = reg.add("/** NET | v4.4.0 */\nlet x = 1;");
     expect(a.entry.id).toBe("net@4.4.0-draft.1");
     expect(reg.add("/** NET | v4.4.0 */\nlet x = 1;").created).toBe(false);
-    const b = reg.add("/** NET | v4.4.0 */\nlet x = 2;");
-    expect(b.entry.id).toBe("net@4.4.0-draft.2");
     const c = reg.add("let y = 3;");
-    expect(c.entry.id).toBe("net@4.4.0-draft.3");
+    expect(c.entry.id).toBe("net@4.4.0-draft.2");
     const pub = reg.add("/** NET | v3.2.1 */", { role: "published" });
     expect(pub.entry.id).toBe("net@3.2.1");
-    expect(reg.read(b.entry)).toContain("x = 2");
+  });
+  it("forces the version up when the header's version holds other code, keeping the upload", () => {
+    const reg = new Registry(dir());
+    reg.add("/** NET | v4.3.0 */\nlet x = 1;", { role: "candidate" });
+    const b = reg.add("/** NET | v4.3.0 */\nlet x = 2;");
+    expect(b.entry.id).toBe("net@4.3.1-draft.1");
+    expect(b.entry.bumped).toMatchObject({ from: "4.3.0", to: "4.3.1" });
+    expect(b.notes.join(" ")).toContain("Version forced up");
+    expect(reg.read(b.entry)).toBe("/** NET | v4.3.1 */\nlet x = 2;");
+    expect(fs.readFileSync(path.join(reg.dir, b.entry.bumped!.originalFile), "utf8")).toBe("/** NET | v4.3.0 */\nlet x = 2;");
+    // Re-uploading the original resolves to the bumped entry; another clash goes one higher.
+    expect(reg.add("/** NET | v4.3.0 */\nlet x = 2;").entry.id).toBe("net@4.3.1-draft.1");
+    expect(reg.add("/** NET | v4.3.0 */\nlet x = 3;").entry.id).toBe("net@4.3.2-draft.1");
   });
   it("reads declared versions from headers", () => {
     expect(declaredVersion("/**\n * NoEyeTest: BBGM Prog Script | v4.3.0 (opt-in release)")).toBe("4.3.0");
