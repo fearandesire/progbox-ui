@@ -1,0 +1,270 @@
+{
+  "runId": "20261008190816",
+  "lab": {
+    "version": "0.3.0",
+    "commit": "19a3afb",
+    "checks": {
+      "version": 2,
+      "rulesSha256": "cfbec5b9e08f641b870f89edb9a010f2b41a99e73cc8241446275cb93044d5e2"
+    },
+    "statgen": "statgen-2026-10-08"
+  },
+  "runDetails": {
+    "mode": "deep",
+    "netRuns": "Every offseason, 10 seasons",
+    "gamesSimulated": true,
+    "statsRead": "2024-25 real, then 9 simulated seasons",
+    "league": {
+      "id": "nba-2025-26",
+      "name": "Real NBA 2025-26, Opening Night (2024-25 stats)"
+    },
+    "runs": 200,
+    "seasons": 10,
+    "seed": 69,
+    "scripts": [
+      {
+        "id": "net@4.3.0",
+        "sha256": "c5959e659cce376a4945f437aa3da5b58aff30bf224d33d8bf146a9c5662f8b8"
+      },
+      {
+        "id": "net@3.2.1",
+        "sha256": "9740457fbd83e76a0db7f0641bf3bd2e90a7d7c09c0b6fe612231755e5159b09"
+      }
+    ],
+    "pre": {
+      "id": "hook@1.0.0",
+      "sha256": "c0f12d9d5b939c239055d65363cbb481b2b602aba9c7c2b27aaabfd25bf5f163"
+    }
+  },
+  "checks": {
+    "version": 2,
+    "rulesSha256": "cfbec5b9e08f641b870f89edb9a010f2b41a99e73cc8241446275cb93044d5e2",
+    "verdict": "worse",
+    "script": {
+      "passed": 2,
+      "applicable": 7
+    },
+    "baseline": {
+      "passed": 6,
+      "applicable": 7
+    },
+    "items": [
+      {
+        "id": "league-ovr",
+        "name": "League average OVR holds",
+        "unit": "OVR change over 10 seasons",
+        "rule": "within 1.5 OVR of the start",
+        "applicable": true,
+        "basis": "multi-season",
+        "script": {
+          "value": -2.2790127907597295,
+          "display": "−2.3",
+          "pass": false,
+          "pctFromStart": -4.370158977211736
+        },
+        "baseline": {
+          "value": -1.3998795588401833,
+          "display": "−1.4",
+          "pass": true,
+          "pctFromStart": -2.6843623896648876
+        },
+        "noScript": {
+          "value": -4.936252790854148,
+          "display": "−4.9"
+        },
+        "change": {
+          "pct": 62.80063355221205,
+          "direction": "worse",
+          "note": "more decline"
+        },
+        "missing": null
+      },
+      {
+        "id": "star-count",
+        "name": "Star count stays sane",
+        "unit": "players at 75+ OVR, start → season 10",
+        "rule": "at most double the start",
+        "applicable": true,
+        "basis": "multi-season",
+        "script": {
+          "value": [
+            1,
+            9.17
+          ],
+          "display": "1 → 9.2",
+          "pass": false,
+          "pctFromStart": 817
+        },
+        "baseline": {
+          "value": [
+            1,
+            14.07
+          ],
+          "display": "1 → 14.1",
+          "pass": false,
+          "pctFromStart": 1307
+        },
+        "noScript": {
+          "value": [
+            1,
+            2.5833333333333335
+          ],
+          "display": "1 → 2.6"
+        },
+        "change": {
+          "pct": -34.82587064676617,
+          "direction": "better",
+          "note": "fewer 75+ players, still fails"
+        },
+        "missing": null
+      },
+      {
+        "id": "superstars",
+        "name": "Superstars stay rare",
+        "unit": "players at 80+ OVR in season 10",
+        "rule": "3 or fewer",
+        "applicable": true,
+        "basis": "multi-season",
+        "script": {
+          "value": 2.455,
+          "display": "2.5",
+          "pass": true,
+          "pctFromStart": null
+        },
+        "baseline": {
+          "value": 1.485,
+          "display": "1.5",
+          "pass": true,
+          "pctFromStart": null
+        },
+        "noScript": {
+          "value": 0.5666666666666667,
+          "display": "0.6"
+        },
+        "change": {
+          "pct": 65.31986531986531,
+          "direction": "same",
+          "note": "more 80+, both pass"
+        },
+        "missing": null
+      },
+      {
+        "id": "god-progs",
+        "name": "God progs stay rare",
+        "unit": "per offseason",
+        "rule": "1 or fewer",
+        "applicable": true,
+        "basis": "file-stats",
+        "script": {
+          "value": 4.621,
+          "display": "4.6",
+          "pass": false,
+          "pctFromStart": null
+        },
+        "baseline": {
+          "value": 0.685,
+          "display": "0.7",
+          "pass": true,
+          "pctFromStart": null
+        },
+        "noScript": {
+          "value": 0,
+          "display": "0.0"
+        },
+        "change": {
+          "pct": 574.5985401459853,
+          "direction": "worse",
+          "note": "6.7 times as many"
+        },
+        "missing": null
+      },
+      {
+        "id": "production",
+        "name": "Production drives progs",
+        "unit": "OVR gained per 1 SD better PER",
+        "rule": "+0.5 OVR or more",
+        "applicable": true,
+        "basis": "file-stats",
+        "script": {
+          "value": 0.3539608262294073,
+          "display": "+0.35",
+          "pass": false,
+          "pctFromStart": null
+        },
+        "baseline": {
+          "value": 1.234005163635137,
+          "display": "+1.23",
+          "pass": true,
+          "pctFromStart": null
+        },
+        "noScript": null,
+        "change": {
+          "pct": -71.31609845239966,
+          "direction": "worse",
+          "note": "weaker link to PER"
+        },
+        "missing": null
+      },
+      {
+        "id": "predictable",
+        "name": "Progs are predictable",
+        "unit": "spread of a typical player's prog, OVR",
+        "rule": "1.5 OVR or less",
+        "applicable": true,
+        "basis": "file-stats",
+        "script": {
+          "value": 1.7747939834028643,
+          "display": "1.77",
+          "pass": false,
+          "pctFromStart": null
+        },
+        "baseline": {
+          "value": 1.1230506977762595,
+          "display": "1.12",
+          "pass": true,
+          "pctFromStart": null
+        },
+        "noScript": null,
+        "change": {
+          "pct": 58.03329154392714,
+          "direction": "worse",
+          "note": "more spread"
+        },
+        "missing": null
+      },
+      {
+        "id": "aging",
+        "name": "Players age normally",
+        "unit": "mean OVR change, ages 25 to 27 / 34+",
+        "rule": "25 to 27 at −0.5 or better, 34+ at −2 or worse",
+        "applicable": true,
+        "basis": "multi-season",
+        "script": {
+          "value": [
+            0.3182607036146878,
+            -3.7900570221752905
+          ],
+          "display": "+0.32 / −3.79",
+          "pass": true,
+          "pctFromStart": null
+        },
+        "baseline": {
+          "value": [
+            -0.3462488683818591,
+            -3.6370468905886266
+          ],
+          "display": "−0.35 / −3.64",
+          "pass": true,
+          "pctFromStart": null
+        },
+        "noScript": null,
+        "change": {
+          "pct": 4.206988146966134,
+          "direction": "same",
+          "note": "steeper 34+ decline, both pass"
+        },
+        "missing": null
+      }
+    ]
+  }
+}

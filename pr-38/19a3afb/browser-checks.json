@@ -1,0 +1,18 @@
+{
+  "errors": [],
+  "mobileHorizontalOverflow": false,
+  "passed": [
+    "upload with version collision",
+    "open original diff",
+    "season mode preview",
+    "quick mode preview",
+    "390px mobile layout",
+    "Smart, Unified and Split diff views",
+    "comparison with collided release",
+    "real completed run renders verdict and seven checks",
+    "charts and run provenance render",
+    "history includes completed run",
+    "Run again opens populated setup"
+  ],
+  "mobileReportHorizontalOverflow": false
+}
