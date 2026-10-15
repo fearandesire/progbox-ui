@@ -17,7 +17,7 @@ export const RULES = {
   starCountMaxRatio: 2,
   /** Players at 80+ OVR after the run: at most this many. */
   superstarsMax: 3,
-  /** God progs (every rating but height up 7+) per offseason: at most this many. */
+  /** God progs (11+ of the 14 ratings besides height up 7+, see isGodLike) per offseason: at most this many. */
   godProgsMax: 1,
   /** OVR gained per 1 SD better PER, holding age and OVR fixed: at least this much. */
   productionMinEffect: 0.5,

@@ -7,6 +7,10 @@ Two version numbers, both recorded in every run (`manifest.json` `lab`, `report.
 
 After a checks change, `pnpm lab regrade <runId>` shows any saved run under the new rules beside its old verdict, without re-simulating.
 
+## NET Lab 0.3.1 (2026-10-15)
+
+- God progs are now counted when at least 11 of the 14 ratings besides height rise by 7 or more (a rating pinned at 100 counts when it held). The old rule needed all 14, which missed most NET 3.2 god progs: 3.2 lets speed, strength and jumping skip the bonus at ages 25 to 29. On the 2025-26 league over 300 offseasons, the old rule saw 0.62 god progs per offseason for 3.2.1 while the script itself logged 5.16; the new rule sees 5.14. For 4.3.0 the script logged 4.84 and the new rule sees 4.84. Runs from 0.3.0 and earlier undercount 3.2-style god progs, so their "God progs stay rare" check and verdict against 3.2.1 should not be trusted. Re-run rather than regrade: the count is taken during the run.
+
 ## NET Lab 0.3.0 (2026-10-08)
 
 - New run mode `season` ("After one season"): plays out the season in progress with StatGen, then runs NET once at the next preseason. Same replicates as deep mode. A mid-season file's partial stats give way to a full simulated season. Its checks, KPIs and player tables come from that post-season offseason (no quick pass), and each check item records its `basis` (`file-stats`, `simulated-season` or `multi-season`).

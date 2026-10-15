@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { analyze, ols } from "./analyze.ts";
+import { analyze, isGodLike, ols } from "./analyze.ts";
 import { flagsFor } from "./report.ts";
 import { compatRandom, limitRating, ovr, RATING_KEYS } from "./compat.ts";
 import { boundaryFrom } from "./league.ts";
@@ -380,5 +380,27 @@ describe("presets", () => {
     expect(web).toContain(`quick: { runs: ${PRESETS.quick.runs} }`);
     expect(web).toContain(`deep: { seasons: ${PRESETS.deep.seasons}, replicates: ${PRESETS.deep.replicates} }`);
     expect(web).toContain(`DEFAULT_LEAGUE_ID = "${DEFAULT_LEAGUE}"`);
+  });
+});
+
+describe("god-prog count", () => {
+  // RATING_KEYS order with hgt included; deltas over the row NET rebuilt from.
+  const keys = RATING_KEYS as readonly string[];
+  const deltaOf = (d: Record<string, number>, rest: number) => keys.map((k) => (k === "hgt" ? 0 : (d[k] ?? rest)));
+  it("counts NET 4.3's flat bonus on all 14 ratings", () => {
+    expect(isGodLike(deltaOf({}, 9))).toBe(true);
+  });
+  it("counts a NET 3.2 god prog where speed, strength and jumping skipped the bonus", () => {
+    expect(isGodLike(deltaOf({ spd: 0, stre: -1, jmp: 2 }, 8))).toBe(true);
+  });
+  it("does not count a big normal prog", () => {
+    expect(isGodLike(deltaOf({}, 4))).toBe(false);
+    expect(isGodLike(deltaOf({ spd: 0, stre: 0, jmp: 0, endu: 0 }, 9))).toBe(false);
+  });
+  it("counts a rating already at 100 that held", () => {
+    const delta = deltaOf({ spd: 0, stre: 0, jmp: 0, tp: 0 }, 9);
+    const after = keys.map((k) => (k === "tp" ? 100 : 60));
+    expect(isGodLike(delta)).toBe(false);
+    expect(isGodLike(delta, after)).toBe(true);
   });
 });

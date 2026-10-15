@@ -3,6 +3,7 @@ import path from "node:path";
 import v8 from "node:v8";
 import { RATING_KEYS } from "./compat.ts";
 import { baseRow, ovrOf, ratingsOf, statsRow } from "./league.ts";
+import { isGodLike } from "./analyze.ts";
 import { MODELS_DIR } from "./paths.ts";
 import { createRng, seededMath } from "./rng.ts";
 import { PHASE, type Player } from "./shim.ts";
@@ -59,8 +60,8 @@ export function loadModel(file = path.join(MODELS_DIR, "statgen.json")): StatGen
 const AGE_BANDS: [string, number, number][] = [["19-24", 19, 24], ["25-27", 25, 27], ["28-30", 28, 30], ["31-33", 31, 33], ["34+", 34, 200]];
 const band = (age: number) => AGE_BANDS.find(([, lo, hi]) => age >= lo && age <= hi)?.[0] ?? "19-24";
 
-/** God progs: every rating except height up by 7+ (NET's flat bonus), same rule as quick mode. */
-const isGod = (before: Record<string, number>, after: number[]) => RATING_KEYS.every((k, i) => k === "hgt" || after[i]! - before[k]! >= 7);
+/** God progs: same rule as quick mode (isGodLike in analyze.ts). */
+const isGod = (before: Record<string, number>, after: number[]) => isGodLike(RATING_KEYS.map((k, i) => after[i]! - before[k]!), after);
 
 export async function runReplicate(job: DeepJob, run: number, seed: number): Promise<DeepResult> {
   const model = loadModel(job.modelFile);

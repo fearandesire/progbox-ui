@@ -7,7 +7,7 @@ import { CHECKS_VERSION, rulesSha256 } from "./verdict.ts";
  * numbers change, and add a line to lab/CHANGELOG.md saying what and why.
  * Pass rules have their own version (CHECKS_VERSION in verdict.ts).
  */
-export const LAB_VERSION = "0.3.0";
+export const LAB_VERSION = "0.3.1";
 
 export type LabMeta = {
   version: string;

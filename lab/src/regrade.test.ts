@@ -55,7 +55,7 @@ describe("regrade", () => {
     expect(r.changed).toHaveLength(7);
     const saved = JSON.parse(fs.readFileSync(path.join(dir, "regrade.json"), "utf8"));
     expect(saved.after.version).toBe(r.after.version);
-    expect(saved.lab.version).toBe("0.3.0");
+    expect(saved.lab.version).toBe("0.3.1");
     // report.json is left alone.
     expect(JSON.parse(fs.readFileSync(path.join(dir, "report.json"), "utf8")).checks).toBeUndefined();
   });

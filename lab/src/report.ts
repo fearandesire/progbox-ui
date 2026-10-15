@@ -108,7 +108,7 @@ export function summaryMarkdown(opts: {
   lines.push("- Flags are heuristics for where to look, not release gates. Thresholds live in `lab/src/report.ts`.");
   if (opts.seasonMode) lines.push("- The PER effect pools every replicate: each replicate's simulated PER against that replicate's ΔOVR, holding age and base OVR fixed. Its SE is the spread of the same fit replicate by replicate.");
   else lines.push("- PER/BPM effects are OLS coefficients on each player's mean ΔOVR, holding age and base OVR fixed.");
-  lines.push("- God progs are counted as every rating except height rising by 7 or more.");
+  lines.push("- God progs are counted as at least 11 of the 14 ratings besides height rising by 7 or more (NET 3.2 lets speed, strength and jumping skip the bonus).");
   return lines.join("\n") + "\n";
 }
 
