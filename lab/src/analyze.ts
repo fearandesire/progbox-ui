@@ -80,9 +80,22 @@ export function quantile(sorted: number[], q: number): number {
   return sorted[lo]! + (sorted[hi]! - sorted[lo]!) * (pos - lo);
 }
 
-/** God progs: every rating except height moves up by at least 7 (NET's flat +7..+13 bonus). */
-function isGodLike(delta: number[]): boolean {
-  return RATING_KEYS.every((k, i) => k === "hgt" || delta[i]! >= 7);
+/** God-prog bonus floor: NET adds a flat +7 or more to each rating it boosts. */
+const GOD_MIN_GAIN = 7;
+/** Ratings (of the 14 besides height) that must show the bonus. NET 3.2 lets spd, stre and jmp skip it at ages 25 to 29, so 11. */
+export const GOD_MIN_RATINGS = 11;
+
+/**
+ * God progs: at least 11 of the 14 ratings besides height rise by 7 or more over the row NET rebuilt from.
+ * A rating already pinned at 100 counts when it held. Normal progs never move 11 ratings by 7+, and on the
+ * 2025-26 league this count matches both NET 3.2.1's and 4.3.0's own "God Prog Count" over 300 offseasons.
+ */
+export function isGodLike(delta: number[], after?: number[]): boolean {
+  let n = 0;
+  RATING_KEYS.forEach((k, i) => {
+    if (k !== "hgt" && (delta[i]! >= GOD_MIN_GAIN || (after?.[i] === 100 && delta[i]! >= 0))) n++;
+  });
+  return n >= GOD_MIN_RATINGS;
 }
 
 export function analyze(boundary: Boundary, results: RunResult[]): Analysis {
@@ -142,7 +155,7 @@ export function analyze(boundary: Boundary, results: RunResult[]): Analysis {
         pooled.push({ run: r.run, age, baseOvr, per: o.per, d });
       }
       delta.forEach((v, k) => (acc.attr[k]! += v));
-      if (isGodLike(delta)) {
+      if (isGodLike(delta, o.ratings)) {
         acc.god++;
         god++;
       }
