@@ -33,6 +33,13 @@ const { theme, toggle } = useTheme();
         >
           New sim
         </RouterLink>
+        <RouterLink
+          to="/lab"
+          class="nav-link"
+          :class="{ active: String(route.name ?? '').startsWith('lab-') }"
+        >
+          Lab
+        </RouterLink>
         <div class="topbar__right">
           <button
             class="theme-toggle"

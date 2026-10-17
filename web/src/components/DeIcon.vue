@@ -17,14 +17,24 @@ const props = withDefaults(
       | "box"
       | "trash"
       | "chevron-right"
-      | "alert";
+      | "alert"
+      | "play"
+      | "lock"
+      | "arrow-up"
+      | "chevron-down"
+      | "check-circle"
+      | "x-circle"
+      | "minus-circle"
+      | "rotate"
+      | "x"
+      | "upload";
     size?: number;
   }>(),
   { size: 14 },
 );
 
-// github is a filled glyph; everything else is a 2px stroke on a 24-grid.
-const filled = computed(() => props.name === "github");
+// github and play are filled glyphs; everything else is a 2px stroke on a 24-grid.
+const filled = computed(() => props.name === "github" || props.name === "play");
 </script>
 
 <template>
@@ -138,6 +148,65 @@ const filled = computed(() => props.name === "github");
         x2="12.01"
         y1="17"
         y2="17"
+      />
+    </template>
+    <template v-else-if="name === 'play'">
+      <path d="M8 5v14l11-7z" />
+    </template>
+    <template v-else-if="name === 'lock'">
+      <rect
+        x="5"
+        y="11"
+        width="14"
+        height="9"
+        rx="2"
+      />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </template>
+    <template v-else-if="name === 'arrow-up'">
+      <path d="M12 19V5m0 0-6 6m6-6 6 6" />
+    </template>
+    <template v-else-if="name === 'chevron-down'">
+      <path d="m6 9 6 6 6-6" />
+    </template>
+    <template v-else-if="name === 'check-circle'">
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+      />
+      <path d="m8.5 12.5 2.5 2.5 4.5-5" />
+    </template>
+    <template v-else-if="name === 'x-circle'">
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+      />
+      <path d="m9 9 6 6m0-6-6 6" />
+    </template>
+    <template v-else-if="name === 'minus-circle'">
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+      />
+      <path d="M8 12h8" />
+    </template>
+    <template v-else-if="name === 'rotate'">
+      <path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4" />
+    </template>
+    <template v-else-if="name === 'x'">
+      <path d="M18 6 6 18M6 6l12 12" />
+    </template>
+    <template v-else-if="name === 'upload'">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line
+        x1="12"
+        x2="12"
+        y1="3"
+        y2="15"
       />
     </template>
   </svg>

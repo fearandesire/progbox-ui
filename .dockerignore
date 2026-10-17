@@ -1,0 +1,7 @@
+**/node_modules
+outputs
+web/dist
+api/vendor/progbox_cpp/build
+playwright-report
+test-results
+.git

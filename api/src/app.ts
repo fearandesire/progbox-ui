@@ -5,6 +5,7 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import { validateCorsConfig, corsAllowCredentials, corsAllowOrigins } from "./cors.js";
 import { registerConfigRoutes } from "./routes/config.js";
+import { registerLabRoutes } from "./routes/lab.js";
 import { registerSimsRoutes } from "./routes/sims.js";
 
 export interface BuildAppOptions {
@@ -43,6 +44,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   await registerConfigRoutes(fastify);
   await registerSimsRoutes(fastify, { scheduleBackground: schedule });
+  await registerLabRoutes(fastify);
 
   return fastify;
 }

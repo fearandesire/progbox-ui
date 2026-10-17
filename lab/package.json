@@ -1,0 +1,18 @@
+{
+  "name": "@progbox/lab",
+  "private": true,
+  "type": "module",
+  "description": "NET Lab: run any NET progression script, unchanged, against a league and report what it does.",
+  "scripts": {
+    "lab": "tsx src/cli.ts",
+    "crosscheck": "tsx src/crosscheck.ts",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "4.1.6"
+  }
+}
