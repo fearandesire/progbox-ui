@@ -47,6 +47,10 @@ That matches what NET's own README asks for: run the Worker Console code before 
 
 Lead with the checks verdict (`checks.verdict`: better, worse or mixed vs the baseline) and which checks pass or fail, then the flags. Then the numbers that changed most vs the baseline (mean ΔOVR, god progs per offseason, 75+ players after 10 seasons, age curve). Link `summary.md` and quote the run id, the script ids and the Lab and checks versions (`report.lab`) so anyone can `pnpm lab replay <manifest>`.
 
+## 3b. Share a run
+
+`pnpm lab export-html <runId> [--out <dir>]` writes `index.html` plus `report.json`, `manifest.json` and the player CSVs into `<dir>` (default `runs/<runId>/site`). The page is data only: season-by-season charts, age-band charts, the first-offseason KPIs, the checks table and the run details, with axis titles and units and no verdict text. It is self-contained static HTML, so any static host serves it.
+
 ## 4. Old runs and rule changes
 
 - `pnpm lab regrade <runId>` grades a saved run with today's checks and prints the old and new verdict side by side (`--json` for the object; it also writes `regrade.json`). Nothing is re-simulated.

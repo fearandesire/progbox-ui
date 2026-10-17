@@ -3,6 +3,7 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { diffLines } from "./diff.ts";
+import { exportRunHtml } from "./exportHtml.ts";
 import { BUILTINS, estimateRun, ingest, listRuns, regrade, regradeText, registry, replay, resolveScript, runLab, type LabEvent, type RunSpec } from "./lab.ts";
 import { addLeague, DEFAULT_LEAGUE, fetchLeagues, listLeagues, prepareLeague } from "./leagues.ts";
 import { CALLER_DIR, DATA_DIR, MODELS_DIR } from "./paths.ts";
@@ -19,6 +20,7 @@ const USAGE = `NET Lab
   pnpm lab replay <manifest.json>
   pnpm lab regrade <runId>   Grade a saved run with today's checks, side by side with its old verdict
   pnpm lab runs
+  pnpm lab export-html <runId> [--out <dir>]   A data-only HTML page (charts, tables, run details) for one run
   pnpm lab scripts list | add <file> [--family net] [--role draft] | promote <id> <role>
   pnpm lab scripts delete <id> [--runs] | restore <id>     Drafts only; kept in the trash for 7 days
   pnpm lab scripts export <id> [--original] [--out <file>] | diff <id> [--against original|<id>]
@@ -157,6 +159,13 @@ async function main() {
     }
     case "runs":
       return out(listRuns());
+    case "export-html": {
+      if (!sub) throw new Error("usage: pnpm lab export-html <runId> [--out <dir>]");
+      const runDir = path.join(DATA_DIR, "runs", sub);
+      if (!fs.existsSync(path.join(runDir, "report.json"))) throw new Error(`No finished run ${sub} in ${path.join(DATA_DIR, "runs")}`);
+      const page = exportRunHtml(runDir, values.out ? abs(values.out) : path.join(runDir, "site"));
+      return out(json ? { page } : `Wrote ${page}`);
+    }
     case "scripts": {
       const reg = registry();
       const id = rest[0];
