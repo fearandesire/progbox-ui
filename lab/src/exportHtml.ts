@@ -225,8 +225,8 @@ const fmt=v=>Math.abs(v)>=100?v.toFixed(0):Math.abs(v)>=10?v.toFixed(1):v.toFixe
 const show=(ev,h)=>{tip.innerHTML=h;tip.style.opacity=1;tip.style.left=Math.min(ev.clientX+12,innerWidth-tip.offsetWidth-8)+"px";tip.style.top=(ev.clientY-40)+"px"};
 const hide=()=>{tip.style.opacity=0};
 const W=560,H=300,L=58,R=12,T=10,B=44;
-function axes(svg,c,lo,hi){const y=v=>T+(hi-v)*(H-T-B)/(hi-lo||1);
- for(let t=0;t<=5;t++){const v=lo+(hi-lo)*t/5;el("line",{x1:L,x2:W-R,y1:y(v),y2:y(v),stroke:"var(--line)"},svg);el("text",{x:L-6,y:y(v)+4,"text-anchor":"end"},svg).textContent=fmt(v)}
+function axes(svg,c,lo,hi){const y=v=>T+(hi-v)*(H-T-B)/(hi-lo||1),digits=Math.max(0,Math.min(12,-Math.floor(Math.log10((hi-lo)/5))));
+ for(let t=0;t<=5;t++){const v=lo+(hi-lo)*t/5;el("line",{x1:L,x2:W-R,y1:y(v),y2:y(v),stroke:"var(--line)"},svg);el("text",{x:L-6,y:y(v)+4,"text-anchor":"end"},svg).textContent=v.toFixed(digits)}
  if(lo<0&&hi>0)el("line",{x1:L,x2:W-R,y1:y(0),y2:y(0),stroke:"var(--ink-3)"},svg);
  el("text",{class:"axis",x:(L+W-R)/2,y:H-4,"text-anchor":"middle"},svg).textContent=c.xTitle;
  el("text",{class:"axis",transform:"translate(14 "+((T+H-B)/2)+") rotate(-90)","text-anchor":"middle"},svg).textContent=c.yTitle;return y}
