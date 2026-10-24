@@ -72,6 +72,11 @@ function signed(v: number, digits: number): string {
 const esc = (s: unknown) =>
   String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
+function firstOffseasonNote(report: ExportableReport): string {
+  const stats = report.mode === "season" ? "the simulated season's stats" : "the file's own stats";
+  return `One NET run on ${stats}, repeated over ${report.script.kpis.runs ?? "many"} seeds.`;
+}
+
 function series(side: Side | null | undefined, key: string, start: number | undefined): Point[] | null {
   if (!side?.seasons?.length) return null;
   const pts = side.seasons.map((s) => {
@@ -127,7 +132,7 @@ export function buildChartData(report: ExportableReport) {
     ageCharts.push({
       title: "Mean OVR change by age, first offseason",
       yTitle: "ΔOVR per player",
-      note: "One NET run on the file's own stats, repeated over many seeds.",
+      note: firstOffseasonNote(report),
       x: bands,
       series: { script: bandSeries(report.script.kpis, bands), baseline: bandSeries(report.baseline?.kpis, bands), noScript: null },
     });
@@ -167,7 +172,7 @@ function kpiTable(report: ExportableReport): string {
     )
     .join("");
   return `<h2>First offseason</h2>
-<p class="note">One NET run on the file's own stats, repeated over ${esc(k.runs)} seeds.</p>
+<p class="note">${esc(firstOffseasonNote(report))}</p>
 <div class="tablewrap"><table><thead><tr><th>Measure</th><th>${esc(report.script.id)}</th>${b ? `<th>${esc(report.baseline!.id)}</th>` : ""}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 

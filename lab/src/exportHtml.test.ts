@@ -81,6 +81,15 @@ describe("export-html", () => {
     expect(renderRunHtml(quick, "q")).not.toContain("players.baseline.csv");
   });
 
+  it("labels the first-offseason data as simulated in season mode", () => {
+    const afterSeason = { ...report, mode: "season" };
+    const note = buildChartData(afterSeason).ageCharts.at(-1)?.note;
+    expect(note).toContain("the simulated season's stats");
+    const html = renderRunHtml(afterSeason, "s");
+    expect(html).toContain("the simulated season's stats");
+    expect(html).not.toContain("the file's own stats");
+  });
+
   it("writes the page next to copies of the run's data", () => {
     const run = fs.mkdtempSync(path.join(os.tmpdir(), "lab-run-"));
     fs.writeFileSync(path.join(run, "report.json"), JSON.stringify(report));
