@@ -7,8 +7,8 @@ import path from "node:path";
  * the same for any script, baseline or future Lab version. `pnpm lab export-html <runId>`.
  */
 
-type Stat = { mean: number; se: number };
-type Season = { season: number } & Record<string, Stat | number>;
+type Stat = { mean: number; se?: number };
+type Season = { season?: number } & Record<string, Stat | number | undefined>;
 type Side = { seasons: Season[]; ageCurve?: Record<string, number>; ageCurveSe?: Record<string, number> };
 type AgeBand = { n: number; meanDelta: number; se: number };
 type Kpis = Record<string, unknown> & { deltaByAge?: Record<string, AgeBand> };
@@ -23,16 +23,27 @@ type CheckItem = {
   noScript: { display: string } | null;
 };
 type Point = { mean: number; se: number } | null;
-type Chart = { title: string; yTitle: string; note: string; x: string[]; series: Record<"script" | "baseline" | "noScript", Point[] | null> };
+type Chart = { title: string; yTitle: string; xTitle?: string; note: string; x: string[]; series: Record<"script" | "baseline" | "noScript", Point[] | null> };
 export type ExportableReport = {
   mode: string;
-  lab: { version: string; commit?: string | null; checks: { version: number; rulesSha256: string }; statgen?: string | null };
-  runDetails: Record<string, unknown> & { scripts?: { id: string; sha256: string }[]; pre?: { id: string; sha256: string } | null };
-  league: { id: string; name: string; credit?: string };
+  lab?: { version?: string; commit?: string | null; checks?: { version: number; rulesSha256: string }; statgen?: string | null };
+  runDetails?: Record<string, unknown> & { scripts?: { id: string; sha256?: string }[]; pre?: { id: string; sha256?: string } | null };
+  league: { id: string; name?: string; credit?: string };
   script: { id: string; kpis: Kpis };
   baseline?: { id: string; kpis: Kpis } | null;
   checks?: { items: CheckItem[] } | null;
   deep?: { start?: Record<string, number>; script: Side; baseline?: Side | null; noScript?: Side | null } | null;
+};
+type ExportManifest = {
+  lab?: ExportableReport["lab"];
+  lab_version?: string;
+  league?: ExportableReport["league"];
+  statgen?: { version?: string } | null;
+  spec?: { seed?: number };
+  presets?: { runs?: number; replicates?: number };
+  script?: { id: string; sha256?: string };
+  baseline?: { id: string; sha256?: string } | null;
+  pre?: { id: string; sha256?: string } | null;
 };
 
 const BASIS: Record<string, string> = {
@@ -81,33 +92,37 @@ function series(side: Side | null | undefined, key: string, start: number | unde
   if (!side?.seasons?.length) return null;
   const pts = side.seasons.map((s) => {
     const v = s[key] as Stat | undefined;
-    return v ? { mean: v.mean, se: v.se } : null;
+    return v && Number.isFinite(v.mean) ? { mean: v.mean, se: v.se ?? 0 } : null;
   });
   return start === undefined ? pts : [{ mean: start, se: 0 }, ...pts];
 }
 
 function bandSeries(k: Kpis | undefined, bands: string[]): Point[] | null {
   const by = k?.deltaByAge;
-  return by ? bands.map((b) => (by[b] ? { mean: by[b].meanDelta, se: by[b].se } : null)) : null;
+  return by ? bands.map((b) => (by[b] && Number.isFinite(by[b].meanDelta) ? { mean: by[b].meanDelta, se: by[b].se ?? 0 } : null)) : null;
 }
 
 function curveSeries(side: Side | null | undefined, bands: string[]): Point[] | null {
   const c = side?.ageCurve;
-  return c ? bands.map((b) => (c[b] === undefined ? null : { mean: c[b], se: side?.ageCurveSe?.[b] ?? 0 })) : null;
+  return c ? bands.map((b) => (Number.isFinite(c[b]) ? { mean: c[b], se: side?.ageCurveSe?.[b] ?? 0 } : null)) : null;
 }
+
+const hasValues = (chart: Chart) => Object.values(chart.series).some((points) => points?.some((point) => point !== null));
 
 export function buildChartData(report: ExportableReport) {
   const deep = report.deep;
+  const timeline = [deep?.script, deep?.baseline, deep?.noScript].find((side) => side?.seasons.length)?.seasons ?? [];
   const names = { script: report.script.id, baseline: report.baseline?.id ?? null, noScript: deep?.noScript ? "No script" : null };
   const seasonCharts: Chart[] = !deep
     ? []
     : SEASON_CHARTS.map(([key, title, yTitle, note]) => {
         const start = deep.start?.[key];
-        const years = deep.script.seasons.map((s) => String(s.season));
+        const years = timeline.map((s, i) => String(s.season ?? i + 1));
         return {
           title,
           yTitle,
           note,
+          xTitle: timeline.every((s) => s.season !== undefined) ? "Season" : "Offseason",
           x: start === undefined ? years : ["Start", ...years],
           series: {
             script: series(deep.script, key, start),
@@ -137,7 +152,7 @@ export function buildChartData(report: ExportableReport) {
       series: { script: bandSeries(report.script.kpis, bands), baseline: bandSeries(report.baseline?.kpis, bands), noScript: null },
     });
   }
-  return { names, seasonCharts, ageCharts };
+  return { names, seasonCharts: seasonCharts.filter(hasValues), ageCharts: ageCharts.filter(hasValues) };
 }
 
 function checksTable(report: ExportableReport): string {
@@ -177,19 +192,20 @@ function kpiTable(report: ExportableReport): string {
 }
 
 function detailsTable(report: ExportableReport): string {
-  const d = report.runDetails;
+  const d = report.runDetails ?? {};
+  const scriptLabel = (s: { id: string; sha256?: string }) => `${s.id}${s.sha256 ? ` (${s.sha256.slice(0, 8)})` : ""}`;
   const rows: [string, unknown][] = [
-    ["League", `${report.league.name}${report.league.credit ? ` (${report.league.credit})` : ""}`],
+    ["League", `${report.league.name ?? report.league.id}${report.league.credit ? ` (${report.league.credit})` : ""}`],
     ["NET runs", d.netRuns],
     ["Games simulated", d.gamesSimulated === undefined ? undefined : d.gamesSimulated ? "Yes (StatGen, fit to BBGM output)" : "No"],
     ["Stats NET read", d.statsRead],
     ["Runs", d.runs],
     ["Seed", d.seed],
-    ["Scripts", (d.scripts ?? []).map((s) => `${s.id} (${s.sha256.slice(0, 8)})`).join(", ")],
-    ["Pre-progs hook", d.pre ? `${d.pre.id} (${d.pre.sha256.slice(0, 8)})` : "none"],
-    ["NET Lab", `${report.lab.version}${report.lab.commit ? `, commit ${report.lab.commit}` : ""}`],
-    ["Checks", `v${report.lab.checks.version}, rules ${report.lab.checks.rulesSha256.slice(0, 8)}`],
-    ["StatGen", report.lab.statgen ?? "n/a"],
+    ["Scripts", (d.scripts ?? []).map(scriptLabel).join(", ")],
+    ["Pre-progs hook", d.pre === undefined ? undefined : d.pre ? scriptLabel(d.pre) : "none"],
+    ["NET Lab", report.lab?.version ? `${report.lab.version}${report.lab.commit ? `, commit ${report.lab.commit}` : ""}` : undefined],
+    ["Checks", report.lab?.checks ? `v${report.lab.checks.version}, rules ${report.lab.checks.rulesSha256.slice(0, 8)}` : undefined],
+    ["StatGen", report.lab?.statgen],
   ];
   const body = rows
     .filter(([, v]) => v !== undefined && v !== null && v !== "")
@@ -236,7 +252,8 @@ function tipText(c,i){return "<b>"+h(c.x[i])+"</b><br>"+KEYS.filter(k=>c.series[
 function line(svg,c){const[lo,hi]=bounds(c),n=c.x.length,x=i=>L+i*(W-L-R)/(n-1||1),y=axes(svg,c,lo,hi);
  c.x.forEach((lab,i)=>{if(n<=12||i%2===0)el("text",{x:x(i),y:H-B+16,"text-anchor":"middle"},svg).textContent=lab});
  for(const k of KEYS){const s=c.series[k];if(!s)continue;
-  el("path",{d:s.map((p,i)=>p?(i&&s[i-1]?"L":"M")+x(i)+" "+y(p.mean):"").join(" "),fill:"none",stroke:"var(--"+k+")","stroke-width":2,"stroke-linejoin":"round","stroke-linecap":"round"},svg)}
+  el("path",{d:s.map((p,i)=>p?(i&&s[i-1]?"L":"M")+x(i)+" "+y(p.mean):"").join(" "),fill:"none",stroke:"var(--"+k+")","stroke-width":2,"stroke-linejoin":"round","stroke-linecap":"round"},svg);
+  if(s.filter(Boolean).length===1){const i=s.findIndex(Boolean);el("circle",{cx:x(i),cy:y(s[i].mean),r:3,fill:"var(--"+k+")"},svg)}}
  const cross=el("line",{y1:T,y2:H-B,stroke:"var(--ink-3)",opacity:0},svg),dots=KEYS.map(k=>el("circle",{r:4,fill:"var(--"+k+")",stroke:"var(--panel)","stroke-width":2,opacity:0},svg));
  const hit=el("rect",{x:L,y:T,width:W-L-R,height:H-T-B,fill:"transparent"},svg);
  hit.addEventListener("pointermove",ev=>{const p=svg.createSVGPoint();p.x=ev.clientX;p.y=ev.clientY;const q=p.matrixTransform(svg.getScreenCTM().inverse());const i=Math.max(0,Math.min(n-1,Math.round((q.x-L)/((W-L-R)/(n-1||1)))));
@@ -262,7 +279,7 @@ export function renderRunHtml(report: ExportableReport, runId: string): string {
   const figure = (group: string, i: number, c: Chart) =>
     `<figure><h3>${esc(c.title)}</h3><p class="note">${esc(c.note)}</p><svg data-chart="${group}:${i}" viewBox="0 0 560 300" role="img" aria-label="${esc(c.title)}, ${esc(c.yTitle)}"></svg></figure>`;
   const seasons = data.seasonCharts.length
-    ? `<h2>Season by season</h2><p class="note">Mean of ${esc(report.runDetails.runs)} runs; hover for values and ± one standard error. "No script" is the same league with BBGM-style development only.</p>
+    ? `<h2>Season by season</h2><p class="note">Mean of ${esc(report.runDetails?.runs ?? "the recorded")} runs; hover for values and ± one standard error. "No script" is the same league with BBGM-style development only.</p>
 <div class="legend">${legend}</div><div class="charts">${data.seasonCharts.map((c, i) => figure("seasonCharts", i, c)).join("")}</div>`
     : "";
   const ages = data.ageCharts.length
@@ -273,11 +290,11 @@ export function renderRunHtml(report: ExportableReport, runId: string): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
-<meta name="description" content="NET Lab run ${esc(runId)}: ${esc(title)} on ${esc(report.league.name)}.">
+<meta name="description" content="NET Lab run ${esc(runId)}: ${esc(title)} on ${esc(report.league.name ?? report.league.id)}.">
 <style>${CSS}</style></head>
 <body><main>
 <h1>${esc(title)}</h1>
-<p class="meta">NET Lab run ${esc(runId)} · ${esc(report.runDetails.netRuns ?? report.mode)} · ${esc(report.league.name)}</p>
+<p class="meta">NET Lab run ${esc(runId)} · ${esc(report.runDetails?.netRuns ?? report.mode)} · ${esc(report.league.name ?? report.league.id)}</p>
 ${seasons}
 ${ages}
 ${kpiTable(report)}
@@ -293,7 +310,16 @@ ${detailsTable(report)}
 
 /** Writes index.html plus the run's data files into `outDir`. Returns the page path. */
 export function exportRunHtml(runDir: string, outDir: string): string {
-  const report = JSON.parse(fs.readFileSync(path.join(runDir, "report.json"), "utf8")) as ExportableReport;
+  const saved = JSON.parse(fs.readFileSync(path.join(runDir, "report.json"), "utf8")) as ExportableReport;
+  const manifestPath = path.join(runDir, "manifest.json");
+  const manifest: ExportManifest = fs.existsSync(manifestPath) ? JSON.parse(fs.readFileSync(manifestPath, "utf8")) : {};
+  const scripts = [manifest.script, manifest.baseline].filter((s): s is NonNullable<typeof s> => !!s);
+  const report: ExportableReport = {
+    ...saved,
+    league: { ...manifest.league, ...saved.league },
+    lab: { version: manifest.lab_version, statgen: manifest.statgen?.version, ...manifest.lab, ...saved.lab },
+    runDetails: { runs: saved.mode === "quick" ? manifest.presets?.runs : manifest.presets?.replicates, seed: manifest.spec?.seed, scripts, pre: manifest.pre, ...saved.runDetails },
+  };
   fs.mkdirSync(outDir, { recursive: true });
   for (const f of ["report.json", "manifest.json", "players.csv", "players.baseline.csv"]) {
     const src = path.join(runDir, f);

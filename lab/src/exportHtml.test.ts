@@ -100,4 +100,50 @@ describe("export-html", () => {
     expect(fs.existsSync(path.join(out, "report.json"))).toBe(true);
     expect(fs.existsSync(path.join(out, "players.csv"))).toBe(true);
   });
+
+  it("exports a legacy report using only recorded metadata", () => {
+    const old: ExportableReport = {
+      mode: "deep",
+      league: { id: "legacy" },
+      script: { id: "net@4.3.0", kpis: kpis(-1) },
+      deep: { script: { seasons: [{ leagueMeanOvr: stat(50), count75: stat(2), count80: stat(1), god: stat(3) }] } },
+    };
+    expect(renderRunHtml(old, "legacy")).not.toContain("<th>NET Lab</th>");
+    const run = fs.mkdtempSync(path.join(os.tmpdir(), "lab-legacy-"));
+    try {
+      fs.writeFileSync(path.join(run, "report.json"), JSON.stringify(old));
+      fs.writeFileSync(path.join(run, "manifest.json"), JSON.stringify({ lab_version: "0.2.0", league: { id: "legacy", name: "Legacy league" }, spec: { seed: 123 }, presets: { replicates: 40 } }));
+      const page = exportRunHtml(run, path.join(run, "site"));
+      const html = fs.readFileSync(page, "utf8");
+      expect(html).toContain("Legacy league");
+      expect(html).toContain("0.2.0");
+      expect(html).toContain("<th>Seed</th><td>123</td>");
+      expect(html).toContain("Mean of 40 runs");
+      expect(html).not.toContain("<th>Checks</th>");
+      expect(buildChartData(old).seasonCharts[0]?.x).toEqual(["1"]);
+      expect(buildChartData(old).seasonCharts[0]?.xTitle).toBe("Offseason");
+    } finally {
+      fs.rmSync(run, { recursive: true, force: true });
+    }
+  });
+
+  it("omits empty charts when every replicate failed", () => {
+    const failed: ExportableReport = {
+      ...report,
+      script: { ...report.script, kpis: { runs: 200, deltaByAge: {} } },
+      baseline: null,
+      deep: { script: { seasons: [], ageCurve: {} } },
+    };
+    expect(buildChartData(failed).seasonCharts).toHaveLength(0);
+    expect(buildChartData(failed).ageCharts).toHaveLength(0);
+    expect(renderRunHtml(failed, "failed")).not.toContain("<svg");
+  });
+
+  it("keeps comparison seasons aligned when only the script failed", () => {
+    const partial: ExportableReport = { ...report, deep: { ...report.deep!, script: { seasons: [] } } };
+    const chart = buildChartData(partial).seasonCharts[0];
+    expect(chart.x).toEqual(["Start", "2026", "2027"]);
+    expect(chart.series.script).toBeNull();
+    expect(chart.series.baseline).toHaveLength(3);
+  });
 });
