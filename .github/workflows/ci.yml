@@ -117,7 +117,8 @@ jobs:
         run: pnpm run lab:crosscheck --runs 200
 
   e2e-smoke:
-    runs-on: ubuntu-latest
+    # Playwright 1.60.0 supports Ubuntu 24.04, but not Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -143,9 +144,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+          key: playwright-ubuntu-24.04-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
 
-      # ubuntu-latest images already ship Chromium's system libraries, so we skip
+      # Ubuntu 24.04 runner images already ship Chromium's system libraries, so we skip
       # --with-deps: its apt-get update has hung CI on flaky Azure mirrors before.
       - name: Install Playwright Chromium
         timeout-minutes: 5
