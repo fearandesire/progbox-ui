@@ -1,0 +1,18 @@
+name: ready-when-green
+
+# Fires after any listed workflow finishes; the reusable workflow re-checks the whole
+# check set, so the last workflow to finish is the one that flips the PR to ready.
+on:
+  workflow_run:
+    workflows: ["CI", "E2E Full (Manual)", "Claude", "Copilot code review", "Copilot cloud agent", "Dependabot Updates", "Dependency Graph"]
+    types: [completed]
+
+jobs:
+  ready:
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+      statuses: read
+    uses: fearandesire/ci-shared/.github/workflows/ready-when-green.yml@v2
+    secrets: inherit
